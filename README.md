@@ -36,6 +36,7 @@ Think of it as a competent colleague who handles tasks autonomously and only tap
 - **Background execution** — AI works while you focus on other things
 - **Minimal interruption** — Permission requests and decisions surface only when required
 - **Ambient status** — A subtle menu bar indicator shows progress without demanding attention
+- **Local-first** — All data stays on your machine. Nothing is sent to the cloud except AI model requests.
 - **Native experience** — Built with SwiftUI and AppKit for seamless macOS integration
 - **Multi-provider** — Works with Claude, OpenAI, or local Ollama
 
