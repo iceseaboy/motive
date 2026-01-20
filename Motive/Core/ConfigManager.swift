@@ -804,6 +804,7 @@ final class ConfigManager: ObservableObject {
             Log.config(" WARNING - Node not found in PATH. MCP will use /usr/bin/env node")
         }
         
+        // System prompt - keep it simple and direct
         let systemPrompt = """
 <important name="user-communication">
 CRITICAL: The user CANNOT see your text output or CLI prompts!

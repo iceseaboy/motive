@@ -155,6 +155,7 @@ struct SettingsView: View {
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case model
+    case permissions
     case advanced
     
     var id: String { rawValue }
@@ -163,6 +164,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "General"
         case .model: return "AI Provider"
+        case .permissions: return "Permissions"
         case .advanced: return "Advanced"
         }
     }
@@ -171,6 +173,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "Startup, appearance, and keyboard shortcuts"
         case .model: return "Configure your AI provider and API credentials"
+        case .permissions: return "File operation policies and safety rules"
         case .advanced: return "Binary paths and debug options"
         }
     }
@@ -179,6 +182,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .model: return "cpu.fill"
+        case .permissions: return "lock.shield.fill"
         case .advanced: return "wrench.and.screwdriver.fill"
         }
     }
@@ -190,6 +194,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             GeneralSettingsView()
         case .model:
             ModelConfigView()
+        case .permissions:
+            PermissionPolicyView()
         case .advanced:
             AdvancedSettingsView()
         }

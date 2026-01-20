@@ -4,15 +4,8 @@ import Network
 
 // MARK: - Permission Request Types
 
-/// File operation types matching OpenCode CLI
-enum FileOperation: String, Codable {
-    case create
-    case delete
-    case rename
-    case move
-    case modify
-    case overwrite
-}
+// Note: FileOperation is defined in FileOperationPolicy.swift with additional types:
+// create, delete, rename, move, modify, overwrite, readBinary, execute
 
 /// Permission request type
 enum PermissionRequestType: String, Codable {
@@ -308,6 +301,12 @@ class PermissionManager: ObservableObject {
         }
     }
     
+    /// Clear session-level permission decisions (call on new session)
+    func clearSessionDecisions() {
+        FileOperationPolicy.shared.clearSessionDecisions()
+        Log.permission(" Cleared session permission decisions")
+    }
+    
     // MARK: - Internal handlers
     
     private func handleFilePermissionRequest(_ rawRequest: [String: Any]) async -> Bool {
@@ -320,19 +319,59 @@ class PermissionManager: ObservableObject {
             return false
         }
         
+        let filePath = rawRequest["filePath"] as? String
+        let filePaths = rawRequest["filePaths"] as? [String]
+        
+        // Check policy for each path
+        let pathsToCheck = filePaths ?? (filePath.map { [$0] } ?? [])
+        let policy = FileOperationPolicy.shared
+        
+        // Evaluate policy for all paths
+        var autoDecision: Bool? = nil
+        for path in pathsToCheck {
+            let (shouldAsk, defaultAllow) = policy.shouldRequestPermission(for: operation, path: path)
+            
+            if !shouldAsk {
+                // Policy has an auto-decision
+                if let allow = defaultAllow {
+                    if allow == false {
+                        // Any denial means deny all
+                        Log.permission(" Auto-denied by policy for path: \(path)")
+                        return false
+                    }
+                    autoDecision = true
+                }
+            } else {
+                // At least one path requires asking
+                autoDecision = nil
+                break
+            }
+        }
+        
+        // If policy auto-allows all paths, return immediately
+        if let decision = autoDecision, decision == true {
+            Log.permission(" Auto-allowed by policy for all paths")
+            return true
+        }
+        
+        // Otherwise, show request to user
         let request = PermissionRequest(
             id: requestId,
             taskId: taskId,
             type: .file,
             fileOperation: operation,
-            filePath: rawRequest["filePath"] as? String,
-            filePaths: rawRequest["filePaths"] as? [String],
+            filePath: filePath,
+            filePaths: filePaths,
             targetPath: rawRequest["targetPath"] as? String,
             contentPreview: (rawRequest["contentPreview"] as? String)?.prefix(500).description
         )
         
         return await withCheckedContinuation { continuation in
             pendingRequests[requestId] = { allowed in
+                // Record decision for askOnce policy
+                for path in pathsToCheck {
+                    policy.recordDecision(for: operation, path: path, allowed: allowed)
+                }
                 continuation.resume(returning: allowed)
             }
             

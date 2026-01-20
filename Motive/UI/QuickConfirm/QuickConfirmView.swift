@@ -341,6 +341,8 @@ struct QuickConfirmView: View {
         case .move: return "Move"
         case .modify: return "Modify"
         case .overwrite: return "Overwrite"
+        case .readBinary: return "Read"
+        case .execute: return "Execute"
         }
     }
     

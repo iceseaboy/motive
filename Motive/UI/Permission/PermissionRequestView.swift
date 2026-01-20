@@ -361,11 +361,11 @@ struct PermissionRequestView: View {
         switch operation {
         case .delete:
             return Color.red.opacity(0.1)
-        case .overwrite:
+        case .overwrite, .execute:
             return Color.orange.opacity(0.1)
         case .modify:
             return Color.yellow.opacity(0.1)
-        case .create:
+        case .create, .readBinary:
             return Color.green.opacity(0.1)
         case .rename, .move:
             return Color.blue.opacity(0.1)
