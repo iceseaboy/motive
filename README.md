@@ -52,7 +52,7 @@ Download the latest release for your architecture:
 | Apple Silicon | [Motive-arm64.dmg](https://github.com/geezerrrr/motive/releases/latest) |
 | Intel | [Motive-x86_64.dmg](https://github.com/geezerrrr/motive/releases/latest) |
 
-> **First launch:** Right-click → Open (or run `xattr -cr /Applications/Motive.app`)
+> **First launch:** If blocked, go to System Settings → Privacy & Security → Click "Open Anyway"
 
 ### Configure
 
