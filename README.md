@@ -5,8 +5,8 @@
 <h1 align="center">Motive</h1>
 
 <p align="center">
-  <strong>A minimalist personal AI companion for macOS that executes intents in the background.</strong><br>
-  No chat windows, no distractions—just a silent partner that gets things done while you stay in your flow.
+  <strong>Say it. Walk away.</strong><br>
+  <sub>A macOS-native AI agent that works in the background while you stay in your flow.</sub>
 </p>
 
 <p align="center">
@@ -17,29 +17,34 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
 </p>
 
-<p align="center">
-  <img src="assets/demo.gif" width="600" alt="Demo">
-</p>
-
 ---
 
 ## Why Motive?
 
-Traditional AI interfaces demand your attention. You type, wait, watch, respond, wait again. That's fine for questions—but absurd for tasks.
+Today's AI tools keep you hostage — Cursor locks you in a window, Claude Code blocks your terminal. Switch away, and you'll miss prompts or return to a stale `[Y/n]` that's been waiting for minutes.
 
-**Motive inverts this paradigm.** Describe what you want, then forget about it. The AI works silently in the background. You get interrupted only when a decision is needed.
+**Motive lives in your menu bar.** AI works in the background. When it needs you, a lightweight popup drops down from the menu bar — no need to switch apps. One click, done, back to your flow.
 
-Think of it as a competent colleague who handles tasks autonomously and only taps your shoulder when necessary.
+| | Desktop Apps | CLI Tools | **Motive** |
+|---|---|---|---|
+| **Where it lives** | App window | Terminal | Menu bar |
+| **Permission prompts** | Buried in UI | Blocks terminal | Menu bar popup |
+| **Switch apps?** | Miss responses | Hangs silently | AI finds you |
 
 ## Features
 
-- **Intent-first interaction** — Describe tasks in natural language via a Spotlight-like command bar
-- **Background execution** — AI works while you focus on other things
-- **Minimal interruption** — Permission requests and decisions surface only when required
-- **Ambient status** — A subtle menu bar indicator shows progress without demanding attention
-- **Local-first** — All data stays on your machine. Nothing is sent to the cloud except AI model requests
-- **Native experience** — Built with SwiftUI and AppKit for seamless macOS integration
-- **Multi-provider** — Works with Claude, OpenAI, Gemini, or local Ollama
+- **Intent-first** — Describe tasks in natural language, press Enter, done. No conversation needed.
+- **True background execution** — AI works as a background process, like compiling or rendering.
+- **Menu bar notifications** — Permission requests drop down from the menu bar, not buried in an app window.
+- **Ambient status** — A subtle menu bar icon shows progress without demanding attention.
+- **You are the final arbiter** — Like macOS system permission dialogs, you approve only what matters.
+- **Local-first** — All data stays on your machine. Only AI API requests leave your device.
+- **Native macOS** — Built with SwiftUI and AppKit. No Electron, no web views.
+- **Multi-provider** — Claude, OpenAI, Gemini, or fully local with Ollama.
+
+### How it works
+
+https://github.com/user-attachments/assets/355e6ff9-97de-459f-b488-8a09b2693e5e
 
 ## Quick Start
 
@@ -94,41 +99,47 @@ The OpenCode binary is bundled automatically during release builds. For developm
 ## FAQ
 
 <details>
+<summary><strong>How is this different from Cursor / Claude Desktop / Claude Code / Gemini CLI?</strong></summary>
+
+**Desktop apps** (Cursor, Claude Desktop) are **window-locked** — you must stay in their interface.
+
+**CLI tools** (Claude Code, Gemini CLI) are **terminal-locked** — if you switch away, the terminal hangs waiting for input. You come back to find a cryptic `[Y/n]` prompt that's been sitting there for 20 minutes.
+
+**Motive** lives in your menu bar — the AI runs as a background process. When it needs your input, a popup drops down from the menu bar. One click, done, back to your flow.
+
+Think: desktop apps are like a colleague who insists you sit in their office. CLI tools are like someone who emails you but marks it "urgent" with no notification. Motive is like a colleague who taps your shoulder only when necessary, handles everything else autonomously.
+</details>
+
+<details>
 <summary><strong>Why does Motive need Accessibility permission?</strong></summary>
 
-Accessibility permission is required to register the global hotkey (`⌥Space`) that summons the command bar from anywhere on your system. Without it, you can only use Motive by clicking the menu bar icon.
+To register the global hotkey (`⌥Space`) that summons the command bar from anywhere. Without it, you'd need to click the menu bar icon every time.
 </details>
 
 <details>
 <summary><strong>Is my data sent to the cloud?</strong></summary>
 
-Motive is local-first. Your conversations and session history are stored only on your machine. The only network traffic is between Motive and your chosen AI provider (Claude, OpenAI, Gemini, or local Ollama) when processing intents.
+Motive is local-first. Sessions and history stay on your machine. The only network traffic is API requests to your chosen AI provider. Use Ollama for 100% offline operation.
 </details>
 
 <details>
-<summary><strong>Can I use Motive with a local LLM?</strong></summary>
+<summary><strong>Can I use a local LLM?</strong></summary>
 
-Yes! Select "Ollama" as your provider and point it to your local Ollama instance. This keeps everything on your machine with zero cloud dependency.
+Yes. Select Ollama as your provider and point it to your local instance. Zero cloud dependency.
 </details>
 
 <details>
-<summary><strong>How is this different from ChatGPT/Claude web apps?</strong></summary>
+<summary><strong>What can Motive do?</strong></summary>
 
-Traditional AI interfaces are chat-centric—you watch the conversation unfold. Motive is task-centric—you describe what you want, then continue your work while AI handles it in the background. You only get interrupted when a decision is needed.
-</details>
-
-<details>
-<summary><strong>What can I ask Motive to do?</strong></summary>
-
-Anything you'd ask an AI coding assistant: refactor code, generate files, run scripts, organize projects, write documentation, and more. Motive passes your intent to OpenCode, which has full access to your filesystem and terminal.
+Anything an AI coding agent can do: refactor code, generate files, run scripts, organize projects, write docs, and more. Motive passes your intent to OpenCode, which has full filesystem and terminal access.
 </details>
 
 ## Roadmap
 
+- [x] **Multi-language UI** — English, 简体中文, 日本語
 - [ ] **Multi-task concurrency** — Run multiple tasks in parallel with independent progress tracking
 - [ ] **Browser automation** — Full support for web scraping, form filling, and browser-based workflows
 - [ ] **Task templates** — Save and reuse common task patterns with customizable parameters
-- [ ] **Multi-language UI** — Localized interface for global users
 - [ ] Homebrew Cask distribution
 
 ## Acknowledgments
@@ -142,7 +153,7 @@ Powered by [OpenCode](https://github.com/opencode-ai/opencode) — the open-sour
 </p>
 
 <p align="center">
-  <sub>Let AI work. Stay in your flow.</sub>
+  <sub>Let AI wait for you, so you don't have to wait for it.</sub>
 </p>
 
 <p align="center">
