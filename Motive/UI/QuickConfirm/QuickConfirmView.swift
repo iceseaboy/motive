@@ -263,12 +263,12 @@ struct QuickConfirmView: View {
             HStack(spacing: 8) {
                 Spacer()
                 
-                Button("Deny") {
+                Button(L10n.deny) {
                     onResponse("denied")
                 }
                 .buttonStyle(QuickConfirmButtonStyle(isPrimary: false))
                 
-                Button("Allow") {
+                Button(L10n.allow) {
                     onResponse("approved")
                 }
                 .buttonStyle(QuickConfirmButtonStyle(isPrimary: true))
@@ -368,7 +368,7 @@ struct QuickConfirmButtonStyle: ButtonStyle {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isPrimary ? Color.blue : Color.primary.opacity(0.08))
+                    .fill(isPrimary ? Color.Velvet.primary : Color.primary.opacity(0.08))
             )
             .opacity(configuration.isPressed ? 0.8 : 1)
     }

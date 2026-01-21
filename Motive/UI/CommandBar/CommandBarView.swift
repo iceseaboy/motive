@@ -47,20 +47,12 @@ struct CommandBarView: View {
         .frame(width: 640)
         .background(commandBarBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        // Metallic border effect
+        // Soft uniform border
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    LinearGradient(
-                        stops: [
-                            .init(color: isDark ? Color.white.opacity(0.35) : Color.white.opacity(0.9), location: 0),
-                            .init(color: isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.3), location: 0.5),
-                            .init(color: isDark ? Color.white.opacity(0.15) : Color.white.opacity(0.5), location: 1)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
+                    isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.08),
+                    lineWidth: 0.5
                 )
         )
         // Outer shadow for depth

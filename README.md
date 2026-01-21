@@ -17,6 +17,10 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
 </p>
 
+<p align="center">
+  <img src="assets/demo.gif" width="600" alt="Demo">
+</p>
+
 ---
 
 ## Why Motive?
@@ -42,9 +46,6 @@ Today's AI tools keep you hostage — Cursor locks you in a window, Claude Code 
 - **Native macOS** — Built with SwiftUI and AppKit. No Electron, no web views.
 - **Multi-provider** — Claude, OpenAI, Gemini, or fully local with Ollama.
 
-### How it works
-
-https://github.com/user-attachments/assets/99a05dee-bdcc-43bd-beae-5289fb93e4e3
 ## Quick Start
 
 ### Install

@@ -74,6 +74,8 @@ final class AppState: ObservableObject {
                 .environmentObject(self)
                 .environmentObject(configManager)
         )
+        // Configure settings window controller
+        SettingsWindowController.shared.configure(configManager: configManager, appState: self)
         updateStatusBar()
     }
     
@@ -575,7 +577,7 @@ final class AppState: ObservableObject {
 
 extension AppState: StatusBarControllerDelegate {
     func statusBarDidRequestSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        SettingsWindowController.shared.show()
     }
 
     func statusBarDidRequestQuit() {

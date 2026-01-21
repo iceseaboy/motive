@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import SwiftUI
 
 @MainActor
 protocol StatusBarControllerDelegate: AnyObject {
@@ -61,6 +62,8 @@ final class StatusBarController {
     private weak var delegate: StatusBarControllerDelegate?
     private var animationTimer: Timer?
     private var animationDots = 0
+    private var notificationPanel: NSPanel?
+    private var notificationDismissTask: Task<Void, Never>?
 
     init(delegate: StatusBarControllerDelegate) {
         self.delegate = delegate
@@ -101,6 +104,7 @@ final class StatusBarController {
     
     func showCompleted() {
         updateDisplay(state: .completed)
+        showNotification(type: .success)
         // Auto-revert to idle after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.updateDisplay(state: .idle)
@@ -109,10 +113,77 @@ final class StatusBarController {
     
     func showError() {
         updateDisplay(state: .error)
+        showNotification(type: .error)
         // Auto-revert to idle after 3 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             self?.updateDisplay(state: .idle)
         }
+    }
+    
+    // MARK: - Notification Popup
+    
+    private func showNotification(type: StatusNotificationType) {
+        // Dismiss existing
+        dismissNotification()
+        
+        let view = StatusNotificationView(type: type) { [weak self] in
+            self?.dismissNotification()
+        }
+        
+        let hostingView = NSHostingView(rootView: view)
+        let size = hostingView.fittingSize
+        
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.level = .popUpMenu
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.contentView = hostingView
+        
+        // Position below status bar button
+        if let anchor = buttonFrame {
+            let x = anchor.midX - size.width / 2
+            let y = anchor.minY - size.height - 8
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+        
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            panel.animator().alphaValue = 1
+        }
+        
+        notificationPanel = panel
+        
+        // Auto dismiss after 2.5 seconds
+        notificationDismissTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.dismissNotification()
+        }
+    }
+    
+    private func dismissNotification() {
+        notificationDismissTask?.cancel()
+        notificationDismissTask = nil
+        
+        guard let panel = notificationPanel else { return }
+        
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.1
+            panel.animator().alphaValue = 0
+        }, completionHandler: {
+            panel.orderOut(nil)
+        })
+        notificationPanel = nil
     }
     
     private func updateDisplay(state: StatusBarDisplayState) {
@@ -188,12 +259,17 @@ final class StatusBarController {
     }
 
     private func configureMenu() {
-        let commandItem = NSMenuItem(title: L10n.CommandBar.submit, action: #selector(openCommandBar), keyEquivalent: "")
+        let commandItem = NSMenuItem(title: L10n.StatusBar.commandBar, action: #selector(openCommandBar), keyEquivalent: "")
         commandItem.target = self
+        commandItem.image = NSImage(systemSymbolName: "command", accessibilityDescription: nil)
+        
         let settingsItem = NSMenuItem(title: L10n.StatusBar.settings, action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        
         let quitItem = NSMenuItem(title: L10n.StatusBar.quit, action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
+        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
 
         menu.addItem(commandItem)
         menu.addItem(settingsItem)

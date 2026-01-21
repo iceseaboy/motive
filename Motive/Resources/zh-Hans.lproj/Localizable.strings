@@ -171,8 +171,9 @@
 "statusbar.idle" = "Motive";
 "statusbar.reasoning" = "思考中...";
 "statusbar.executing" = "执行中...";
-"statusbar.settings" = "设置...";
-"statusbar.quit" = "退出 Motive";
+"statusbar.command_bar" = "命令栏";
+"statusbar.settings" = "设置";
+"statusbar.quit" = "退出";
 
 // MARK: - Errors
 "error.no_api_key" = "未配置 API 密钥";

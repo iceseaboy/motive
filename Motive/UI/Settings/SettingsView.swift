@@ -61,7 +61,7 @@ struct SettingsView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color.Velvet.textPrimary)
                     
-                    Text("v0.1.0")
+                    Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.Velvet.textMuted)
                 }

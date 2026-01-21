@@ -187,6 +187,7 @@ enum L10n {
         static let idle = "statusbar.idle".localized
         static let reasoning = "statusbar.reasoning".localized
         static let executing = "statusbar.executing".localized
+        static let commandBar = "statusbar.command_bar".localized
         static let settings = "statusbar.settings".localized
         static let quit = "statusbar.quit".localized
     }

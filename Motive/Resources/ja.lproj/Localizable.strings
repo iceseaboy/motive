@@ -171,8 +171,9 @@
 "statusbar.idle" = "Motive";
 "statusbar.reasoning" = "考え中...";
 "statusbar.executing" = "実行中...";
-"statusbar.settings" = "設定...";
-"statusbar.quit" = "Motiveを終了";
+"statusbar.command_bar" = "コマンドバー";
+"statusbar.settings" = "設定";
+"statusbar.quit" = "終了";
 
 // MARK: - Errors
 "error.no_api_key" = "APIキーが設定されていません";

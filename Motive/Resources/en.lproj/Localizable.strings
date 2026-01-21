@@ -155,7 +155,7 @@
 "drawer.input.placeholder" = "Send a follow-up...";
 "drawer.message.placeholder" = "Message...";
 "drawer.start_conversation" = "Start a Conversation";
-"drawer.start_hint" = "Type below or press ⌥Space\nto open the command bar";
+"drawer.start_hint" = "Type below or press ⌥Space\nto open the Command Bar";
 "drawer.history" = "History";
 "drawer.no_history" = "No history yet";
 "drawer.assistant" = "Assistant";
@@ -171,8 +171,9 @@
 "statusbar.idle" = "Motive";
 "statusbar.reasoning" = "Thinking...";
 "statusbar.executing" = "Working...";
-"statusbar.settings" = "Settings...";
-"statusbar.quit" = "Quit Motive";
+"statusbar.command_bar" = "Command Bar";
+"statusbar.settings" = "Settings";
+"statusbar.quit" = "Quit";
 
 // MARK: - Errors
 "error.no_api_key" = "API key not configured";
