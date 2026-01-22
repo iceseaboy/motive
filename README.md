@@ -4,10 +4,8 @@
 
 <h1 align="center">Motive</h1>
 
-<p align="center">
-  <strong>Say it. Walk away.</strong><br>
-  <sub>A macOS-native AI agent that works in the background while you stay in your flow.</sub>
-</p>
+<h3 align="center"><strong>Say it. Walk away.</strong></h3>
+<p align="center">A macOS-native AI agent that works in the background while you stay in your flow.</p>
 
 <p align="center">
   <a href="https://github.com/geezerrrr/motive/releases"><img src="https://img.shields.io/badge/release-v0.2.1-blue?style=flat-square" alt="Release"></a>
@@ -41,6 +39,8 @@ Today's AI tools keep you hostage — Cursor locks you in a window, Claude Code 
 - **Local-first** — All data stays on your machine. Only AI API requests leave your device.
 - **Native macOS** — Built with SwiftUI and AppKit. No Electron, no web views.
 - **Multi-provider** — Claude, OpenAI, Gemini, or fully local with Ollama.
+
+## Screenshots & Demo
 
 <p align="center">
 
