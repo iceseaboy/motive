@@ -301,15 +301,20 @@ final class ConfigManager: ObservableObject {
         
         // Determine provider prefix
         let providerPrefix: String
+        let defaultModel: String
         switch provider {
         case .claude:
             providerPrefix = "anthropic"
+            defaultModel = "claude-sonnet-4-5-20250929"
         case .openai:
             providerPrefix = "openai"
+            defaultModel = "gpt-5.1-codex"
         case .gemini:
             providerPrefix = "google"
+            defaultModel = "gemini-3-pro-preview"
         case .ollama:
             providerPrefix = "ollama"
+            defaultModel = "llama3"
         }
         
         // If model name is provided, use it
@@ -322,17 +327,8 @@ final class ConfigManager: ObservableObject {
             return "\(providerPrefix)/\(modelValue)"
         }
         
-        // Default models for each provider
-        switch provider {
-        case .claude:
-            return "anthropic/claude-sonnet-4-5-20250929"
-        case .openai:
-            return "openai/gpt-5.1-codex"
-        case .gemini:
-            return "google/gemini-3-pro-preview"
-        case .ollama:
-            return "ollama/llama3"
-        }
+        // Use default model for provider
+        return "\(providerPrefix)/\(defaultModel)"
     }
     
     // MARK: - Binary Storage Directory
@@ -606,6 +602,8 @@ final class ConfigManager: ObservableObject {
         // This is critical because /bin/sh doesn't load user's shell config
         environment["PATH"] = buildExtendedPath(base: environment["PATH"])
         environment["TERM"] = "dumb"
+        environment["NO_COLOR"] = "1"
+        environment["FORCE_COLOR"] = "0"
         environment["CI"] = "1"
         environment["OPENCODE_NO_INTERACTIVE"] = "1"
         
@@ -634,24 +632,8 @@ final class ConfigManager: ObservableObject {
             Log.config(" WARNING - No API key configured!")
         }
         
-        let baseURLValue = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !baseURLValue.isEmpty {
-            switch provider {
-            case .claude:
-                environment["ANTHROPIC_BASE_URL"] = baseURLValue
-                Log.config(" Using Anthropic base URL: \(baseURLValue)")
-            case .openai:
-                environment["OPENAI_BASE_URL"] = baseURLValue
-                environment["OPENAI_API_BASE"] = baseURLValue
-                Log.config(" Using OpenAI base URL: \(baseURLValue)")
-            case .gemini:
-                environment["GOOGLE_BASE_URL"] = baseURLValue
-                Log.config(" Using Google base URL: \(baseURLValue)")
-            case .ollama:
-                environment["OLLAMA_HOST"] = baseURLValue
-                Log.config(" Using Ollama host: \(baseURLValue)")
-            }
-        }
+        // Note: baseURL is configured via opencode.json provider.options.baseURL
+        // Environment variables are not needed as OpenCode reads from config file
         
         if debugMode {
             environment["DEBUG"] = "1"
@@ -800,23 +782,27 @@ final class ConfigManager: ObservableObject {
             auth = existing
         }
         
-        // Sync all providers' API keys
-        let providerMappings: [(Provider, String)] = [
-            (.claude, "anthropic"),
-            (.openai, "openai")
-            // Ollama typically doesn't need API key
-        ]
+        // Only sync current provider's API key (to avoid multiple keychain prompts)
+        let providerName: String
+        switch provider {
+        case .claude:
+            providerName = "anthropic"
+        case .openai:
+            providerName = "openai"
+        case .gemini:
+            providerName = "google"
+        case .ollama:
+            providerName = "ollama"
+        }
         
-        for (providerType, providerName) in providerMappings {
-            let account = "opencode.api.key.\(providerType.rawValue)"
-            if let apiKeyValue = KeychainStore.read(service: keychainService, account: account),
-               !apiKeyValue.isEmpty {
-                auth[providerName] = [
-                    "type": "api",
-                    "key": apiKeyValue
-                ]
-                Log.config(" Synced \(providerName) API key to auth.json")
-            }
+        // Use the cached apiKey property instead of direct keychain read
+        let apiKeyValue = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !apiKeyValue.isEmpty && provider != .ollama {
+            auth[providerName] = [
+                "type": "api",
+                "key": apiKeyValue
+            ]
+            Log.config(" Synced \(providerName) API key to auth.json")
         }
         
         // Write back
@@ -927,20 +913,17 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
             ]
         ]
         
-        // Add custom provider with baseURL if configured
+        // Add provider options (baseURL) if configured
+        // Per OpenCode docs: set options.baseURL on the provider directly
         if !baseURLValue.isEmpty {
-            let customProviderName = "\(providerName)-proxy"
-            config["enabled_providers"] = [providerName, customProviderName]
             config["provider"] = [
-                customProviderName: [
-                    "npm": "@ai-sdk/openai-compatible",
-                    "name": "\(provider.displayName) (Proxy)",
+                providerName: [
                     "options": [
                         "baseURL": baseURLValue
                     ]
                 ]
             ]
-            Log.config(" Custom provider '\(customProviderName)' with baseURL: \(baseURLValue)")
+            Log.config(" Provider '\(providerName)' configured with baseURL: \(baseURLValue)")
         }
 
         if let mcpScripts {

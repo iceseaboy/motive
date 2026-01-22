@@ -89,12 +89,13 @@ struct CommandBarView: View {
     private var actionButton: some View {
         if !configManager.hasAPIKey {
             ActionPill(
-                icon: "gear",
+                icon: "exclamationmark.triangle.fill",
                 label: "Setup",
                 style: .warning,
                 isDark: isDark
             ) {
-                openSettings()
+                appState.hideCommandBar()
+                SettingsWindowController.shared.show(tab: .model)
             }
         } else if let error = appState.lastErrorMessage {
             ActionPill(
@@ -103,7 +104,8 @@ struct CommandBarView: View {
                 style: .error,
                 isDark: isDark
             ) {
-                openSettings()
+                appState.hideCommandBar()
+                SettingsWindowController.shared.show(tab: .model)
             }
             .help(error)
         } else if !inputText.isEmpty {
@@ -176,6 +178,7 @@ struct CommandBarView: View {
         let text = inputText
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         inputText = ""
+        appState.hideCommandBar()
         appState.submitIntent(text)
     }
 }
@@ -195,13 +198,21 @@ private struct ActionPill: View {
         case primary, warning, error
         
         func backgroundColor(colorScheme: ColorScheme) -> Color {
-            // All styles use monochrome
+            // All styles use monochrome background
             return colorScheme == .dark ? Color.white : Color.black
         }
         
         func foregroundColor(colorScheme: ColorScheme) -> Color {
             // Inverse of background
             return colorScheme == .dark ? Color.black : Color.white
+        }
+        
+        var iconColor: Color? {
+            switch self {
+            case .warning: return .orange
+            case .error: return .red
+            case .primary: return nil  // Use default foreground
+            }
         }
     }
     
@@ -210,11 +221,12 @@ private struct ActionPill: View {
             HStack(spacing: 6) {
                 Text(label)
                     .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(style.foregroundColor(colorScheme: colorScheme))
                 
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(style.iconColor ?? style.foregroundColor(colorScheme: colorScheme))
             }
-            .foregroundColor(style.foregroundColor(colorScheme: colorScheme))
             .padding(.horizontal, 14)
             .frame(height: 30)
             .background(style.backgroundColor(colorScheme: colorScheme))

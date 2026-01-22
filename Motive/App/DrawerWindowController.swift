@@ -12,15 +12,16 @@ import SwiftUI
 
 @MainActor
 final class DrawerWindowController {
-    private let window: NSPanel
+    private let window: KeyablePanel
     private var statusBarButtonFrame: NSRect?
+    private var resignKeyObserver: Any?
     var isVisible: Bool { window.isVisible }
 
     init<Content: View>(rootView: Content) {
         let hostingView = NSHostingView(rootView: AnyView(rootView))
         window = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 540),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -32,7 +33,22 @@ final class DrawerWindowController {
         window.hasShadow = false  // Shadow handled by SwiftUI
         window.isMovableByWindowBackground = true
         window.contentView = hostingView
-        window.hidesOnDeactivate = false  // Keep visible - user toggles via status bar
+        window.hidesOnDeactivate = false
+        
+        // Hide when window loses key status (clicks outside)
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.hide()
+        }
+    }
+    
+    deinit {
+        if let observer = resignKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
     
     /// Update the position reference for the status bar button
@@ -42,10 +58,8 @@ final class DrawerWindowController {
 
     func show() {
         positionBelowStatusBar()
-        window.orderFrontRegardless()
-        if NSApp.isActive {
-            window.makeKey()
-        }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     func hide() {

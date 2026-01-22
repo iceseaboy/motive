@@ -39,11 +39,14 @@ final class PTYProcess: @unchecked Sendable {
             // Child process
             _ = chdir(currentDirectory)
             
-            // Set environment
+            // Set environment (including TERM from caller)
             for (key, value) in environment {
                 setenv(key, value, 1)
             }
-            setenv("TERM", "xterm-256color", 1)
+            // Only set TERM if not already in environment
+            if environment["TERM"] == nil {
+                setenv("TERM", "dumb", 1)
+            }
             
             // Build argv
             var cArgs = [strdup(executablePath)]

@@ -16,6 +16,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var configManager: ConfigManager?
     private var appState: AppState?
     
+    /// The tab to show when opening settings
+    private var initialTab: SettingsTab = .general
+    
     private override init() {
         super.init()
     }
@@ -25,12 +28,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.appState = appState
     }
     
-    func show() {
-        // If window exists and is visible, just bring to front
-        if let window = window, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+    func show(tab: SettingsTab = .general) {
+        initialTab = tab
+        
+        // If window exists and visible but requesting different tab, recreate it
+        if let existingWindow = window, existingWindow.isVisible {
+            existingWindow.close()
+            window = nil
         }
         
         guard let configManager = configManager, let appState = appState else {
@@ -38,8 +42,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             return
         }
         
-        // Create settings view
-        let settingsView = SettingsView()
+        // Create settings view with initial tab
+        let settingsView = SettingsView(initialTab: tab)
             .environmentObject(configManager)
             .environmentObject(appState)
         

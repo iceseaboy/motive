@@ -160,7 +160,9 @@ actor OpenCodeBridge {
     private func readPTYLines(pty: PTYProcess) async {
         do {
             for try await line in pty.lines {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Strip ANSI escape sequences first
+                let cleaned = stripAnsiCodes(line)
+                let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 // Skip empty lines and terminal decorations
                 guard !trimmed.isEmpty else { continue }
@@ -189,6 +191,18 @@ actor OpenCodeBridge {
                 Log.bridge("[pty] stream error: \(error.localizedDescription)")
             }
         }
+    }
+    
+    /// Strip ANSI escape sequences from a string
+    private func stripAnsiCodes(_ string: String) -> String {
+        // Match ANSI escape sequences: ESC [ ... m (SGR) and other CSI sequences
+        // Also match: ESC ] ... BEL (OSC sequences)
+        let pattern = "\\x1B(?:\\[[0-9;]*[a-zA-Z]|\\][^\\x07]*\\x07)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return string
+        }
+        let range = NSRange(string.startIndex..., in: string)
+        return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: "")
     }
 
     private func handleTermination(exitCode: Int32) async {

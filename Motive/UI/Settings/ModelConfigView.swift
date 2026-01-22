@@ -23,10 +23,58 @@ struct ModelConfigView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // Provider Selection
-            SettingsCard(title: L10n.Settings.provider, icon: "cpu") {
-                providerPicker
-                    .padding(16)
+            // Provider Selection with inline warning
+            VStack(alignment: .leading, spacing: 16) {
+                // Header with warning badge
+                HStack(spacing: 8) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color.Velvet.primary)
+                    
+                    Text(L10n.Settings.provider)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color.Velvet.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    
+                    Spacer()
+                    
+                    // Warning badge inline with title
+                    if let error = configManager.providerConfigurationError {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.orange)
+                            
+                            Text(error)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.orange.opacity(0.15))
+                        )
+                    }
+                }
+                
+                // Provider cards
+                VStack(spacing: 0) {
+                    providerPicker
+                        .padding(16)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isDark ? Color.white.opacity(0.05) : Color.white)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(
+                            isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06),
+                            lineWidth: 1
+                        )
+                )
             }
             
             // Configuration
@@ -100,30 +148,6 @@ struct ModelConfigView: View {
                     }
                     .padding(16)
                 }
-            }
-            
-            // Warning Banner
-            if let error = configManager.providerConfigurationError {
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.Velvet.warning)
-                    
-                    Text(error)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.Velvet.warning)
-                    
-                    Spacer()
-                }
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.Velvet.warning.opacity(0.1))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.Velvet.warning.opacity(0.3), lineWidth: 1)
-                )
             }
             
             // Action Bar

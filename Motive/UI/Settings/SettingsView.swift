@@ -8,10 +8,16 @@
 import SwiftUI
 
 struct SettingsView: View {
+    var initialTab: SettingsTab = .general
     @State private var selectedTab: SettingsTab = .general
     @Environment(\.colorScheme) private var colorScheme
     
     private var isDark: Bool { colorScheme == .dark }
+    
+    init(initialTab: SettingsTab = .general) {
+        self.initialTab = initialTab
+        _selectedTab = State(initialValue: initialTab)
+    }
     
     var body: some View {
         HStack(spacing: 0) {
