@@ -148,12 +148,12 @@ struct ModelConfigView: View {
                         Text(L10n.Settings.saveRestart)
                             .font(.system(size: 12, weight: .semibold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(isDark ? .black : .white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.Velvet.primary)
+                            .fill(isDark ? Color.white : Color.black)
                     )
                 }
                 .buttonStyle(.plain)

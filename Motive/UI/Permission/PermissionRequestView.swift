@@ -37,7 +37,7 @@ struct PermissionRequestView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(headerTitle)
                             .font(.headline)
-                            .foregroundColor(request.isDeleteOperation ? .red : Color.Velvet.textPrimary)
+                            .foregroundColor(Color.Velvet.textPrimary)
                         
                         // Content based on request type
                         requestContent
@@ -57,7 +57,7 @@ struct PermissionRequestView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(request.isDeleteOperation ? .red : .accentColor)
+                    .tint(Color.primary.opacity(0.8))
                     .disabled(isAllowDisabled)
                 }
             }
@@ -93,33 +93,13 @@ struct PermissionRequestView: View {
     }
     
     private var iconBackgroundColor: Color {
-        if request.isDeleteOperation {
-            return Color.red.opacity(0.1)
-        }
-        
-        switch request.type {
-        case .file:
-            return Color.orange.opacity(0.1)
-        case .question:
-            return Color.Velvet.primary.opacity(0.1)
-        case .tool:
-            return Color.yellow.opacity(0.1)
-        }
+        // Monochrome for all types
+        return Color.primary.opacity(0.08)
     }
     
     private var iconColor: Color {
-        if request.isDeleteOperation {
-            return .red
-        }
-        
-        switch request.type {
-        case .file:
-            return .orange
-        case .question:
-            return Color.Velvet.primary
-        case .tool:
-            return .yellow
-        }
+        // Monochrome for all types
+        return Color.primary.opacity(0.8)
     }
     
     private var iconImage: Image {
@@ -131,9 +111,9 @@ struct PermissionRequestView: View {
         case .file:
             return Image(systemName: "doc.fill")
         case .question:
-            return Image(systemName: "brain.head.profile")
+            return Image(systemName: "hand.raised.fill")
         case .tool:
-            return Image(systemName: "exclamationmark.circle.fill")
+            return Image(systemName: "hand.raised.fill")
         }
     }
     
@@ -183,10 +163,10 @@ struct PermissionRequestView: View {
                          ? "\(request.displayFilePaths.count) files will be permanently deleted:"
                          : "This file will be permanently deleted:")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundColor(Color.Velvet.textPrimary)
                 }
                 .padding(8)
-                .background(Color.red.opacity(0.1))
+                .background(Color.primary.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             } else if let operation = request.fileOperation {
                 // Operation badge
@@ -203,7 +183,7 @@ struct PermissionRequestView: View {
                 ForEach(request.displayFilePaths, id: \.self) { path in
                     Text(request.displayFilePaths.count > 1 ? "• \(path)" : path)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(request.isDeleteOperation ? .red : Color.Velvet.textPrimary)
+                        .foregroundColor(Color.Velvet.textPrimary)
                 }
                 
                 if let targetPath = request.targetPath {
@@ -213,16 +193,14 @@ struct PermissionRequestView: View {
                 }
             }
             .padding(12)
-            .background(request.isDeleteOperation
-                        ? Color.red.opacity(0.05)
-                        : Color(nsColor: .controlBackgroundColor))
+            .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             
             // Delete warning text
             if request.isDeleteOperation {
                 Text("This action cannot be undone.")
                     .font(.caption)
-                    .foregroundColor(.red.opacity(0.8))
+                    .foregroundColor(Color.Velvet.textSecondary)
             }
             
             // Content preview
@@ -302,21 +280,21 @@ struct PermissionRequestView: View {
                                 
                                 Spacer()
                                 
-                                if selectedOptions.contains(option.label) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(Color.Velvet.primary)
-                                }
+                if selectedOptions.contains(option.label) {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(Color.primary.opacity(0.8))
+                }
                             }
-                            .padding(12)
-                            .background(selectedOptions.contains(option.label)
-                                        ? Color.Velvet.primary.opacity(0.1)
-                                        : Color(nsColor: .controlBackgroundColor))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(selectedOptions.contains(option.label)
-                                            ? Color.Velvet.primary
-                                            : Color.Velvet.border, lineWidth: 1)
-                            )
+                        .padding(12)
+                        .background(selectedOptions.contains(option.label)
+                                    ? Color.primary.opacity(0.08)
+                                    : Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(selectedOptions.contains(option.label)
+                                        ? Color.primary.opacity(0.3)
+                                        : Color.Velvet.border, lineWidth: 1)
+                        )
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
@@ -330,12 +308,12 @@ struct PermissionRequestView: View {
     private var toolContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let toolName = request.toolName {
-                Text("Allow \(toolName)?")
+                Text("Allow \(toolName.simplifiedToolName)?")
                     .font(.subheadline)
                     .foregroundColor(Color.Velvet.textSecondary)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Tool: \(toolName)")
+                    Text("Tool: \(toolName.simplifiedToolName)")
                         .font(.caption)
                         .foregroundColor(Color.Velvet.textSecondary)
                     
@@ -358,18 +336,8 @@ struct PermissionRequestView: View {
     // MARK: - Helpers
     
     private func operationBadgeColor(for operation: FileOperation) -> Color {
-        switch operation {
-        case .delete:
-            return Color.red.opacity(0.1)
-        case .overwrite, .execute:
-            return Color.orange.opacity(0.1)
-        case .modify:
-            return Color.yellow.opacity(0.1)
-        case .create, .readBinary:
-            return Color.green.opacity(0.1)
-        case .rename, .move:
-            return Color.blue.opacity(0.1)
-        }
+        // Monochrome for all operations
+        return Color.primary.opacity(0.08)
     }
     
     private func formatToolInput(_ input: [String: Any]) -> String {

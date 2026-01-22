@@ -152,7 +152,7 @@ struct QuickConfirmView: View {
                 if isMultiSelect {
                     Image(systemName: isSelected ? "checkmark.square.fill" : "square")
                         .font(.system(size: 14))
-                        .foregroundStyle(isSelected ? .blue : .secondary)
+                        .foregroundStyle(isSelected ? Color.primary.opacity(0.8) : .secondary)
                 }
                 
                 Text(option.label)
@@ -171,11 +171,11 @@ struct QuickConfirmView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.blue.opacity(0.1) : Color.primary.opacity(0.03))
+                    .fill(isSelected ? Color.primary.opacity(0.08) : Color.primary.opacity(0.03))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(isSelected ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+                    .strokeBorder(isSelected ? Color.primary.opacity(0.2) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -222,7 +222,7 @@ struct QuickConfirmView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                     
-                    Text(toolName)
+                    Text(toolName.simplifiedToolName)
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(.primary)
                 }
@@ -296,13 +296,14 @@ struct QuickConfirmView: View {
     
     private var iconName: String {
         switch request.type {
-        case .question: return "questionmark.circle"
+        case .question: return "hand.raised"
         case .file: return "doc.badge.gearshape"
-        case .tool: return "wrench.and.screwdriver"
+        case .tool: return "hand.raised"
         }
     }
     
     private var iconColor: Color {
+        // 保留彩色以区分不同类型
         switch request.type {
         case .question: return .blue
         case .file: return .orange
@@ -328,7 +329,7 @@ struct QuickConfirmView: View {
         case .file:
             return request.fileOperation?.rawValue.capitalized
         case .tool:
-            return request.toolName
+            return request.toolName?.simplifiedToolName
         }
     }
     
@@ -359,16 +360,17 @@ struct QuickConfirmView: View {
 
 struct QuickConfirmButtonStyle: ButtonStyle {
     let isPrimary: Bool
+    @Environment(\.colorScheme) private var colorScheme
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(isPrimary ? .white : .primary)
+            .foregroundStyle(isPrimary ? (colorScheme == .dark ? .black : .white) : .primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isPrimary ? Color.Velvet.primary : Color.primary.opacity(0.08))
+                    .fill(isPrimary ? (colorScheme == .dark ? Color.white : Color.black) : Color.primary.opacity(0.08))
             )
             .opacity(configuration.isPressed ? 0.8 : 1)
     }

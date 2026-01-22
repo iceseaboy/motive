@@ -7,6 +7,26 @@
 
 import Foundation
 
+// MARK: - Tool Name Display Mapping
+
+extension String {
+    /// Simplify tool names for better UI display
+    var simplifiedToolName: String {
+        switch self {
+        case "AskUserQuestion": return "Question"
+        case "request_file_permission": return "Permission"
+        case "ReadFile", "Read": return "Read"
+        case "WriteFile", "Write": return "Write"
+        case "EditFile", "Edit": return "Edit"
+        case "DeleteFile", "Delete": return "Delete"
+        case "ListFiles", "Glob": return "List"
+        case "SearchFiles", "Grep": return "Search"
+        case "Shell", "Bash": return "Shell"
+        default: return self
+        }
+    }
+}
+
 // MARK: - Message Type for Conversation UI
 
 struct ConversationMessage: Identifiable, Sendable {

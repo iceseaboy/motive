@@ -67,20 +67,6 @@ struct CommandBarView: View {
     
     private var inputArea: some View {
         HStack(spacing: 14) {
-            // Logo icon
-            ZStack {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.Velvet.primary, Color.Velvet.primaryDark],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .frame(width: 28)
-            
             // Input field
             TextField("", text: $inputText, prompt: Text(L10n.CommandBar.placeholder)
                 .foregroundColor(isDark ? Color.white.opacity(0.3) : Color.black.opacity(0.35)))
@@ -142,7 +128,7 @@ struct CommandBarView: View {
             // Status indicator
             if appState.menuBarState != .idle {
                 HStack(spacing: 8) {
-                    PulsingDot(color: appState.menuBarState == .reasoning ? .purple : .green)
+                    PulsingDot(color: isDark ? .white : .black)
                     
                     Text(appState.menuBarState.displayText)
                         .font(.system(size: 11, weight: .medium))
@@ -203,15 +189,19 @@ private struct ActionPill: View {
     var isDark: Bool = true
     let action: () -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     enum Style {
         case primary, warning, error
         
-        var backgroundColor: Color {
-            switch self {
-            case .primary: return Color.Velvet.primary
-            case .warning: return Color.orange
-            case .error: return Color.red
-            }
+        func backgroundColor(colorScheme: ColorScheme) -> Color {
+            // All styles use monochrome
+            return colorScheme == .dark ? Color.white : Color.black
+        }
+        
+        func foregroundColor(colorScheme: ColorScheme) -> Color {
+            // Inverse of background
+            return colorScheme == .dark ? Color.black : Color.white
         }
     }
     
@@ -224,23 +214,12 @@ private struct ActionPill: View {
                 Image(systemName: icon)
                     .font(.system(size: 10, weight: .bold))
             }
-            .foregroundColor(.white)
+            .foregroundColor(style.foregroundColor(colorScheme: colorScheme))
             .padding(.horizontal, 14)
             .frame(height: 30)
-            .background(
-                ZStack {
-                    style.backgroundColor
-                    
-                    // Subtle top highlight
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.15), Color.clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
+            .background(style.backgroundColor(colorScheme: colorScheme))
             .clipShape(Capsule())
-            .shadow(color: style.backgroundColor.opacity(0.35), radius: 6, y: 3)
+            .shadow(color: Color.black.opacity(0.15), radius: 6, y: 3)
         }
         .buttonStyle(ScaleButtonStyle())
     }

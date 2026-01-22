@@ -94,7 +94,7 @@ struct DrawerView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "bubble.left.and.bubble.right")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color.Velvet.primary)
+                        .foregroundColor(Color.Velvet.textSecondary)
                     
                     Text(currentSessionTitle)
                         .font(.system(size: 12, weight: .medium))
@@ -172,12 +172,12 @@ struct DrawerView: View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 14))
-                .foregroundColor(Color.Velvet.error)
+                .foregroundColor(Color.Velvet.textPrimary)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.error)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.Velvet.error)
+                    .foregroundColor(Color.Velvet.textPrimary)
                 
                 Text(error)
                     .font(.system(size: 11))
@@ -202,10 +202,10 @@ struct DrawerView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.Velvet.error.opacity(0.1))
+                .fill(Color.primary.opacity(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.Velvet.error.opacity(0.2), lineWidth: 0.5)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
                 )
         )
         .padding(.horizontal, 12)
@@ -220,18 +220,12 @@ struct DrawerView: View {
             
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.Velvet.primary.opacity(0.15), Color.Velvet.accent.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.primary.opacity(0.08))
                     .frame(width: 72, height: 72)
                 
                 Image(systemName: "sparkles")
                     .font(.system(size: 28, weight: .light))
-                    .foregroundColor(Color.Velvet.primary)
+                    .foregroundColor(Color.Velvet.textSecondary)
             }
             
             VStack(spacing: 6) {
@@ -291,7 +285,7 @@ struct DrawerView: View {
     
     // Adaptive colors for input area
     private var inputFieldBackground: Color {
-        isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.04)
+        isDark ? Color.white.opacity(0.04) : Color.white
     }
     private var inputFieldBorder: Color {
         isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.08)
@@ -312,31 +306,20 @@ struct DrawerView: View {
             
             HStack(spacing: 10) {
                 if appState.sessionStatus == .running {
-                    // Running state
+                    // Running state with shimmer effect
                     HStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .tint(Color.Velvet.textMuted)
-                        
-                        Text(L10n.Drawer.processing)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.Velvet.textSecondary)
+                        ShimmerText(text: L10n.Drawer.processing, isDark: isDark)
                     }
                     
                     Spacer()
                     
                     Button(action: { appState.interruptSession() }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "stop.fill")
-                                .font(.system(size: 8))
-                            Text(L10n.Drawer.stop)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundColor(Color.Velvet.error)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.Velvet.error.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 26, height: 26)
+                            .background(Color.red)
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -353,12 +336,12 @@ struct DrawerView: View {
                         Button(action: sendMessage) {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(inputText.isEmpty ? Color.Velvet.textMuted : .white)
+                                .foregroundColor(inputText.isEmpty ? Color.Velvet.textMuted : (isDark ? .black : .white))
                                 .frame(width: 24, height: 24)
                                 .background(
                                     inputText.isEmpty
                                         ? sendButtonDisabledBg
-                                        : Color.Velvet.primary
+                                        : (isDark ? Color.white : Color.black)
                                 )
                                 .clipShape(Circle())
                         }
@@ -529,10 +512,11 @@ private struct SessionListItem: View {
     }
     
     private var statusColor: Color {
+        // 保留彩色以区分状态
         switch session.status {
-        case "running": return Color.Velvet.accent
-        case "completed": return Color.Velvet.success
-        case "failed": return Color.Velvet.error
+        case "running": return .blue
+        case "completed": return .green
+        case "failed": return .red
         default: return Color.Velvet.textMuted
         }
     }
@@ -571,27 +555,40 @@ struct MessageBubble: View {
                 Spacer(minLength: 50)
             }
             
-            VStack(alignment: message.type == .user ? .trailing : .leading, spacing: 4) {
-                // Message content
-                Group {
-                    switch message.type {
-                    case .user:
-                        userBubble
-                    case .assistant:
-                        assistantBubble
-                    case .tool:
-                        toolBubble
-                    case .system:
-                        systemBubble
+            VStack(alignment: message.type == .user ? .trailing : .leading, spacing: 0) {
+                // Message content with overlay timestamp
+                ZStack(alignment: message.type == .user ? .topTrailing : .topLeading) {
+                    // Message content
+                    Group {
+                        switch message.type {
+                        case .user:
+                            userBubble
+                        case .assistant:
+                            assistantBubble
+                        case .tool:
+                            toolBubble
+                        case .system:
+                            systemBubble
+                        }
                     }
-                }
-                
-                // Timestamp (only show on hover)
-                if isHovering {
-                    Text(message.timestamp, style: .time)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(Color.Velvet.textMuted)
-                        .transition(.opacity)
+                    
+                    // Timestamp overlay (show on hover)
+                    if isHovering {
+                        Text(message.timestamp, style: .time)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(Color.black.opacity(0.7))
+                            )
+                            .offset(
+                                x: message.type == .user ? -6 : 6,
+                                y: -6
+                            )
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
                 }
             }
             .animation(.easeOut(duration: 0.15), value: isHovering)
@@ -606,18 +603,12 @@ struct MessageBubble: View {
     private var userBubble: some View {
         Text(message.content)
             .font(.system(size: 13))
-            .foregroundColor(.white)
+            .foregroundColor(isDark ? .black : .white)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.Velvet.primary, Color.Velvet.primaryDark],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .fill(isDark ? Color.white : Color.black)
             )
             .textSelection(.enabled)
     }
@@ -628,7 +619,7 @@ struct MessageBubble: View {
             HStack(spacing: 5) {
                 Image(systemName: "sparkle")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(Color.Velvet.primary)
+                    .foregroundColor(.purple)
                 
                 Text(L10n.Drawer.assistant)
                     .font(.system(size: 10, weight: .semibold))
@@ -655,10 +646,10 @@ struct MessageBubble: View {
         HStack(spacing: 8) {
             Image(systemName: toolIcon)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(Color.Velvet.success)
+                .foregroundColor(.green)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(message.toolName ?? L10n.Drawer.tool)
+                Text(message.toolName?.simplifiedToolName ?? L10n.Drawer.tool)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(Color.Velvet.textSecondary)
                 
@@ -674,11 +665,11 @@ struct MessageBubble: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.Velvet.success.opacity(0.08))
+                .fill(Color.green.opacity(0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.Velvet.success.opacity(0.15), lineWidth: 0.5)
+                .stroke(Color.green.opacity(0.15), lineWidth: 0.5)
         )
     }
     
@@ -717,39 +708,20 @@ struct MessageBubble: View {
 struct ThinkingIndicator: View {
     let toolName: String?
     @Environment(\.colorScheme) private var colorScheme
-    @State private var animationPhase: Int = 0
     
     private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        HStack(spacing: 8) {
-            // Animated dots
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.Velvet.primary)
-                        .frame(width: 5, height: 5)
-                        .opacity(animationPhase == index ? 1 : 0.3)
-                }
-            }
-            
-            Text(toolName ?? L10n.Drawer.thinking)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color.Velvet.textSecondary)
-        }
+        ShimmerText(
+            text: toolName?.simplifiedToolName ?? L10n.Drawer.thinking,
+            isDark: isDark
+        )
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.04))
         )
-        .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    animationPhase = (animationPhase + 1) % 3
-                }
-            }
-        }
     }
 }
 
@@ -783,7 +755,7 @@ struct SessionStatusBadge: View {
                 Image(systemName: "circle")
             case .running:
                 Image(systemName: "circle.fill")
-                    .foregroundColor(Color.Velvet.success)
+                    .foregroundColor(.blue)
             case .completed:
                 Image(systemName: "checkmark.circle.fill")
             case .failed:
@@ -799,7 +771,7 @@ struct SessionStatusBadge: View {
         case .idle:
             return L10n.StatusBar.idle
         case .running:
-            return currentTool ?? L10n.Drawer.running
+            return currentTool?.simplifiedToolName ?? L10n.Drawer.running
         case .completed:
             return L10n.Drawer.completed
         case .failed:
@@ -810,17 +782,62 @@ struct SessionStatusBadge: View {
     }
     
     private var statusColor: Color {
+        // 保留彩色以区分状态
         switch status {
         case .idle:
             return Color.Velvet.textMuted
         case .running:
-            return Color.Velvet.success
+            return .blue
         case .completed:
-            return Color.Velvet.success
+            return .green
         case .failed:
-            return Color.Velvet.error
+            return .red
         case .interrupted:
-            return Color.Velvet.warning
+            return .orange
         }
+    }
+}
+
+// MARK: - Shimmer Text Effect
+
+struct ShimmerText: View {
+    let text: String
+    var isDark: Bool = true
+    @State private var offset: CGFloat = -1
+    
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(isDark ? .white.opacity(0.6) : .black.opacity(0.6))
+            .overlay(
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: shimmerColor, location: 0.4),
+                                .init(color: shimmerColor.opacity(0.5), location: 0.5),
+                                .init(color: shimmerColor, location: 0.6),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .offset(x: offset * 200)
+                    .mask(
+                        Text(text)
+                            .font(.system(size: 12, weight: .medium))
+                    )
+            )
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    offset = 2
+                }
+            }
+    }
+    
+    private var shimmerColor: Color {
+        isDark ? .white : .black
     }
 }

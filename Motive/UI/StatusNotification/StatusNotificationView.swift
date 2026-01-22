@@ -19,9 +19,10 @@ enum StatusNotificationType {
     }
     
     var color: Color {
+        // 保留彩色以区分成功/失败
         switch self {
-        case .success: return Color.Velvet.success
-        case .error: return Color.Velvet.error
+        case .success: return .green
+        case .error: return .red
         }
     }
     

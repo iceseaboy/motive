@@ -40,20 +40,18 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // App branding
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.Velvet.primary, Color.Velvet.primaryDark],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                // Use logo based on color scheme with rounded corners
+                if let logoImage = NSImage(named: isDark ? "logo-light" : "logo-dark") {
+                    Image(nsImage: logoImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
                         .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                } else {
+                    // Fallback
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.Velvet.primary)
+                        .frame(width: 44, height: 44)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {

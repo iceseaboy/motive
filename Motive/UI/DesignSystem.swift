@@ -8,26 +8,31 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Color Palette (Velvet Theme - Adaptive)
+// MARK: - Color Palette (Monochrome - Next.js/Linear Style)
 
 extension Color {
     enum Velvet {
-        // Primary gradients - deep purples & violets (same for both modes)
-        static let primary = Color(hex: "8B5CF6")
-        static let primaryDark = Color(hex: "6D28D9")
-        static let primaryLight = Color(hex: "A78BFA")
+        // Primary - pure black/white adaptive
+        static var primary: Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                appearance.isDark ? NSColor.white : NSColor.black
+            })
+        }
         
-        // Accent - warm coral/rose
-        static let accent = Color(hex: "F472B6")
-        static let accentDark = Color(hex: "DB2777")
+        static var primaryDark: Color { primary }
+        static var primaryLight: Color { primary.opacity(0.7) }
         
-        // Semantic status colors (same for both modes)
-        static let idle = Color(hex: "64748B")
-        static let reasoning = Color(hex: "8B5CF6")
-        static let executing = Color(hex: "10B981")
-        static let success = Color(hex: "22C55E")
-        static let warning = Color(hex: "F59E0B")
-        static let error = Color(hex: "EF4444")
+        // Accent - same as primary (monochrome)
+        static var accent: Color { primary }
+        static var accentDark: Color { primary }
+        
+        // Semantic status colors - all monochrome with varying opacity
+        static var idle: Color { primary.opacity(0.4) }
+        static var reasoning: Color { primary }
+        static var executing: Color { primary }
+        static var success: Color { primary }
+        static var warning: Color { primary }
+        static var error: Color { primary }
         
         // MARK: - Adaptive Surface Colors
         
@@ -108,19 +113,11 @@ extension Color {
             })
         }
         
-        static let borderFocused = Color.Velvet.primary.opacity(0.5)
+        static let borderFocused = Color.Velvet.primary.opacity(0.3)
         
-        // Event kind colors
+        // Event kind colors - monochrome with varying opacity
         static func eventColor(for kind: OpenCodeEvent.Kind) -> Color {
-            switch kind {
-            case .thought: return reasoning
-            case .call, .tool: return executing
-            case .diff: return Color(hex: "3B82F6")
-            case .finish: return success
-            case .user: return primary
-            case .assistant: return accent
-            case .unknown: return textMuted
-            }
+            return primary.opacity(0.8)
         }
     }
 }
@@ -358,6 +355,7 @@ struct StatusIndicator: View {
 
 struct VelvetButtonStyle: ButtonStyle {
     var isPrimary: Bool = true
+    @Environment(\.colorScheme) private var colorScheme
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -367,21 +365,19 @@ struct VelvetButtonStyle: ButtonStyle {
             .background(
                 Group {
                     if isPrimary {
-                        LinearGradient(
-                            colors: [Color.Velvet.primary, Color.Velvet.primaryDark],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                        // Dark mode: white bg, Light mode: black bg
+                        colorScheme == .dark ? Color.white : Color.black
                     } else {
-                        Color.white.opacity(0.1)
+                        Color.primary.opacity(0.08)
                     }
                 }
             )
-            .foregroundColor(isPrimary ? .white : Color.Velvet.textOnDark)
+            // Dark mode: black text, Light mode: white text
+            .foregroundColor(isPrimary ? (colorScheme == .dark ? .black : .white) : Color.Velvet.textPrimary)
             .clipShape(RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
-                    .stroke(Color.white.opacity(isPrimary ? 0.2 : 0.1), lineWidth: 0.5)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
@@ -416,7 +412,7 @@ struct VelvetTextFieldStyle: TextFieldStyle {
             .overlay(
                 RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .stroke(
-                        isFocused ? Color.Velvet.primary.opacity(0.5) : Color.clear,
+                        isFocused ? Color.Velvet.primary.opacity(0.3) : Color.clear,
                         lineWidth: 1.5
                     )
             )
@@ -454,7 +450,7 @@ struct SectionHeader: View {
             if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.Velvet.primary)
+                    .foregroundColor(Color.Velvet.primary.opacity(0.6))
             }
             Text(title)
                 .font(.Velvet.subheadline)

@@ -193,12 +193,29 @@ final class StatusBarController {
         animationTimer?.invalidate()
         animationTimer = nil
         
-        // Configure icon - use template mode for automatic dark/light adaptation
-        let image = NSImage(systemSymbolName: state.icon, accessibilityDescription: "Motive")
-        let configured = image?.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
-        configured?.isTemplate = true  // System will auto-tint: white in dark mode, black in light mode
+        // Configure icon based on state
+        switch state {
+        case .idle:
+            // Use custom logo for idle state
+            if let logoImage = NSImage(named: "status-bar-icon") {
+                logoImage.isTemplate = true
+                let resizedLogo = logoImage.copy() as! NSImage
+                resizedLogo.size = NSSize(width: 18, height: 18)
+                button.image = resizedLogo
+            } else {
+                let image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Motive")
+                let configured = image?.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+                configured?.isTemplate = true
+                button.image = configured
+            }
+        default:
+            // Use state-specific system icon for other states
+            let image = NSImage(systemSymbolName: state.icon, accessibilityDescription: "Motive")
+            let configured = image?.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+            configured?.isTemplate = true
+            button.image = configured
+        }
         
-        button.image = configured
         button.imagePosition = state.showText ? .imageLeading : .imageOnly
         button.contentTintColor = nil  // Let system handle color
         
@@ -225,28 +242,56 @@ final class StatusBarController {
     }
     
     private func startTextAnimation(baseText: String, button: NSStatusBarButton) {
+        // Remove ... from text
+        let cleanText = baseText.replacingOccurrences(of: "…", with: "")
         animationDots = 0
-        setButtonTitle(baseText, button: button)
         
-        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self, weak button] _ in
+        // Start shimmer animation using attributed string
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self, weak button] _ in
             guard let self, let button else { return }
-            self.animationDots = (self.animationDots + 1) % 4
             
-            // Animate dots
-            let dots = String(repeating: ".", count: self.animationDots)
-            let text = baseText.replacingOccurrences(of: "…", with: dots)
+            // Increment phase
+            self.animationDots = (self.animationDots + 1) % 40  // 40 frames, ~1.2s per cycle
             
             Task { @MainActor in
-                self.setButtonTitle(text, button: button)
+                self.updateShimmerTitle(cleanText, button: button, phase: self.animationDots)
             }
         }
     }
     
-    private func setButtonTitle(_ title: String, button: NSStatusBarButton) {
+    private func updateShimmerTitle(_ text: String, button: NSStatusBarButton, phase: Int) {
+        let baseAlpha: CGFloat = 0.4
+        let highlightAlpha: CGFloat = 1.0
+        
+        // Calculate highlight position (0 to 1)
+        let progress = CGFloat(phase) / 40.0
+        let highlightCenter = progress * 1.4 - 0.2  // -0.2 to 1.2 range for smooth entry/exit
+        
+        let attributedString = NSMutableAttributedString(string: " \(text)")
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        
+        // Apply gradient effect per character
+        for i in 0..<attributedString.length {
+            let charProgress = CGFloat(i) / CGFloat(max(1, attributedString.length - 1))
+            let distance = abs(charProgress - highlightCenter)
+            let alpha = max(baseAlpha, highlightAlpha - distance * 2.5)
+            
+            let color = NSColor.controlTextColor.withAlphaComponent(alpha)
+            attributedString.addAttributes([
+                .font: font,
+                .foregroundColor: color
+            ], range: NSRange(location: i, length: 1))
+        }
+        
+        button.attributedTitle = attributedString
+    }
+    
+    private func setButtonTitle(_ title: String, button: NSStatusBarButton, alpha: CGFloat = 1.0) {
         // Use controlTextColor which adapts to system appearance automatically
+        let color = NSColor.controlTextColor.withAlphaComponent(alpha)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.controlTextColor
+            .foregroundColor: color
         ]
         button.attributedTitle = NSAttributedString(string: " \(title)", attributes: attributes)
     }
