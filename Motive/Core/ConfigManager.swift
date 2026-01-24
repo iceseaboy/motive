@@ -106,6 +106,50 @@ final class ConfigManager: ObservableObject {
     @AppStorage("launchAtLoginStorage") private var launchAtLoginStorage: Bool = false
     @AppStorage("languageRawValue") private var languageRawValue: String = Language.system.rawValue
     
+    // Browser automation settings (browser-use-sidecar)
+    @AppStorage("browserUseEnabled") var browserUseEnabled: Bool = false
+    @AppStorage("browserUseHeadedMode") var browserUseHeadedMode: Bool = true  // Show browser window by default
+    
+    /// Browser automation status
+    enum BrowserUseStatus {
+        case ready                    // Sidecar binary available
+        case binaryNotFound           // Binary not in bundle
+        case disabled                 // Feature disabled in settings
+        
+        var isReady: Bool {
+            if case .ready = self { return true }
+            return false
+        }
+        
+        var description: String {
+            switch self {
+            case .ready: return "Ready"
+            case .binaryNotFound: return "Binary not found in bundle"
+            case .disabled: return "Disabled"
+            }
+        }
+    }
+    
+    /// Check browser automation status
+    var browserUseStatus: BrowserUseStatus {
+        guard browserUseEnabled else { return .disabled }
+        
+        // Check if sidecar binary is bundled (supports both --onedir and --onefile builds)
+        if let dirURL = Bundle.main.url(forResource: "browser-use-sidecar", withExtension: nil) {
+            // Try --onedir structure first
+            let binaryURL = dirURL.appendingPathComponent("browser-use-sidecar")
+            if FileManager.default.isExecutableFile(atPath: binaryURL.path) {
+                return .ready
+            }
+            // Fallback to --onefile structure
+            if FileManager.default.isExecutableFile(atPath: dirURL.path) {
+                return .ready
+            }
+        }
+        
+        return .binaryNotFound
+    }
+    
     var language: Language {
         get { Language(rawValue: languageRawValue) ?? .system }
         set {
@@ -598,6 +642,15 @@ final class ConfigManager: ObservableObject {
         var environment = ProcessInfo.processInfo.environment
         let apiKeyValue = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Remove proxy environment variables to avoid SOCKS proxy errors with browser-use
+        // browser-use uses httpx which doesn't have socksio installed by default
+        let proxyKeys = ["ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy", 
+                         "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy",
+                         "SOCKS_PROXY", "socks_proxy"]
+        for key in proxyKeys {
+            environment.removeValue(forKey: key)
+        }
+        
         // Extend PATH with common Node.js installation paths
         // This is critical because /bin/sh doesn't load user's shell config
         environment["PATH"] = buildExtendedPath(base: environment["PATH"])
@@ -667,6 +720,11 @@ final class ConfigManager: ObservableObject {
     private func buildExtendedPath(base: String?) -> String {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         var pathParts: [String] = []
+        
+        // Add App Bundle Resources path for bundled binaries (browser-use-sidecar)
+        if let resourcesPath = Bundle.main.resourcePath {
+            pathParts.append(resourcesPath)
+        }
         
         // NVM paths (dynamic - check all installed versions)
         let nvmVersionsDir = "\(homeDir)/.nvm/versions/node"
@@ -848,7 +906,72 @@ final class ConfigManager: ObservableObject {
             Log.config(" WARNING - Node not found in PATH. MCP will use /usr/bin/env node")
         }
         
-        // System prompt - keep it simple and direct
+        // System prompt - include browser-automation if enabled
+        // Headless mode uses --headless flag, headed is default
+        let headlessArg = browserUseHeadedMode ? "" : " --headless"
+        let browserAutomationPrompt = browserUseEnabled ? """
+
+<browser-automation>
+## Browser Automation - Persistent Session CLI
+
+**NO API KEY NEEDED!** Direct browser control with persistent sessions.
+
+### Basic Commands:
+```bash
+browser-use-sidecar\(headlessArg) open "https://example.com"  # Open URL
+browser-use-sidecar state          # Get page elements with indices
+browser-use-sidecar click INDEX    # Click element
+browser-use-sidecar input INDEX "text"  # Type into element
+browser-use-sidecar keys Enter     # Press key
+browser-use-sidecar scroll down    # Scroll page
+browser-use-sidecar back           # Go back
+browser-use-sidecar refresh        # Refresh page
+browser-use-sidecar close          # Close browser
+browser-use-sidecar kill           # Force kill all processes
+```
+
+### Tab Management (IMPORTANT for sites that open new tabs):
+```bash
+browser-use-sidecar tabs           # List all tabs with indices
+browser-use-sidecar switch INDEX   # Switch to tab by index
+```
+**Note**: Click auto-detects new tabs and switches to them. Use `tabs` to see all tabs.
+
+### Wait for User Action (login, captcha, payment):
+```bash
+browser-use-sidecar wait 60 -m "Please complete login"
+```
+
+### CRITICAL Rules:
+1. **MULTI-STEP TASK**: Browser automation requires MULTIPLE commands! Opening a URL is just step 1. You MUST continue with `state`, then `input`/`click`/`scroll` until the user's ACTUAL goal is achieved (e.g., search complete, item added to cart, etc.). DO NOT stop after just opening a page!
+2. **Always call `state` after navigation** - Element indices change with each page load!
+3. **Tab handling**: Some sites (Taobao, Google) open results in new tabs. After click, check output for "new_tab_opened" and use `tabs`/`switch` if needed.
+4. **Login/Captcha/Payment**: 
+   - FIRST: Use AskUserQuestion MCP tool to notify user: "需要登录，请在浏览器中完成登录操作"
+   - THEN: Call `wait 60 -m "Waiting for login"` to pause automation
+   - FINALLY: After wait, call `state` or `refresh` to check page status
+5. **Page not changed after action?** Call `refresh` then `state`
+6. **NO API keys needed** - This is direct browser control
+
+### Example: Taobao Search (with login prompt):
+```bash
+browser-use-sidecar\(headlessArg) open "https://www.taobao.com"
+browser-use-sidecar state
+# If login required, FIRST ask user via MCP, THEN:
+browser-use-sidecar wait 60 -m "Please login to Taobao"
+browser-use-sidecar refresh
+browser-use-sidecar state
+# Continue with search...
+browser-use-sidecar input INDEX "iPhone"
+browser-use-sidecar click SEARCH_BTN
+# Check if new tab opened in response
+browser-use-sidecar tabs
+browser-use-sidecar switch 1  # Switch to results tab if needed
+browser-use-sidecar state
+```
+</browser-automation>
+""" : ""
+        
         let systemPrompt = """
 <important name="user-communication">
 CRITICAL: The user CANNOT see your text output or CLI prompts!
@@ -895,6 +1018,7 @@ IMPORTANT: Reading files does NOT require permission. Do not call request_file_p
 
 Never attempt to prompt via CLI or rely on terminal prompts - they will not work!
 </important>
+\(browserAutomationPrompt)
 """
         
         // Build config - always include permission: "allow"

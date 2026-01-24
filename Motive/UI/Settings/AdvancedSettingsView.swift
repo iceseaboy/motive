@@ -158,6 +158,39 @@ struct AdvancedSettingsView: View {
                 )
             }
             
+            // Browser Automation Section
+            SettingsCard(title: "Browser Automation", icon: "globe") {
+                VStack(spacing: 0) {
+                    // Enable toggle
+                    SettingsRow(label: "Enable Browser Control", description: "AI-powered browser automation using bundled sidecar") {
+                        Toggle("", isOn: $configManager.browserUseEnabled)
+                            .toggleStyle(.switch)
+                            .tint(Color.Velvet.primary)
+                            .onChange(of: configManager.browserUseEnabled) { _, newValue in
+                                // Reload skills when toggled
+                                SkillManager.shared.reloadSkills()
+                                appState.restartAgent()
+                            }
+                    }
+                    
+                    if configManager.browserUseEnabled {
+                        // Headed mode toggle
+                        SettingsRow(label: "Show Browser Window", description: "Display browser during automation (headed mode)") {
+                            Toggle("", isOn: $configManager.browserUseHeadedMode)
+                                .toggleStyle(.switch)
+                                .tint(Color.Velvet.primary)
+                                .onChange(of: configManager.browserUseHeadedMode) { _, _ in
+                                    SkillManager.shared.reloadSkills()
+                                    appState.restartAgent()
+                                }
+                        }
+                        
+                        // Status row
+                        browserUseStatusRow
+                    }
+                }
+            }
+            
             // Debug Section
             SettingsCard(title: L10n.Settings.diagnostics, icon: "ant") {
                 SettingsRow(label: L10n.Settings.debugMode, description: L10n.Settings.debugModeDesc, showDivider: false) {
@@ -251,6 +284,46 @@ struct AdvancedSettingsView: View {
                     .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
                     .padding(.leading, 16)
             }
+        }
+    }
+    
+    // MARK: - Browser Automation Status
+    
+    @ViewBuilder
+    private var browserUseStatusRow: some View {
+        let status = configManager.browserUseStatus
+        
+        SettingsRow(label: "Status", description: browserUseStatusDescription(status), showDivider: false) {
+            browserUseStatusIcon(status)
+        }
+    }
+    
+    private func browserUseStatusDescription(_ status: ConfigManager.BrowserUseStatus) -> String {
+        switch status {
+        case .ready:
+            return "Ready - sidecar binary available"
+        case .binaryNotFound:
+            return "Build required - run Scripts/browser-use-sidecar/build.sh"
+        case .disabled:
+            return "Browser automation is disabled"
+        }
+    }
+    
+    @ViewBuilder
+    private func browserUseStatusIcon(_ status: ConfigManager.BrowserUseStatus) -> some View {
+        switch status {
+        case .ready:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundColor(Color.Velvet.success)
+        case .binaryNotFound:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16))
+                .foregroundColor(Color.Velvet.warning)
+        case .disabled:
+            Image(systemName: "minus.circle.fill")
+                .font(.system(size: 16))
+                .foregroundColor(Color.Velvet.textMuted)
         }
     }
     

@@ -4,6 +4,12 @@
 //
 //  Skill system architecture for extensible AI capabilities.
 //
+//  Skills are modular units that extend OpenCode's abilities:
+//  - MCP Tools: Provide callable MCP server functionality
+//  - Capabilities: External tools like browser automation (bundled binaries)
+//  - Instructions: Behavioral guidelines
+//  - Rules: Mandatory constraints
+//
 
 import Foundation
 
@@ -14,11 +20,22 @@ struct Skill: Identifiable {
     let description: String
     let content: String
     let type: SkillType
+    let enabled: Bool
     
     enum SkillType: String {
-        case mcpTool = "mcp"        // Provides MCP tool functionality
-        case instruction = "instruction"  // Provides behavioral instructions
-        case rule = "rule"          // Enforces rules/constraints
+        case mcpTool = "mcp"              // Provides MCP tool functionality
+        case capability = "capability"     // External tool (bundled binary)
+        case instruction = "instruction"   // Provides behavioral instructions
+        case rule = "rule"                 // Enforces rules/constraints
+    }
+    
+    init(id: String, name: String, description: String, content: String, type: SkillType, enabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.content = content
+        self.type = type
+        self.enabled = enabled
     }
 }
 
@@ -29,18 +46,36 @@ final class SkillManager {
     
     private(set) var skills: [Skill] = []
     
+    /// Reference to ConfigManager for checking feature toggles
+    private var configManager: ConfigManager?
+    
     private init() {
+        loadBuiltInSkills()
+    }
+    
+    /// Set config manager reference (called from AppDelegate/ConfigManager)
+    func setConfigManager(_ manager: ConfigManager) {
+        self.configManager = manager
+        // Reload skills to pick up enabled state
         loadBuiltInSkills()
     }
     
     /// Load all built-in skills
     private func loadBuiltInSkills() {
+        let browserUseEnabled = configManager?.browserUseEnabled ?? false
+        
         skills = [
             createAskUserQuestionSkill(),
             createFilePermissionSkill(),
-            createSafeFileDeletionSkill()
+            createSafeFileDeletionSkill(),
+            createBrowserAutomationSkill(enabled: browserUseEnabled)
         ]
-        Log.debug("Loaded \(skills.count) built-in skills")
+        Log.debug("Loaded \(skills.count) built-in skills (browser automation: \(browserUseEnabled ? "enabled" : "disabled"))")
+    }
+    
+    /// Reload skills (useful when settings change)
+    func reloadSkills() {
+        loadBuiltInSkills()
     }
     
     /// Get all skills of a specific type
@@ -392,6 +427,133 @@ description: \(skill.description)
             ```
             """,
             type: .rule
+        )
+    }
+    
+    private func createBrowserAutomationSkill(enabled: Bool) -> Skill {
+        let headedMode = configManager?.browserUseHeadedMode ?? true
+        let headedFlag = headedMode ? "--headed " : ""
+        
+        return Skill(
+            id: "browser-automation",
+            name: "Browser Automation",
+            description: "Control web browsers for searching, form filling, and data extraction via bundled browser-use-sidecar. NO API KEY NEEDED.",
+            content: """
+            # Browser Automation
+            
+            Control web browsers using Motive's bundled browser automation tool.
+            This capability is powered by browser-use (CDP-based) and runs as a sidecar process.
+            
+            **CRITICAL: NO API KEY NEEDED!**
+            Direct control commands work WITHOUT any LLM API key (no ANTHROPIC_API_KEY, no OPENAI_API_KEY, etc.).
+            You (the AI agent) make the decisions - browser-use-sidecar is just a browser control tool.
+            
+            ## Command Format
+            
+            ```
+            browser-use-sidecar [OPTIONS] COMMAND [ARGS]
+            ```
+            
+            **Options (like --headed) go BEFORE the command!**
+            
+            ## When to Use
+            
+            - User asks to browse a website or search online
+            - User needs to fill out web forms
+            - User wants to extract data from webpages
+            - User asks to automate web interactions
+            - Any task requiring web navigation
+            
+            ## Commands
+            
+            All commands output JSON results. Use via shell/bash.
+            
+            ### Navigation
+            ```bash
+            # Open URL (browser will be \(headedMode ? "visible" : "headless"))
+            browser-use-sidecar \(headedFlag)open "https://example.com"
+            
+            # Go back
+            browser-use-sidecar back
+            ```
+            
+            ### Page State (CRITICAL: call after navigation)
+            ```bash
+            browser-use-sidecar state
+            ```
+            Output format: `[INDEX]<element tag="..." />` - use INDEX to interact.
+            
+            ### Interactions
+            ```bash
+            # Click element by index
+            browser-use-sidecar click INDEX
+            
+            # Input text into element
+            browser-use-sidecar input INDEX "text to type"
+            
+            # Type without targeting element
+            browser-use-sidecar type "text"
+            
+            # Scroll page
+            browser-use-sidecar scroll down
+            browser-use-sidecar scroll up
+            
+            # Press keys
+            browser-use-sidecar keys Enter
+            browser-use-sidecar keys Tab
+            ```
+            
+            ### Screenshots & Session
+            ```bash
+            # Take screenshot
+            browser-use-sidecar screenshot [filename.png]
+            
+            # Close browser
+            browser-use-sidecar close
+            
+            # List sessions
+            browser-use-sidecar sessions
+            ```
+            
+            ## Workflow Example
+            
+            **Task: Search "MacBook Pro" on Baidu**
+            
+            ```bash
+            # 1. Open website
+            browser-use-sidecar \(headedFlag)open "https://www.baidu.com"
+            
+            # 2. Get page elements
+            browser-use-sidecar state
+            # Look for: [26]<input id="kw" name="wd" />
+            
+            # 3. Type search query
+            browser-use-sidecar input 26 "MacBook Pro"
+            
+            # 4. Get updated elements
+            browser-use-sidecar state
+            # Look for submit button
+            
+            # 5. Click search
+            browser-use-sidecar click 514
+            
+            # 6. Read results
+            browser-use-sidecar state
+            
+            # 7. Close when done
+            browser-use-sidecar close
+            ```
+            
+            ## Important Notes
+            
+            1. **NO API KEY NEEDED** - do NOT set ANTHROPIC_API_KEY or any other API keys
+            2. **Always call `state` after navigation** - element indices change on page load
+            3. **Options before command** - e.g., `browser-use-sidecar --headed open "url"`
+            4. **Quote URLs and text** - wrap in quotes to handle spaces/special chars
+            5. **Close browser when done** - free resources with `close` command
+            """,
+            type: .capability,
+            enabled: enabled
         )
     }
 }
