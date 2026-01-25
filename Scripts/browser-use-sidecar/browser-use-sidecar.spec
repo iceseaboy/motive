@@ -1,10 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('.venv/lib/python3.12/site-packages/browser_use/agent/system_prompts', 'browser_use/agent/system_prompts')]
+datas = []
 binaries = []
-hiddenimports = ['browser_use', 'langchain_anthropic', 'langchain_openai']
+hiddenimports = []
 tmp_ret = collect_all('browser_use')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('cdp_use')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('bubus')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
@@ -16,7 +20,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['runtime_hook.py'],  # Fix proxy and importlib.resources for PyInstaller
+    runtime_hooks=['runtime_hook.py'],
     excludes=[],
     noarchive=False,
     optimize=0,

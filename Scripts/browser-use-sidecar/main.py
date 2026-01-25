@@ -330,41 +330,21 @@ class BrowserServer:
         """Start browser session with isolated profile, copying essential auth files."""
         from browser_use.browser.session import BrowserSession
         from browser_use.browser.profile import BrowserProfile
-        import shutil
-        
         # Use isolated Chrome profile for automation
         profile_dir = Path.home() / "Library" / "Application Support" / "Motive" / "browser" / "profiles" / "chrome-profile"
         profile_dir.mkdir(parents=True, exist_ok=True)
         default_subdir = profile_dir / "Default"
         default_subdir.mkdir(parents=True, exist_ok=True)
         
-        # Copy essential auth files from user's Chrome
-        user_chrome = Path.home() / "Library" / "Application Support" / "Google" / "Chrome" / "Default"
-        essential_files = [
-            "Cookies",
-            "Login Data",
-            "Web Data",
-            "Preferences",
-            "Secure Preferences",
-        ]
-        
-        if user_chrome.exists():
-            for filename in essential_files:
-                src = user_chrome / filename
-                dst = default_subdir / filename
-                if src.exists():
-                    try:
-                        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
-                            shutil.copy2(src, dst)
-                            logger.info(f"Synced {filename} from user Chrome profile")
-                    except Exception as e:
-                        logger.warning(f"Failed to copy {filename}: {e}")
-        
         profile = BrowserProfile(
             headless=not self.headed,
             user_data_dir=str(profile_dir),
+            profile_directory="Default",
             channel='chromium',  # Use independent Chromium, not system Chrome
             keep_alive=True,  # Keep browser open after agent task completes
+            enable_default_extensions=False,
+            highlight_elements=False,
+            paint_order_filtering=False,
         )
         logger.info(f"Browser profile: channel=chromium, user_data_dir={profile_dir}, headless={not self.headed}")
         
@@ -932,17 +912,9 @@ class BrowserServer:
             except Exception as e:
                 return {"error": f"Failed to start browser: {e}"}
         
-        # Check if agent is already running
+        # If agent is already running, return current status instead of erroring
         if self._agent_task and not self._agent_task.done():
-            # Check if waiting for user input
-            if self._pending_question:
-                return {
-                    "status": "need_input",
-                    "question": self._pending_question["question"],
-                    "options": self._pending_question["options"],
-                    "context": self._pending_question.get("context", "")
-                }
-            return {"status": "running", "message": "Agent task already in progress"}
+            return await self.cmd_agent_status()
         
         # Reset state
         self._pending_question = None
