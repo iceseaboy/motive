@@ -108,6 +108,24 @@
 "settings.permissions.risk.critical" = "Critical";
 "settings.permissions.risk.critical.desc" = "Irreversible operations like delete";
 
+// Browser Automation
+"settings.browser.title" = "Browser Automation";
+"settings.browser.enable" = "Enable Browser Control";
+"settings.browser.enable.desc" = "AI-powered browser automation using bundled sidecar";
+"settings.browser.show_window" = "Show Browser Window";
+"settings.browser.show_window.desc" = "Display browser during automation (headed mode)";
+"settings.browser.agent_mode" = "Agent Mode (for complex tasks)";
+"settings.browser.agent_provider" = "Agent LLM Provider";
+"settings.browser.agent_provider.desc" = "LLM for autonomous browser tasks";
+"settings.browser.api_key.desc" = "Required for Agent mode (autonomous tasks)";
+"settings.browser.base_url" = "Base URL (Optional)";
+"settings.browser.base_url.desc" = "Custom API endpoint";
+"settings.browser.status" = "Status";
+"settings.browser.status.ready" = "Ready - sidecar binary available";
+"settings.browser.status.not_found" = "Build required - run Scripts/browser-use-sidecar/build.sh";
+"settings.browser.status.disabled" = "Browser automation is disabled";
+"settings.browser.not_set" = "Not set";
+
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCode Binary";
 "settings.advanced.binary_status" = "Binary Status";

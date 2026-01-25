@@ -108,6 +108,24 @@
 "settings.permissions.risk.critical" = "严重";
 "settings.permissions.risk.critical.desc" = "不可逆操作，如删除";
 
+// Browser Automation
+"settings.browser.title" = "浏览器自动化";
+"settings.browser.enable" = "启用浏览器控制";
+"settings.browser.enable.desc" = "使用内置组件实现 AI 驱动的浏览器自动化";
+"settings.browser.show_window" = "显示浏览器窗口";
+"settings.browser.show_window.desc" = "自动化过程中显示浏览器窗口（有头模式）";
+"settings.browser.agent_mode" = "代理模式（用于复杂任务）";
+"settings.browser.agent_provider" = "代理 LLM 服务商";
+"settings.browser.agent_provider.desc" = "用于自主浏览器任务的 LLM";
+"settings.browser.api_key.desc" = "代理模式（自主任务）必需";
+"settings.browser.base_url" = "API 地址（可选）";
+"settings.browser.base_url.desc" = "自定义 API 端点";
+"settings.browser.status" = "状态";
+"settings.browser.status.ready" = "就绪 - 组件可用";
+"settings.browser.status.not_found" = "需要构建 - 运行 Scripts/browser-use-sidecar/build.sh";
+"settings.browser.status.disabled" = "浏览器自动化已禁用";
+"settings.browser.not_set" = "未设置";
+
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCode 程序";
 "settings.advanced.binary_status" = "程序状态";

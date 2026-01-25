@@ -108,6 +108,24 @@
 "settings.permissions.risk.critical" = "重大";
 "settings.permissions.risk.critical.desc" = "削除など元に戻せない操作";
 
+// Browser Automation
+"settings.browser.title" = "ブラウザ自動化";
+"settings.browser.enable" = "ブラウザ制御を有効化";
+"settings.browser.enable.desc" = "バンドルされたサイドカーを使用したAI駆動のブラウザ自動化";
+"settings.browser.show_window" = "ブラウザウィンドウを表示";
+"settings.browser.show_window.desc" = "自動化中にブラウザを表示（ヘッドモード）";
+"settings.browser.agent_mode" = "エージェントモード（複雑なタスク向け）";
+"settings.browser.agent_provider" = "エージェントLLMプロバイダー";
+"settings.browser.agent_provider.desc" = "自律ブラウザタスク用のLLM";
+"settings.browser.api_key.desc" = "エージェントモード（自律タスク）に必須";
+"settings.browser.base_url" = "ベースURL（オプション）";
+"settings.browser.base_url.desc" = "カスタムAPIエンドポイント";
+"settings.browser.status" = "ステータス";
+"settings.browser.status.ready" = "準備完了 - サイドカーバイナリ利用可能";
+"settings.browser.status.not_found" = "ビルドが必要 - Scripts/browser-use-sidecar/build.sh を実行";
+"settings.browser.status.disabled" = "ブラウザ自動化は無効です";
+"settings.browser.not_set" = "未設定";
+
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCodeバイナリ";
 "settings.advanced.binary_status" = "バイナリ状態";

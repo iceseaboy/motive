@@ -118,6 +118,24 @@ enum L10n {
         static let riskCritical = "settings.permissions.risk.critical".localized
         static let riskCriticalDesc = "settings.permissions.risk.critical.desc".localized
         
+        // Browser Automation
+        static let browserTitle = "settings.browser.title".localized
+        static let browserEnable = "settings.browser.enable".localized
+        static let browserEnableDesc = "settings.browser.enable.desc".localized
+        static let browserShowWindow = "settings.browser.show_window".localized
+        static let browserShowWindowDesc = "settings.browser.show_window.desc".localized
+        static let browserAgentMode = "settings.browser.agent_mode".localized
+        static let browserAgentProvider = "settings.browser.agent_provider".localized
+        static let browserAgentProviderDesc = "settings.browser.agent_provider.desc".localized
+        static let browserApiKeyDesc = "settings.browser.api_key.desc".localized
+        static let browserBaseUrl = "settings.browser.base_url".localized
+        static let browserBaseUrlDesc = "settings.browser.base_url.desc".localized
+        static let browserStatus = "settings.browser.status".localized
+        static let browserStatusReady = "settings.browser.status.ready".localized
+        static let browserStatusNotFound = "settings.browser.status.not_found".localized
+        static let browserStatusDisabled = "settings.browser.status.disabled".localized
+        static let browserNotSet = "settings.browser.not_set".localized
+        
         // Advanced
         static let openCodeBinary = "settings.advanced.opencode_binary".localized
         static let binaryStatus = "settings.advanced.binary_status".localized

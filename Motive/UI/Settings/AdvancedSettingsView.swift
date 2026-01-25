@@ -162,10 +162,10 @@ struct AdvancedSettingsView: View {
             }
             
             // Browser Automation Section
-            SettingsCard(title: "Browser Automation", icon: "globe") {
+            SettingsCard(title: L10n.Settings.browserTitle, icon: "globe") {
                 VStack(spacing: 0) {
                     // Enable toggle
-                    SettingsRow(label: "Enable Browser Control", description: "AI-powered browser automation using bundled sidecar") {
+                    SettingsRow(label: L10n.Settings.browserEnable, description: L10n.Settings.browserEnableDesc) {
                         Toggle("", isOn: $configManager.browserUseEnabled)
                             .toggleStyle(.switch)
                             .tint(Color.Velvet.primary)
@@ -178,7 +178,7 @@ struct AdvancedSettingsView: View {
                     
                     if configManager.browserUseEnabled {
                         // Headed mode toggle
-                        SettingsRow(label: "Show Browser Window", description: "Display browser during automation (headed mode)") {
+                        SettingsRow(label: L10n.Settings.browserShowWindow, description: L10n.Settings.browserShowWindowDesc) {
                             Toggle("", isOn: $configManager.browserUseHeadedMode)
                                 .toggleStyle(.switch)
                                 .tint(Color.Velvet.primary)
@@ -190,7 +190,7 @@ struct AdvancedSettingsView: View {
                         
                         // Agent Mode Section Header
                         HStack {
-                            Text("Agent Mode (for complex tasks)")
+                            Text(L10n.Settings.browserAgentMode)
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(Color.Velvet.textMuted)
                                 .textCase(.uppercase)
@@ -201,7 +201,7 @@ struct AdvancedSettingsView: View {
                         .padding(.bottom, 4)
                         
                         // Agent Provider Selection
-                        SettingsRow(label: "Agent LLM Provider", description: "LLM for autonomous browser tasks") {
+                        SettingsRow(label: L10n.Settings.browserAgentProvider, description: L10n.Settings.browserAgentProviderDesc) {
                             Picker("", selection: Binding(
                                 get: { configManager.browserAgentProvider },
                                 set: { newValue in
@@ -345,7 +345,7 @@ struct AdvancedSettingsView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Color.Velvet.textPrimary)
                     
-                    Text("Required for Agent mode (autonomous tasks)")
+                    Text(L10n.Settings.browserApiKeyDesc)
                         .font(.system(size: 11))
                         .foregroundColor(Color.Velvet.textMuted)
                 }
@@ -374,7 +374,7 @@ struct AdvancedSettingsView: View {
                                 appState.restartAgent()
                             }
                     } else {
-                        Text(configManager.hasBrowserAgentAPIKey ? "••••••••" : "Not set")
+                        Text(configManager.hasBrowserAgentAPIKey ? "••••••••" : L10n.Settings.browserNotSet)
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundColor(configManager.hasBrowserAgentAPIKey ? Color.Velvet.textMuted : Color.Velvet.warning)
                             .frame(width: 180, alignment: .leading)
@@ -408,11 +408,11 @@ struct AdvancedSettingsView: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Base URL (Optional)")
+                    Text(L10n.Settings.browserBaseUrl)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Color.Velvet.textPrimary)
                     
-                    Text("Custom API endpoint (leave empty for default)")
+                    Text(L10n.Settings.browserBaseUrlDesc)
                         .font(.system(size: 11))
                         .foregroundColor(Color.Velvet.textMuted)
                 }
@@ -451,7 +451,7 @@ struct AdvancedSettingsView: View {
     private var browserUseStatusRow: some View {
         let status = configManager.browserUseStatus
         
-        SettingsRow(label: "Status", description: browserUseStatusDescription(status), showDivider: false) {
+        SettingsRow(label: L10n.Settings.browserStatus, description: browserUseStatusDescription(status), showDivider: false) {
             browserUseStatusIcon(status)
         }
     }
@@ -459,11 +459,11 @@ struct AdvancedSettingsView: View {
     private func browserUseStatusDescription(_ status: ConfigManager.BrowserUseStatus) -> String {
         switch status {
         case .ready:
-            return "Ready - sidecar binary available"
+            return L10n.Settings.browserStatusReady
         case .binaryNotFound:
-            return "Build required - run Scripts/browser-use-sidecar/build.sh"
+            return L10n.Settings.browserStatusNotFound
         case .disabled:
-            return "Browser automation is disabled"
+            return L10n.Settings.browserStatusDisabled
         }
     }
     
