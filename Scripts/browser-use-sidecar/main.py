@@ -174,18 +174,11 @@ def force_kill_chrome():
             pass
     
     # Method 2: Kill Chromium processes using our profile directory
-    profile_marker = "Motive/browser/profiles"
     try:
-        result = subprocess.run(
-            ['pgrep', '-f', f'chromium.*{profile_marker}'],
-            capture_output=True, text=True
-        )
-        if result.stdout.strip():
-            for pid_str in result.stdout.strip().split('\n'):
+        for pid in find_chrome_pids_for_profile():
+            if pid != os.getpid():
                 try:
-                    pid = int(pid_str)
-                    if pid != os.getpid():
-                        os.kill(pid, signal.SIGKILL)
+                    os.kill(pid, signal.SIGKILL)
                 except (OSError, ValueError):
                     pass
     except Exception:
@@ -199,6 +192,36 @@ def force_kill_chrome():
         )
     except Exception:
         pass
+
+
+def find_chrome_pids_for_profile() -> list[int]:
+    """Find Chromium PIDs launched with our profile directory."""
+    profile_marker = "Motive/browser/profiles"
+    try:
+        result = subprocess.run(
+            ['pgrep', '-f', f'chromium.*{profile_marker}'],
+            capture_output=True, text=True
+        )
+        pids = []
+        if result.stdout.strip():
+            for pid_str in result.stdout.strip().split('\n'):
+                try:
+                    pids.append(int(pid_str))
+                except ValueError:
+                    continue
+        return pids
+    except Exception:
+        return []
+
+
+def wait_for_chrome_exit(timeout_seconds: float = 5.0) -> bool:
+    """Wait briefly for Chromium to exit before force killing."""
+    start_time = time.time()
+    while time.time() - start_time < timeout_seconds:
+        if not find_chrome_pids_for_profile():
+            return True
+        time.sleep(0.2)
+    return False
 
 
 def is_server_running() -> bool:
@@ -295,6 +318,7 @@ class BrowserServer:
         self.running = True
         self.last_activity = time.time()
         self._lock_fd = None
+        self._storage_state_path = None
         
         # Agent mode state
         self._agent_task = None  # asyncio.Task for running agent
@@ -336,6 +360,9 @@ class BrowserServer:
         default_subdir = profile_dir / "Default"
         default_subdir.mkdir(parents=True, exist_ok=True)
         
+        self._storage_state_path = profile_dir / "storage_state.json"
+        storage_state = str(self._storage_state_path) if self._storage_state_path.exists() else None
+
         profile = BrowserProfile(
             headless=not self.headed,
             user_data_dir=str(profile_dir),
@@ -345,6 +372,7 @@ class BrowserServer:
             enable_default_extensions=False,
             highlight_elements=False,
             paint_order_filtering=False,
+            storage_state=storage_state,
         )
         logger.info(f"Browser profile: channel=chromium, user_data_dir={profile_dir}, headless={not self.headed}")
         
@@ -874,6 +902,8 @@ class BrowserServer:
                 await self._agent_task
             except asyncio.CancelledError:
                 pass
+
+        await self._persist_storage_state()
         
         if self.session:
             try:
@@ -882,7 +912,8 @@ class BrowserServer:
                 pass
             self.session = None
         
-        force_kill_chrome()
+        if not wait_for_chrome_exit():
+            force_kill_chrome()
         
         self.running = False
         return {"success": True, "message": "Browser closed, server stopping"}
@@ -1024,6 +1055,8 @@ NEVER skip user confirmation for variant selections. The user expects to make th
             
             # Run agent
             history = await agent.run(max_steps=max_steps)
+
+            await self._persist_storage_state()
             
             self._agent_instance = None
             
@@ -1042,6 +1075,20 @@ NEVER skip user confirmation for variant selections. The user expects to make th
             self._agent_instance = None
             logger.exception("Agent task error")
             return {"status": "error", "error": str(e)}
+
+    async def _persist_storage_state(self):
+        """Persist browser storage state to reduce login loss across restarts."""
+        if not self.session or not self._storage_state_path:
+            return
+        try:
+            page = await asyncio.wait_for(
+                self.session.get_current_page(),
+                timeout=5.0
+            )
+            if page:
+                await page.context.storage_state(path=str(self._storage_state_path))
+        except Exception as e:
+            logger.warning(f"Failed to persist storage state: {e}")
     
     def _create_llm(self, model: str):
         """Create LLM instance based on model choice.
@@ -1284,12 +1331,14 @@ NEVER skip user confirmation for variant selections. The user expects to make th
                 await server.wait_closed()
                 
                 if self.session:
+                    await self._persist_storage_state()
                     try:
                         await self.session.stop()
                     except:
                         pass
                 
-                force_kill_chrome()
+                if not wait_for_chrome_exit():
+                    force_kill_chrome()
                 
                 print("Server stopped.", flush=True)
         finally:
@@ -1359,7 +1408,8 @@ def run_server_mode(headed: bool):
         traceback.print_exc()
     finally:
         print("Server exiting", flush=True)
-        force_kill_chrome()
+        if not wait_for_chrome_exit():
+            force_kill_chrome()
         SOCKET_PATH.unlink(missing_ok=True)
         PID_PATH.unlink(missing_ok=True)
         CHROME_PID_PATH.unlink(missing_ok=True)
