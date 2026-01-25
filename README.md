@@ -8,7 +8,7 @@
 <p align="center">A personal AI agent for macOS. Turns intent into completed work, running from your menu bar.</p>
 
 <p align="center">
-  <a href="https://github.com/geezerrrr/motive/releases"><img src="https://img.shields.io/badge/release-v0.2.3-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/geezerrrr/motive/releases"><img src="https://img.shields.io/badge/release-v3.0-blue?style=flat-square" alt="Release"></a>
   <a href="https://github.com/geezerrrr/motive/stargazers"><img src="https://img.shields.io/github/stars/geezerrrr/motive?style=flat-square" alt="Stars"></a>
   <img src="https://img.shields.io/badge/platform-macOS%2015+-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/swift-6.0-orange?style=flat-square" alt="Swift">
@@ -140,7 +140,7 @@ Anything an AI coding agent can do: refactor code, generate files, run scripts, 
 
 - [x] **Multi-language UI** — English, 简体中文, 日本語
 - [ ] **Multi-task concurrency** — Run multiple tasks in parallel with independent progress tracking
-- [ ] **Browser automation** — Full support for web scraping, form filling, and browser-based workflows
+- [x] **Browser automation** — Full support for web scraping, form filling, and browser-based workflows
 - [ ] **Task templates** — Save and reuse common task patterns with customizable parameters
 - [ ] Homebrew Cask distribution
 
