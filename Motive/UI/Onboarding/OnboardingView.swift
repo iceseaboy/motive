@@ -2,42 +2,52 @@
 //  OnboardingView.swift
 //  Motive
 //
-//  Onboarding flow for first-time users.
+//  Aurora Design System - Onboarding Flow
 //
 
 import SwiftUI
 
-// MARK: - Onboarding Input Field Style Constants
-private enum InputFieldStyle {
-    static let height: CGFloat = 32
-    static let horizontalPadding: CGFloat = 8
-    static let cornerRadius: CGFloat = 6
+// MARK: - Aurora Input Field Style
+
+private enum AuroraInputFieldStyle {
+    static let height: CGFloat = 36
+    static let horizontalPadding: CGFloat = AuroraSpacing.space3
+    static let cornerRadius: CGFloat = AuroraRadius.sm
 }
 
-// MARK: - Styled Text Field (consistent height with SecureInputField)
+// MARK: - Aurora Styled Text Field
+
 struct StyledTextField: View {
     let placeholder: String
     @Binding var text: String
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
-            .padding(.horizontal, InputFieldStyle.horizontalPadding)
-            .frame(height: InputFieldStyle.height)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(InputFieldStyle.cornerRadius)
+            .font(.Aurora.body)
+            .padding(.horizontal, AuroraInputFieldStyle.horizontalPadding)
+            .frame(height: AuroraInputFieldStyle.height)
+            .background(Color.Aurora.surface)
+            .clipShape(RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: InputFieldStyle.cornerRadius)
-                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 1)
             )
     }
 }
 
-// MARK: - Secure Input Field with inline eye toggle
+// MARK: - Aurora Secure Input Field
+
 struct SecureInputField: View {
     let placeholder: String
     @Binding var text: String
     @State private var showingText: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
         HStack(spacing: 0) {
@@ -49,30 +59,36 @@ struct SecureInputField: View {
                 }
             }
             .textFieldStyle(.plain)
+            .font(.Aurora.body)
             
             Button(action: { showingText.toggle() }) {
                 Image(systemName: showingText ? "eye.slash" : "eye")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.Aurora.textMuted)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 4)
+            .padding(.trailing, AuroraSpacing.space1)
         }
-        .padding(.horizontal, InputFieldStyle.horizontalPadding)
-        .frame(height: InputFieldStyle.height)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(InputFieldStyle.cornerRadius)
+        .padding(.horizontal, AuroraInputFieldStyle.horizontalPadding)
+        .frame(height: AuroraInputFieldStyle.height)
+        .background(Color.Aurora.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: InputFieldStyle.cornerRadius)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
+                .stroke(Color.Aurora.border, lineWidth: 1)
         )
     }
 }
 
+// MARK: - Onboarding View
+
 struct OnboardingView: View {
     @EnvironmentObject var configManager: ConfigManager
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     @State private var currentStep: OnboardingStep = .welcome
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome
@@ -92,49 +108,63 @@ struct OnboardingView: View {
     
     var body: some View {
         ZStack {
-            // Background
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+            // Aurora background
+            Color.Aurora.backgroundDeep
                 .ignoresSafeArea()
+            
+            // Subtle gradient overlay
+            if isDark {
+                LinearGradient(
+                    colors: [
+                        Color.Aurora.accentMid.opacity(0.05),
+                        Color.clear,
+                        Color.Aurora.accentStart.opacity(0.03)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            }
             
             VStack(spacing: 0) {
                 // Progress indicator
                 if currentStep != .welcome && currentStep != .complete {
-                    OnboardingProgressView(currentStep: currentStep)
-                        .padding(.top, 20)
-                        .padding(.bottom, 10)
+                    AuroraOnboardingProgress(currentStep: currentStep)
+                        .padding(.top, AuroraSpacing.space5)
+                        .padding(.bottom, AuroraSpacing.space3)
                 }
                 
                 // Content
                 Group {
                     switch currentStep {
                     case .welcome:
-                        WelcomeStepView(onContinue: { goToNext() })
+                        AuroraWelcomeStep(onContinue: { goToNext() })
                     case .aiProvider:
-                        AIProviderStepView(
+                        AuroraAIProviderStep(
                             onContinue: { goToNext() },
                             onSkip: { goToNext() }
                         )
                     case .accessibility:
-                        AccessibilityStepView(
+                        AuroraAccessibilityStep(
                             onContinue: { goToNext() },
                             onSkip: { goToNext() }
                         )
                     case .browserAutomation:
-                        BrowserAutomationStepView(
+                        AuroraBrowserStep(
                             onContinue: { goToNext() },
                             onSkip: { goToNext() }
                         )
                     case .complete:
-                        CompleteStepView(onFinish: { completeOnboarding() })
+                        AuroraCompleteStep(onFinish: { completeOnboarding() })
                     }
                 }
                 .transition(.asymmetric(
                     insertion: .move(edge: .trailing).combined(with: .opacity),
                     removal: .move(edge: .leading).combined(with: .opacity)
                 ))
-                .animation(.easeInOut(duration: 0.3), value: currentStep)
+                .animation(.auroraSpring, value: currentStep)
             }
-            .frame(width: 500, height: 450)
+            .frame(width: 520, height: 480)
         }
     }
     
@@ -158,9 +188,8 @@ extension Notification.Name {
     static let onboardingCompleted = Notification.Name("onboardingCompleted")
 }
 
-// MARK: - Onboarding Settings Row
+// MARK: - Aurora Onboarding Settings Row
 
-/// A consistent row container for onboarding settings
 struct OnboardingSettingsRow<Content: View>: View {
     let content: Content
     
@@ -171,107 +200,152 @@ struct OnboardingSettingsRow<Content: View>: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AuroraSpacing.space4)
+            .padding(.vertical, AuroraSpacing.space3)
     }
 }
 
-// MARK: - Progress Indicator
+// MARK: - Aurora Progress Indicator
 
-struct OnboardingProgressView: View {
+struct AuroraOnboardingProgress: View {
     let currentStep: OnboardingView.OnboardingStep
     
     private let steps: [OnboardingView.OnboardingStep] = [.aiProvider, .accessibility, .browserAutomation]
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AuroraSpacing.space2) {
             ForEach(steps, id: \.rawValue) { step in
                 Circle()
-                    .fill(step.rawValue <= currentStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
+                    .fill(
+                        step.rawValue <= currentStep.rawValue
+                            ? AnyShapeStyle(Color.Aurora.auroraGradient)
+                            : AnyShapeStyle(Color.Aurora.textMuted.opacity(0.3))
+                    )
                     .frame(width: 8, height: 8)
             }
         }
     }
 }
 
-// MARK: - Welcome Step
-
-struct WelcomeStepView: View {
-    let onContinue: () -> Void
+// Legacy alias
+struct OnboardingProgressView: View {
+    let currentStep: OnboardingView.OnboardingStep
     
     var body: some View {
-        VStack(spacing: 24) {
+        AuroraOnboardingProgress(currentStep: currentStep)
+    }
+}
+
+// MARK: - Aurora Welcome Step
+
+struct AuroraWelcomeStep: View {
+    let onContinue: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
+    
+    var body: some View {
+        VStack(spacing: AuroraSpacing.space6) {
             Spacer()
             
-            // App icon
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 100, height: 100)
-                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+            // App icon with glow
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: Color.Aurora.auroraGradientColors.map { $0.opacity(0.2) },
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 120, height: 120)
+                    .blur(radius: 20)
+                
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 100, height: 100)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(color: Color.Aurora.accentMid.opacity(0.3), radius: 20, y: 8)
+            }
             
-            VStack(spacing: 12) {
+            VStack(spacing: AuroraSpacing.space3) {
                 Text(L10n.Onboarding.welcomeTitle)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.Aurora.display)
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Text(L10n.Onboarding.welcomeSubtitle)
-                    .font(.title3)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.body)
+                    .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, AuroraSpacing.space10)
             }
             
             Spacer()
             
             Button(action: onContinue) {
-                Text(L10n.Onboarding.getStarted)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                HStack(spacing: AuroraSpacing.space2) {
+                    Text(L10n.Onboarding.getStarted)
+                        .font(.Aurora.body.weight(.semibold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, AuroraSpacing.space4)
+                .background(Color.Aurora.auroraGradient)
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
+                .shadow(color: Color.Aurora.accentMid.opacity(0.4), radius: 16, y: 8)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 60)
-            .padding(.bottom, 40)
+            .buttonStyle(.plain)
+            .padding(.horizontal, AuroraSpacing.space12)
+            .padding(.bottom, AuroraSpacing.space10)
         }
     }
 }
 
-// MARK: - AI Provider Step
+// Legacy alias
+struct WelcomeStepView: View {
+    let onContinue: () -> Void
+    var body: some View { AuroraWelcomeStep(onContinue: onContinue) }
+}
 
-struct AIProviderStepView: View {
+// MARK: - Aurora AI Provider Step
+
+struct AuroraAIProviderStep: View {
     @EnvironmentObject var configManager: ConfigManager
     let onContinue: () -> Void
     let onSkip: () -> Void
     
     @State private var apiKey: String = ""
     @State private var baseURL: String = ""
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AuroraSpacing.space4) {
             // Header
-            VStack(spacing: 8) {
+            VStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 40))
-                    .foregroundColor(.accentColor)
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.Aurora.auroraGradient)
                 
                 Text(L10n.Onboarding.aiProviderTitle)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.Aurora.title2)
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Text(L10n.Onboarding.aiProviderSubtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.bodySmall)
+                    .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
             }
-            .padding(.top, 16)
+            .padding(.top, AuroraSpacing.space4)
             
             // Configuration card
-            VStack(alignment: .leading, spacing: 12) {
-                // Provider picker
+            VStack(alignment: .leading, spacing: AuroraSpacing.space3) {
                 Text(L10n.Settings.selectProvider)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Picker("", selection: $configManager.providerRawValue) {
                     ForEach(ConfigManager.Provider.allCases) { provider in
@@ -280,64 +354,69 @@ struct AIProviderStepView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: configManager.providerRawValue) { _, _ in
-                    // Reset fields when provider changes
                     apiKey = ""
                     baseURL = ""
                 }
                 
-                // API Key input (not for Ollama)
+                // API Key input
                 if configManager.provider != .ollama {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
                         Text(L10n.Settings.apiKey)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(.Aurora.caption)
+                            .foregroundColor(Color.Aurora.textSecondary)
                         
                         SecureInputField(placeholder: apiKeyPlaceholder, text: $apiKey)
                     }
                 }
                 
-                // Base URL input
-                VStack(alignment: .leading, spacing: 6) {
+                // Base URL
+                VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
                     Text(configManager.provider == .ollama ? L10n.Settings.ollamaHost : L10n.Settings.baseURL)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(.Aurora.caption)
+                        .foregroundColor(Color.Aurora.textSecondary)
                     
                     StyledTextField(placeholder: baseURLPlaceholder, text: $baseURL)
                     
                     Text(L10n.Settings.defaultEndpoint)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.Aurora.micro)
+                        .foregroundColor(Color.Aurora.textMuted)
                 }
             }
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(10)
-            .padding(.horizontal, 40)
+            .padding(AuroraSpacing.space4)
+            .background(Color.Aurora.surface)
+            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 1)
+            )
+            .padding(.horizontal, AuroraSpacing.space10)
             
             Spacer()
             
             // Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: AuroraSpacing.space3) {
                 Button(action: onSkip) {
                     Text(L10n.Onboarding.skip)
+                        .font(.Aurora.body.weight(.medium))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .secondary))
                 
                 Button(action: {
                     saveSettings()
                     onContinue()
                 }) {
                     Text(L10n.Onboarding.continueButton)
+                        .font(.Aurora.body.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .primary))
                 .disabled(configManager.provider != .ollama && apiKey.isEmpty)
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 30)
+            .padding(.horizontal, AuroraSpacing.space10)
+            .padding(.bottom, AuroraSpacing.space8)
         }
     }
     
@@ -360,98 +439,108 @@ struct AIProviderStepView: View {
     }
     
     private func saveSettings() {
-        // Save API key
-        if !apiKey.isEmpty {
-            configManager.apiKey = apiKey
-        }
-        // Save Base URL
-        if !baseURL.isEmpty {
-            configManager.baseURL = baseURL
-        }
+        if !apiKey.isEmpty { configManager.apiKey = apiKey }
+        if !baseURL.isEmpty { configManager.baseURL = baseURL }
     }
 }
 
-// MARK: - Accessibility Step
+// Legacy alias
+struct AIProviderStepView: View {
+    @EnvironmentObject var configManager: ConfigManager
+    let onContinue: () -> Void
+    let onSkip: () -> Void
+    var body: some View { AuroraAIProviderStep(onContinue: onContinue, onSkip: onSkip) }
+}
 
-struct AccessibilityStepView: View {
+// MARK: - Aurora Accessibility Step
+
+struct AuroraAccessibilityStep: View {
     let onContinue: () -> Void
     let onSkip: () -> Void
     
     @State private var hasPermission: Bool = false
     @State private var checkTimer: Timer?
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: AuroraSpacing.space5) {
             // Header
-            VStack(spacing: 8) {
+            VStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: hasPermission ? "checkmark.shield.fill" : "hand.raised.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(hasPermission ? .green : .accentColor)
+                    .font(.system(size: 36))
+                    .foregroundStyle(hasPermission ? AnyShapeStyle(Color.Aurora.success) : AnyShapeStyle(Color.Aurora.auroraGradient))
                 
                 Text(L10n.Onboarding.accessibilityTitle)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.Aurora.title2)
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Text(L10n.Onboarding.accessibilitySubtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.bodySmall)
+                    .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AuroraSpacing.space5)
             }
-            .padding(.top, 20)
+            .padding(.top, AuroraSpacing.space5)
             
             // Status
-            VStack(spacing: 16) {
+            VStack(spacing: AuroraSpacing.space4) {
                 HStack {
                     Image(systemName: hasPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(hasPermission ? .green : .orange)
+                        .foregroundColor(hasPermission ? Color.Aurora.success : Color.Aurora.warning)
                     Text(hasPermission ? L10n.Onboarding.accessibilityGranted : L10n.Onboarding.accessibilityRequired)
-                        .font(.subheadline)
+                        .font(.Aurora.bodySmall)
+                        .foregroundColor(Color.Aurora.textPrimary)
                     Spacer()
                 }
-                .padding()
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(8)
+                .padding(AuroraSpacing.space3)
+                .background(Color.Aurora.surface)
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                        .stroke(Color.Aurora.border, lineWidth: 0.5)
+                )
                 
                 if !hasPermission {
                     Button(action: openAccessibilitySettings) {
                         Label(L10n.Onboarding.openSystemSettings, systemImage: "gear")
+                            .font(.Aurora.bodySmall.weight(.medium))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AuroraOnboardingButtonStyle(style: .secondary))
                 }
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, AuroraSpacing.space10)
             
-            // Instructions
             if !hasPermission {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(L10n.Onboarding.accessibilityInstructions)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 40)
+                Text(L10n.Onboarding.accessibilityInstructions)
+                    .font(.Aurora.caption)
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .padding(.horizontal, AuroraSpacing.space10)
             }
             
             Spacer()
             
             // Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: AuroraSpacing.space3) {
                 Button(action: onSkip) {
                     Text(L10n.Onboarding.skip)
+                        .font(.Aurora.body.weight(.medium))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .secondary))
                 
                 Button(action: onContinue) {
                     Text(L10n.Onboarding.continueButton)
+                        .font(.Aurora.body.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .primary))
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 30)
+            .padding(.horizontal, AuroraSpacing.space10)
+            .padding(.bottom, AuroraSpacing.space8)
         }
         .onAppear {
             checkPermission()
@@ -468,9 +557,7 @@ struct AccessibilityStepView: View {
     
     private func startPermissionCheck() {
         checkTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            Task { @MainActor in
-                checkPermission()
-            }
+            Task { @MainActor in checkPermission() }
         }
     }
     
@@ -479,92 +566,100 @@ struct AccessibilityStepView: View {
     }
 }
 
-// MARK: - Browser Automation Step
+// Legacy alias
+struct AccessibilityStepView: View {
+    let onContinue: () -> Void
+    let onSkip: () -> Void
+    var body: some View { AuroraAccessibilityStep(onContinue: onContinue, onSkip: onSkip) }
+}
 
-struct BrowserAutomationStepView: View {
+// MARK: - Aurora Browser Step
+
+struct AuroraBrowserStep: View {
     @EnvironmentObject var configManager: ConfigManager
     let onContinue: () -> Void
     let onSkip: () -> Void
     
     @State private var browserAgentAPIKey: String = ""
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AuroraSpacing.space4) {
             // Header
-            VStack(spacing: 8) {
+            VStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: "globe")
-                    .font(.system(size: 40))
-                    .foregroundColor(.accentColor)
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.Aurora.auroraGradient)
                 
                 Text(L10n.Onboarding.browserTitle)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.Aurora.title2)
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Text(L10n.Onboarding.browserSubtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.bodySmall)
+                    .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AuroraSpacing.space5)
             }
-            .padding(.top, 16)
+            .padding(.top, AuroraSpacing.space4)
             
             // Configuration card
             VStack(spacing: 0) {
-                // Enable toggle row
+                // Enable toggle
                 OnboardingSettingsRow {
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
                             Text(L10n.Settings.browserEnable)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
+                                .font(.Aurora.bodySmall.weight(.medium))
+                                .foregroundColor(Color.Aurora.textPrimary)
                             Text(L10n.Onboarding.browserEnableDesc)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.Aurora.caption)
+                                .foregroundColor(Color.Aurora.textSecondary)
                         }
                         Spacer()
                         Toggle("", isOn: $configManager.browserUseEnabled)
                             .toggleStyle(.switch)
+                            .tint(Color.Aurora.accent)
                             .labelsHidden()
                     }
                 }
                 
                 if configManager.browserUseEnabled {
-                    Divider().padding(.leading, 16)
+                    Rectangle().fill(Color.Aurora.border).frame(height: 1).padding(.leading, AuroraSpacing.space4)
                     
-                    // Headed mode toggle row
                     OnboardingSettingsRow {
                         HStack {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
                                 Text(L10n.Settings.browserShowWindow)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                    .font(.Aurora.bodySmall.weight(.medium))
+                                    .foregroundColor(Color.Aurora.textPrimary)
                                 Text(L10n.Settings.browserShowWindowDesc)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.Aurora.caption)
+                                    .foregroundColor(Color.Aurora.textSecondary)
                             }
                             Spacer()
                             Toggle("", isOn: $configManager.browserUseHeadedMode)
                                 .toggleStyle(.switch)
+                                .tint(Color.Aurora.accent)
                                 .labelsHidden()
                         }
                     }
                     
-                    Divider().padding(.leading, 16)
+                    Rectangle().fill(Color.Aurora.border).frame(height: 1).padding(.leading, AuroraSpacing.space4)
                     
-                    // Agent Provider picker row
                     OnboardingSettingsRow {
                         HStack {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
                                 Text(L10n.Settings.browserAgentProvider)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                    .font(.Aurora.bodySmall.weight(.medium))
+                                    .foregroundColor(Color.Aurora.textPrimary)
                                 Text(L10n.Settings.browserAgentProviderDesc)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.Aurora.caption)
+                                    .foregroundColor(Color.Aurora.textSecondary)
                             }
-                            
                             Spacer()
-                            
                             Picker("", selection: Binding(
                                 get: { configManager.browserAgentProvider },
                                 set: { newValue in
@@ -578,140 +673,226 @@ struct BrowserAutomationStepView: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(width: 160)
+                            .frame(width: 150)
                         }
                     }
                     
-                    Divider().padding(.leading, 16)
+                    Rectangle().fill(Color.Aurora.border).frame(height: 1).padding(.leading, AuroraSpacing.space4)
                     
-                    // API Key input row
                     OnboardingSettingsRow {
                         HStack {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
                                 Text(configManager.browserAgentProvider.envKeyName)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                    .font(.Aurora.bodySmall.weight(.medium))
+                                    .foregroundColor(Color.Aurora.textPrimary)
                                 Text(L10n.Settings.browserApiKeyDesc)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.Aurora.caption)
+                                    .foregroundColor(Color.Aurora.textSecondary)
                             }
-                            
                             Spacer()
-                            
                             SecureInputField(placeholder: "sk-...", text: $browserAgentAPIKey)
-                                .frame(width: 180)
+                                .frame(width: 160)
                         }
                     }
                 }
             }
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(10)
-            .padding(.horizontal, 40)
+            .background(Color.Aurora.surface)
+            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 1)
+            )
+            .padding(.horizontal, AuroraSpacing.space10)
             
-            // Info
-            HStack {
+            HStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: "info.circle")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.Aurora.textMuted)
                 Text(L10n.Onboarding.browserInfo)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.caption)
+                    .foregroundColor(Color.Aurora.textMuted)
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, AuroraSpacing.space10)
             
             Spacer()
             
             // Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: AuroraSpacing.space3) {
                 Button(action: onSkip) {
                     Text(L10n.Onboarding.skip)
+                        .font(.Aurora.body.weight(.medium))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .secondary))
                 
                 Button(action: {
                     saveSettings()
                     onContinue()
                 }) {
                     Text(L10n.Onboarding.continueButton)
+                        .font(.Aurora.body.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(AuroraOnboardingButtonStyle(style: .primary))
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 30)
+            .padding(.horizontal, AuroraSpacing.space10)
+            .padding(.bottom, AuroraSpacing.space8)
         }
     }
     
     private func saveSettings() {
-        // Save browser agent API key if provided
         if configManager.browserUseEnabled && !browserAgentAPIKey.isEmpty {
             configManager.browserAgentAPIKey = browserAgentAPIKey
         }
-        // Reload skills to apply changes
         SkillManager.shared.reloadSkills()
     }
 }
 
-// MARK: - Complete Step
+// Legacy alias
+struct BrowserAutomationStepView: View {
+    @EnvironmentObject var configManager: ConfigManager
+    let onContinue: () -> Void
+    let onSkip: () -> Void
+    var body: some View { AuroraBrowserStep(onContinue: onContinue, onSkip: onSkip) }
+}
 
-struct CompleteStepView: View {
+// MARK: - Aurora Complete Step
+
+struct AuroraCompleteStep: View {
     @EnvironmentObject var configManager: ConfigManager
     let onFinish: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AuroraSpacing.space6) {
             Spacer()
             
-            // Success icon
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.green)
+            // Success icon with gradient
+            ZStack {
+                Circle()
+                    .fill(Color.Aurora.success.opacity(0.15))
+                    .frame(width: 80, height: 80)
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 50))
+                    .foregroundColor(Color.Aurora.success)
+            }
             
-            VStack(spacing: 12) {
+            VStack(spacing: AuroraSpacing.space3) {
                 Text(L10n.Onboarding.completeTitle)
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.Aurora.title1)
+                    .foregroundColor(Color.Aurora.textPrimary)
                 
                 Text(L10n.Onboarding.completeSubtitle)
-                    .font(.body)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.body)
+                    .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, AuroraSpacing.space10)
             }
             
             // Hotkey display
-            VStack(spacing: 8) {
+            VStack(spacing: AuroraSpacing.space2) {
                 Text(L10n.Onboarding.hotkeyLabel)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.Aurora.bodySmall)
+                    .foregroundColor(Color.Aurora.textSecondary)
                 
                 Text(configManager.hotkey)
-                    .font(.system(size: 32, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.secondary.opacity(0.15))
-                    .cornerRadius(12)
+                    .font(.system(size: 28, weight: .medium, design: .rounded))
+                    .foregroundColor(Color.Aurora.textPrimary)
+                    .padding(.horizontal, AuroraSpacing.space6)
+                    .padding(.vertical, AuroraSpacing.space3)
+                    .background(
+                        RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                            .fill(Color.Aurora.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                                    .stroke(Color.Aurora.auroraGradient, lineWidth: 1.5)
+                            )
+                    )
             }
-            .padding(.top, 10)
+            .padding(.top, AuroraSpacing.space3)
             
             Text(L10n.Onboarding.hotkeyHint)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.Aurora.caption)
+                .foregroundColor(Color.Aurora.textMuted)
             
             Spacer()
             
             Button(action: onFinish) {
-                Text(L10n.Onboarding.startUsing)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                HStack(spacing: AuroraSpacing.space2) {
+                    Text(L10n.Onboarding.startUsing)
+                        .font(.Aurora.body.weight(.semibold))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, AuroraSpacing.space4)
+                .background(Color.Aurora.auroraGradient)
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
+                .shadow(color: Color.Aurora.accentMid.opacity(0.4), radius: 16, y: 8)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 60)
-            .padding(.bottom, 40)
+            .buttonStyle(.plain)
+            .padding(.horizontal, AuroraSpacing.space12)
+            .padding(.bottom, AuroraSpacing.space10)
+        }
+    }
+}
+
+// Legacy alias
+struct CompleteStepView: View {
+    @EnvironmentObject var configManager: ConfigManager
+    let onFinish: () -> Void
+    var body: some View { AuroraCompleteStep(onFinish: onFinish) }
+}
+
+// MARK: - Aurora Onboarding Button Style
+
+private struct AuroraOnboardingButtonStyle: ButtonStyle {
+    enum Style { case primary, secondary }
+    let style: Style
+    
+    @Environment(\.isEnabled) private var isEnabled
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(background(isPressed: configuration.isPressed))
+            .foregroundColor(foregroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+            .overlay(overlay)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(isEnabled ? 1.0 : 0.5)
+            .animation(.auroraSpringStiff, value: configuration.isPressed)
+    }
+    
+    @ViewBuilder
+    private func background(isPressed: Bool) -> some View {
+        switch style {
+        case .primary:
+            LinearGradient(
+                colors: Color.Aurora.auroraGradientColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .opacity(isPressed ? 0.8 : 1.0)
+        case .secondary:
+            Color.Aurora.surface
+                .opacity(isPressed ? 0.8 : 1.0)
+        }
+    }
+    
+    private var foregroundColor: Color {
+        style == .primary ? .white : Color.Aurora.textPrimary
+    }
+    
+    @ViewBuilder
+    private var overlay: some View {
+        if style == .secondary {
+            RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                .stroke(Color.Aurora.border, lineWidth: 1)
         }
     }
 }
