@@ -22,6 +22,27 @@
 "commandbar.settings" = "Settings";
 "commandbar.run" = "Run";
 "commandbar.close" = "Close";
+"commandbar.select" = "Select";
+"commandbar.complete" = "Complete";
+"commandbar.navigate" = "Navigate";
+"commandbar.back" = "Back";
+"commandbar.open" = "Open";
+"commandbar.delete" = "Delete";
+"commandbar.new" = "New";
+"commandbar.commands" = "Commands";
+"commandbar.stop" = "Stop";
+"commandbar.drawer" = "Details";
+"commandbar.send" = "Send";
+"commandbar.retry" = "Retry";
+"commandbar.cancel" = "Cancel";
+"commandbar.running" = "Running";
+"commandbar.new_task" = "New Task";
+"commandbar.completed" = "Completed";
+"commandbar.details" = "Details";
+"commandbar.error" = "Error";
+"commandbar.dismiss" = "Dismiss";
+"commandbar.ready" = "Ready";
+"commandbar.type_request" = "Type your request below";
 
 // MARK: - Settings
 "settings.title" = "Settings";
@@ -162,8 +183,8 @@
 "drawer.new_session" = "New Session";
 "drawer.new_chat" = "New Chat";
 "drawer.conversation" = "Conversation";
-"drawer.thinking" = "Thinking...";
-"drawer.processing" = "Processing...";
+"drawer.thinking" = "Thinking";
+"drawer.processing" = "Processing";
 "drawer.completed" = "Completed";
 "drawer.failed" = "Failed";
 "drawer.interrupted" = "Interrupted";
@@ -184,6 +205,16 @@
 "permission.question" = "Question";
 "permission.allow_once" = "Allow";
 "permission.deny_once" = "Deny";
+
+// MARK: - Alerts
+"alert.delete_session_title" = "Delete this session?";
+"alert.delete_session_message" = "This will permanently delete \"%@\"";
+
+// MARK: - Time
+"time.just_now" = "just now";
+"time.minutes_ago" = "%dm ago";
+"time.hours_ago" = "%dh ago";
+"time.days_ago" = "%dd ago";
 
 // MARK: - Status Bar
 "statusbar.idle" = "Motive";

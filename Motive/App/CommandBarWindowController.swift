@@ -14,8 +14,12 @@ final class CommandBarWindowController {
     private let hostingView: NSHostingView<AnyView>
     private let containerView: NSView
     private var resignKeyObserver: Any?
+    private var resignActiveObserver: Any?
     private var frameObserver: NSObjectProtocol?
     private var currentHeight: CGFloat = CommandBarWindowController.heights["idle"] ?? 100
+    
+    /// When true, the window will not hide on resign key (used during delete confirmation)
+    var suppressAutoHide: Bool = false
     
     // Height constants matching CommandBarMode
     // Layout: [status bar ~50] + input(52) + [list] + footer(40) + padding
@@ -75,18 +79,36 @@ final class CommandBarWindowController {
             hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
         ])
         
-        // Hide when window loses key status
+        // Hide when window loses key status (unless suppressed)
         resignKeyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
             object: panel,
             queue: .main
         ) { [weak self] _ in
-            self?.hide()
+            guard let self = self else { return }
+            if !self.suppressAutoHide {
+                self.hide()
+            }
+        }
+        
+        // Also hide when app loses active status (e.g., clicking menu bar, switching apps)
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            if !self.suppressAutoHide {
+                self.hide()
+            }
         }
     }
     
     deinit {
         if let observer = resignKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = resignActiveObserver {
             NotificationCenter.default.removeObserver(observer)
         }
         if let observer = frameObserver {

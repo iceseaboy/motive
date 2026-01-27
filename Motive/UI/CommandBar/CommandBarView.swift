@@ -148,23 +148,17 @@ struct CommandBarView: View {
             .onKeyPress(.upArrow, action: { handleUpArrow(); return .handled })
             .onKeyPress(.downArrow, action: { handleDownArrow(); return .handled })
             .onKeyPress(.tab, action: { handleTab(); return .handled })
-            .onKeyPress(keys: [.init("n")], phases: .down) { press in
-                if press.modifiers.contains(.command) {
-                    handleCmdN()
-                    return .handled
+            .onChange(of: showDeleteConfirmation) { _, shouldShow in
+                if shouldShow {
+                    showDeleteAlert()
                 }
-                return .ignored
             }
-            .onKeyPress(.delete, phases: .down) { press in
-                if press.modifiers.contains(.command) {
-                    handleCmdDelete()
-                    return .handled
+            .onChange(of: appState.sessionListRefreshTrigger) { _, _ in
+                // Refresh session list after deletion
+                historySessions = appState.getAllSessions()
+                if selectedHistoryIndex >= filteredHistorySessions.count {
+                    selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
                 }
-                return .ignored
-            }
-            .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-                Button("Delete", role: .destructive, action: confirmDeleteSession)
-                Button("Cancel", role: .cancel) {}
             }
     }
     
@@ -213,6 +207,54 @@ struct CommandBarView: View {
         }
     }
     
+    private func showDeleteAlert() {
+        guard selectedHistoryIndex < filteredHistorySessions.count else {
+            showDeleteConfirmation = false
+            return
+        }
+        
+        let sessionName = filteredHistorySessions[selectedHistoryIndex].intent
+        
+        // Suppress auto-hide while alert is showing
+        appState.setCommandBarAutoHideSuppressed(true)
+        
+        // Use NSAlert for better focus control
+        let alert = NSAlert()
+        alert.messageText = L10n.Alert.deleteSessionTitle
+        alert.informativeText = String(format: L10n.Alert.deleteSessionMessage, sessionName)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.CommandBar.delete)
+        alert.addButton(withTitle: L10n.CommandBar.cancel)
+        
+        // Show alert attached to command bar window
+        if let window = appState.commandBarWindowRef {
+            // Capture values needed in closure (struct cannot use weak self)
+            let sessionToDelete = filteredHistorySessions[selectedHistoryIndex]
+            let appStateRef = appState
+            
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn {
+                    // Delete the session and trigger list refresh
+                    appStateRef.deleteSession(sessionToDelete)
+                    appStateRef.sessionListRefreshTrigger += 1
+                }
+                
+                // Reset state and restore focus
+                appStateRef.setCommandBarAutoHideSuppressed(false)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    appStateRef.refocusCommandBar()
+                }
+            }
+            
+            // Reset the flag (will be handled after alert closes)
+            showDeleteConfirmation = false
+        } else {
+            showDeleteConfirmation = false
+            appState.setCommandBarAutoHideSuppressed(false)
+        }
+    }
+    
     // MARK: - Keyboard Navigation
     
     private func handleUpArrow() {
@@ -240,10 +282,9 @@ struct CommandBarView: View {
     }
     
     private func handleTab() {
-        // Tab completion for commands
-        if mode.isCommand && !filteredCommands.isEmpty {
-            let command = filteredCommands[selectedCommandIndex]
-            inputText = "/\(command.name)"
+        // Tab completion: complete the autocomplete hint
+        if let hint = autocompleteHint {
+            inputText = hint
         }
     }
     
@@ -327,8 +368,15 @@ struct CommandBarView: View {
             sessions: filteredHistorySessions,
             selectedIndex: $selectedHistoryIndex,
             onSelect: selectHistorySession,
-            onDelete: deleteHistorySession
+            onRequestDelete: requestDeleteHistorySession
         )
+    }
+    
+    private func requestDeleteHistorySession(at index: Int) {
+        // Set the selected index to the one being deleted
+        selectedHistoryIndex = index
+        // Show confirmation dialog
+        showDeleteConfirmation = true
     }
     
     private var filteredHistorySessions: [Session] {
@@ -340,7 +388,14 @@ struct CommandBarView: View {
     
     private func loadHistorySessions() {
         historySessions = appState.getAllSessions()
-        selectedHistoryIndex = 0
+        
+        // Select current session if exists, otherwise default to first
+        if let currentSession = appState.currentSessionRef,
+           let index = historySessions.firstIndex(where: { $0.id == currentSession.id }) {
+            selectedHistoryIndex = index
+        } else {
+            selectedHistoryIndex = 0
+        }
     }
     
     private func selectHistorySession(_ session: Session) {
@@ -371,7 +426,7 @@ struct CommandBarView: View {
             AuroraPulsingDot()
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Running")
+                Text(L10n.CommandBar.running)
                     .font(.Aurora.caption.weight(.semibold))
                     .foregroundColor(Color.Aurora.textPrimary)
                 
@@ -415,7 +470,7 @@ struct CommandBarView: View {
     
     private var completedSummaryView: some View {
         let isNewSession = appState.messages.isEmpty
-        let statusTitle = isNewSession ? "New Task" : "Completed"
+        let statusTitle = isNewSession ? L10n.CommandBar.newTask : L10n.CommandBar.completed
         let statusIcon = isNewSession ? "plus.circle.fill" : "checkmark.circle.fill"
         let statusColor = isNewSession ? Color.Aurora.primary : Color.Aurora.accent
         
@@ -435,7 +490,7 @@ struct CommandBarView: View {
                         .foregroundColor(Color.Aurora.textMuted)
                         .lineLimit(1)
                 } else {
-                    Text("Type your request below")
+                    Text(L10n.CommandBar.typeRequest)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
                         .lineLimit(1)
@@ -450,7 +505,7 @@ struct CommandBarView: View {
                 appState.hideCommandBar()
             }) {
                 HStack(spacing: 4) {
-                    Text("Details")
+                    Text(L10n.CommandBar.details)
                         .font(.Aurora.caption)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .medium))
@@ -476,7 +531,7 @@ struct CommandBarView: View {
                 .foregroundColor(Color.Aurora.error)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Error")
+                Text(L10n.CommandBar.error)
                     .font(.Aurora.caption.weight(.semibold))
                     .foregroundColor(Color.Aurora.textPrimary)
                 
@@ -489,7 +544,7 @@ struct CommandBarView: View {
             Spacer()
             
             Button(action: { mode = .idle }) {
-                Text("Dismiss")
+                Text(L10n.CommandBar.dismiss)
                     .font(.Aurora.caption)
                     .foregroundColor(Color.Aurora.textSecondary)
                     .padding(.horizontal, AuroraSpacing.space3)
@@ -505,17 +560,80 @@ struct CommandBarView: View {
     
     // MARK: - Input Area (Always Visible - No icons, status shown above)
     
+    /// Autocomplete hint for command input (Raycast style)
+    private var autocompleteHint: String? {
+        // Only show hint when input starts with "/" and we have matching commands
+        guard inputText.hasPrefix("/"), !filteredCommands.isEmpty else { return nil }
+        
+        let query = String(inputText.dropFirst()) // Remove "/"
+        let firstMatch = filteredCommands[selectedCommandIndex]
+        
+        // Return the full command name for hint
+        return "/\(firstMatch.name)"
+    }
+    
+    /// The portion of hint that should be shown as completion (gray text after input)
+    private var autocompleteCompletion: String? {
+        guard let hint = autocompleteHint else { return nil }
+        
+        // If input is shorter than hint, return the remaining part
+        if inputText.count < hint.count && hint.lowercased().hasPrefix(inputText.lowercased()) {
+            return String(hint.dropFirst(inputText.count))
+        }
+        return nil
+    }
+    
     private var inputAreaView: some View {
         HStack(spacing: AuroraSpacing.space3) {
-            // Input field - no icon prefix
-            TextField("", text: $inputText, prompt: Text(placeholderText)
-                .foregroundColor(Color.Aurora.textMuted))
-                .textFieldStyle(.plain)
-                .font(.system(size: 18, weight: .regular))
-                .foregroundColor(Color.Aurora.textPrimary)
+            // Input field with inline autocomplete hint
+            ZStack(alignment: .leading) {
+                // Autocomplete hint (gray completion text)
+                if let completion = autocompleteCompletion {
+                    HStack(spacing: 0) {
+                        // Invisible spacer for the typed text width
+                        Text(inputText)
+                            .font(.system(size: 18, weight: .regular))
+                            .opacity(0)
+                        
+                        // Gray completion hint
+                        Text(completion)
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundColor(Color.Aurora.textMuted)
+                    }
+                }
+                
+                // Actual input field
+                CommandBarTextField(
+                    text: $inputText,
+                    placeholder: placeholderText,
+                    isDisabled: mode == .running,
+                    onSubmit: handleSubmit,
+                    onCmdDelete: {
+                        if mode.isHistories {
+                            handleCmdDelete()
+                        }
+                    },
+                    onCmdN: handleCmdN
+                )
                 .focused($isInputFocused)
-                .onSubmit { handleSubmit() }
-                .disabled(mode == .running)
+            }
+            
+            // Tab hint when autocomplete is available
+            if autocompleteCompletion != nil {
+                Text("Tab")
+                    .font(.Aurora.micro.weight(.medium))
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .padding(.horizontal, AuroraSpacing.space2)
+                    .padding(.vertical, AuroraSpacing.space1)
+                    .background(
+                        RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                            .fill(Color.Aurora.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                            .stroke(Color.Aurora.border, lineWidth: 0.5)
+                    )
+            }
             
             // Action button
             actionButton
@@ -629,35 +747,35 @@ struct CommandBarView: View {
     private var rightFooterContent: some View {
         HStack(spacing: AuroraSpacing.space4) {
             if mode.isCommand {
-                AuroraShortcutBadge(keys: ["↵"], label: "Select")
-                AuroraShortcutBadge(keys: ["tab"], label: "Complete")
-                AuroraShortcutBadge(keys: ["↑↓"], label: "Navigate")
-                AuroraShortcutBadge(keys: ["esc"], label: "Back")
+                AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.select)
+                AuroraShortcutBadge(keys: ["tab"], label: L10n.CommandBar.complete)
+                AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
+                AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
             } else if mode.isHistories {
-                AuroraShortcutBadge(keys: ["↵"], label: "Open")
-                AuroraShortcutBadge(keys: ["⌘", "⌫"], label: "Delete")
-                AuroraShortcutBadge(keys: ["↑↓"], label: "Navigate")
-                AuroraShortcutBadge(keys: ["esc"], label: "Back")
+                AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.open)
+                AuroraShortcutBadge(keys: ["⌘", "⌫"], label: L10n.CommandBar.delete)
+                AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
+                AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
             } else {
                 switch mode {
                 case .idle, .input:
                     AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.run)
-                    AuroraShortcutBadge(keys: ["⌘", "N"], label: "New")
-                    AuroraShortcutBadge(keys: ["/"], label: "Commands")
+                    AuroraShortcutBadge(keys: ["⌘", "N"], label: L10n.CommandBar.new)
+                    AuroraShortcutBadge(keys: ["/"], label: L10n.CommandBar.commands)
                     AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
                 case .running:
-                    AuroraShortcutBadge(keys: ["⌘", "N"], label: "New")
-                    AuroraShortcutBadge(keys: ["esc"], label: "Stop")
-                    AuroraShortcutBadge(keys: ["⌘", "D"], label: "Drawer")
+                    AuroraShortcutBadge(keys: ["⌘", "N"], label: L10n.CommandBar.new)
+                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.stop)
+                    AuroraShortcutBadge(keys: ["⌘", "D"], label: L10n.CommandBar.drawer)
                 case .completed:
-                    AuroraShortcutBadge(keys: ["↵"], label: "Send")
-                    AuroraShortcutBadge(keys: ["⌘", "N"], label: "New")
-                    AuroraShortcutBadge(keys: ["/"], label: "Commands")
-                    AuroraShortcutBadge(keys: ["esc"], label: "Close")
+                    AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.send)
+                    AuroraShortcutBadge(keys: ["⌘", "N"], label: L10n.CommandBar.new)
+                    AuroraShortcutBadge(keys: ["/"], label: L10n.CommandBar.commands)
+                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
                 case .error:
-                    AuroraShortcutBadge(keys: ["↵"], label: "Retry")
-                    AuroraShortcutBadge(keys: ["/"], label: "Commands")
-                    AuroraShortcutBadge(keys: ["esc"], label: "Close")
+                    AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.retry)
+                    AuroraShortcutBadge(keys: ["/"], label: L10n.CommandBar.commands)
+                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
                 default:
                     EmptyView()
                 }
@@ -871,8 +989,27 @@ struct CommandBarView: View {
     }
     
     /// Re-center window and refocus input when CommandBar is shown
-    /// Does NOT clear input - user may want to continue typing
+    /// Syncs mode with current session state
     private func recenterAndFocus() {
+        // Sync mode with current session status (unless user is mid-action)
+        if !mode.isCommand && !mode.isHistories {
+            switch appState.sessionStatus {
+            case .running:
+                mode = .running
+            case .completed:
+                mode = .completed
+            case .failed:
+                mode = .error(appState.lastErrorMessage ?? "An error occurred")
+            case .idle, .interrupted:
+                // If there's a current session with messages, show completed
+                if appState.currentSessionRef != nil && !appState.messages.isEmpty {
+                    mode = .completed
+                } else {
+                    mode = .idle
+                }
+            }
+        }
+        
         // Update window height to match current mode
         appState.updateCommandBarHeight(for: mode.modeName)
         
@@ -1095,9 +1232,113 @@ private struct PulsingBorderModifier: ViewModifier {
 extension AppState.MenuBarState {
     var displayText: String {
         switch self {
-        case .idle: return "Ready"
-        case .reasoning: return "Thinking…"
-        case .executing: return "Running…"
+        case .idle: return L10n.CommandBar.ready
+        case .reasoning: return L10n.StatusBar.reasoning
+        case .executing: return L10n.StatusBar.executing
+        }
+    }
+}
+
+// MARK: - CommandBar TextField with Keyboard Handling
+
+struct CommandBarTextField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var isDisabled: Bool
+    var onSubmit: () -> Void
+    var onCmdDelete: () -> Void
+    var onCmdN: (() -> Void)?
+    
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.delegate = context.coordinator
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.font = NSFont.systemFont(ofSize: 18, weight: .regular)
+        textField.textColor = NSColor(Color.Aurora.textPrimary)
+        textField.focusRingType = .none
+        textField.cell?.truncatesLastVisibleLine = true
+        textField.placeholderString = placeholder
+        
+        // Set up keyboard event monitor
+        context.coordinator.setupKeyboardMonitor()
+        
+        return textField
+    }
+    
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.placeholderString = placeholder
+        nsView.isEnabled = !isDisabled
+        
+        // Update callbacks
+        context.coordinator.onCmdDelete = onCmdDelete
+        context.coordinator.onCmdN = onCmdN
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    static func dismantleNSView(_ nsView: NSTextField, coordinator: Coordinator) {
+        coordinator.removeKeyboardMonitor()
+    }
+    
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: CommandBarTextField
+        var onCmdDelete: (() -> Void)?
+        var onCmdN: (() -> Void)?
+        private var keyboardMonitor: Any?
+        
+        init(_ parent: CommandBarTextField) {
+            self.parent = parent
+            self.onCmdDelete = parent.onCmdDelete
+            self.onCmdN = parent.onCmdN
+        }
+        
+        func setupKeyboardMonitor() {
+            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self = self else { return event }
+                
+                // Check for Cmd modifier
+                guard event.modifierFlags.contains(.command) else { return event }
+                
+                // Cmd+Delete (backspace, keyCode 51)
+                if event.keyCode == 51 {
+                    self.onCmdDelete?()
+                    return nil  // Consume the event
+                }
+                
+                // Cmd+N (keyCode 45)
+                if event.keyCode == 45 {
+                    self.onCmdN?()
+                    return nil  // Consume the event
+                }
+                
+                return event
+            }
+        }
+        
+        func removeKeyboardMonitor() {
+            if let monitor = keyboardMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyboardMonitor = nil
+            }
+        }
+        
+        func controlTextDidChange(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+        }
+        
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onSubmit()
+                return true
+            }
+            return false
         }
     }
 }

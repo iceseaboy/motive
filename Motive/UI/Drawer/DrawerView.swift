@@ -33,11 +33,22 @@ struct DrawerView: View {
                     .padding(.top, AuroraSpacing.space4)
                     .padding(.bottom, AuroraSpacing.space3)
                 
-                // Aurora accent bar
+                // Subtle divider with fade edges
                 Rectangle()
-                    .fill(Color.Aurora.auroraGradient)
-                    .frame(height: 2)
-                    .opacity(0.6)
+                    .fill(Color.Aurora.border)
+                    .frame(height: 1)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black, location: 0.1),
+                                .init(color: .black, location: 0.9),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                 
                 // Error banner (if any)
                 if let error = appState.lastErrorMessage {
@@ -71,13 +82,12 @@ struct DrawerView: View {
             }
         }
         .frame(width: 400, height: 600)
-        .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous))
+        // Window handles: cornerRadius, masksToBounds, native shadow
+        // No clipShape/shadow here - handled at window layer (like CommandBar)
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .strokeBorder(Color.Aurora.border, lineWidth: 1)
         )
-        .shadow(color: Color.Aurora.accentMid.opacity(isDark ? 0.15 : 0.08), radius: 30, y: 10)
-        .shadow(color: Color.black.opacity(isDark ? 0.35 : 0.15), radius: 25, y: 15)
         .onAppear {
             withAnimation(.auroraSpring.delay(0.1)) {
                 showContent = true
@@ -94,25 +104,18 @@ struct DrawerView: View {
     
     private var drawerBackground: some View {
         ZStack {
+            // Use same approach as CommandBar: VisualEffectView with cornerRadius
             VisualEffectView(
-                material: isDark ? .sidebar : .popover,
+                material: .menu,
                 blendingMode: .behindWindow,
-                state: .active
+                state: .active,
+                cornerRadius: AuroraRadius.xl,
+                masksToBounds: true
             )
             
-            Color.Aurora.backgroundDeep.opacity(0.97)
-            
-            if isDark {
-                LinearGradient(
-                    colors: [
-                        Color.Aurora.accentMid.opacity(0.02),
-                        Color.clear,
-                        Color.Aurora.accentStart.opacity(0.01)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+            // Semi-transparent overlay for consistent appearance
+            RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
+                .fill(Color.Aurora.background.opacity(0.85))
         }
     }
     
@@ -219,7 +222,7 @@ struct DrawerView: View {
             // Dropdown menu
             VStack(spacing: 0) {
                 if sessions.isEmpty {
-                    Text("No sessions yet")
+                    Text(L10n.Drawer.noHistory)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
                         .padding(AuroraSpacing.space4)
@@ -366,21 +369,44 @@ struct DrawerView: View {
                             )
                     }
                     
-                    // Thinking indicator
+                    // Thinking indicator (with id for scrolling)
                     if appState.sessionStatus == .running {
                         ThinkingIndicator(toolName: appState.currentToolName)
+                            .id("thinking-indicator")
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
+                    
+                    // Invisible anchor at bottom for reliable scrolling
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom-anchor")
                 }
                 .padding(.horizontal, AuroraSpacing.space4)
                 .padding(.vertical, AuroraSpacing.space4)
             }
+            .onAppear {
+                scrollToBottom(proxy: proxy)
+            }
             .onChange(of: appState.messages.count) { _, _ in
-                if let last = appState.messages.last {
-                    withAnimation(.auroraSpring) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: appState.messages.last?.content) { _, _ in
+                // Scroll when message content updates (streaming)
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: appState.sessionStatus) { _, newStatus in
+                // Scroll when status changes (e.g., starts running)
+                if newStatus == .running {
+                    scrollToBottom(proxy: proxy)
                 }
+            }
+        }
+    }
+    
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(.auroraSpring) {
+                proxy.scrollTo("bottom-anchor", anchor: .bottom)
             }
         }
     }
@@ -388,39 +414,37 @@ struct DrawerView: View {
     // MARK: - Chat Input Area
     
     private var chatInputArea: some View {
-        VStack(spacing: 0) {
+        let isRunning = appState.sessionStatus == .running
+        
+        return VStack(spacing: 0) {
             Rectangle()
                 .fill(Color.Aurora.border)
                 .frame(height: 1)
             
             HStack(spacing: AuroraSpacing.space3) {
-                if appState.sessionStatus == .running {
-                    HStack(spacing: AuroraSpacing.space2) {
-                        AuroraLoadingDots()
-                        ShimmerText(text: L10n.Drawer.processing, isDark: isDark)
-                    }
+                HStack(spacing: AuroraSpacing.space2) {
+                    TextField("", text: $inputText, prompt: Text(L10n.Drawer.messagePlaceholder)
+                        .foregroundColor(Color.Aurora.textMuted))
+                        .textFieldStyle(.plain)
+                        .font(.Aurora.body)
+                        .foregroundColor(Color.Aurora.textPrimary)
+                        .focused($isInputFocused)
+                        .onSubmit(sendMessage)
+                        .disabled(isRunning)
                     
-                    Spacer()
-                    
-                    Button(action: { appState.interruptSession() }) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Color.Aurora.error)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    HStack(spacing: AuroraSpacing.space2) {
-                        TextField("", text: $inputText, prompt: Text(L10n.Drawer.messagePlaceholder)
-                            .foregroundColor(Color.Aurora.textMuted))
-                            .textFieldStyle(.plain)
-                            .font(.Aurora.body)
-                            .foregroundColor(Color.Aurora.textPrimary)
-                            .focused($isInputFocused)
-                            .onSubmit(sendMessage)
-                        
+                    if isRunning {
+                        // Stop button when running
+                        Button(action: { appState.interruptSession() }) {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color.Aurora.error)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Send button when not running
                         Button(action: sendMessage) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 24, weight: .medium))
@@ -429,19 +453,19 @@ struct DrawerView: View {
                         .buttonStyle(.plain)
                         .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .padding(.horizontal, AuroraSpacing.space3)
-                    .padding(.vertical, AuroraSpacing.space2)
-                    .background(Color.Aurora.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                            .stroke(
-                                isInputFocused ? Color.Aurora.borderFocus : Color.Aurora.border,
-                                lineWidth: isInputFocused ? 1.5 : 0.5
-                            )
-                    )
-                    .animation(.auroraFast, value: isInputFocused)
                 }
+                .padding(.horizontal, AuroraSpacing.space3)
+                .padding(.vertical, AuroraSpacing.space2)
+                .background(Color.Aurora.surface.opacity(isRunning ? 0.5 : 1))
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                        .stroke(
+                            isInputFocused && !isRunning ? Color.Aurora.borderFocus : Color.Aurora.border,
+                            lineWidth: isInputFocused && !isRunning ? 1.5 : 0.5
+                        )
+                )
+                .animation(.auroraFast, value: isInputFocused)
             }
             .padding(.horizontal, AuroraSpacing.space4)
             .padding(.vertical, AuroraSpacing.space3)
@@ -468,19 +492,19 @@ private struct SessionPickerItem: View {
     let session: Session
     let onSelect: () -> Void
     let onDelete: () -> Void
+    @EnvironmentObject private var appState: AppState
     
     @State private var isHovering = false
-    @State private var showDeleteConfirm = false
     
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: AuroraSpacing.space3) {
-                // Status dot
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 6, height: 6)
-                
-                // Content
+        HStack(spacing: AuroraSpacing.space3) {
+            // Status dot
+            Circle()
+                .fill(statusColor)
+                .frame(width: 6, height: 6)
+            
+            // Content (clickable to select)
+            Button(action: onSelect) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.intent)
                         .font(.Aurora.bodySmall.weight(.medium))
@@ -491,36 +515,58 @@ private struct SessionPickerItem: View {
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
                 }
-                
-                Spacer()
-                
-                // Delete button
-                if isHovering {
-                    Button(action: { showDeleteConfirm = true }) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(Color.Aurora.textMuted)
-                            .frame(width: 20, height: 20)
-                            .background(Color.Aurora.surface)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, AuroraSpacing.space3)
-            .padding(.vertical, AuroraSpacing.space2)
-            .background(
-                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isHovering ? Color.Aurora.surfaceElevated : Color.clear)
-            )
+            .buttonStyle(.plain)
+            
+            // Delete button (separate from select)
+            if isHovering {
+                Button(action: {
+                    showDeleteConfirmation()
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color.Aurora.textMuted)
+                        .frame(width: 20, height: 20)
+                        .background(Color.Aurora.surface)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, AuroraSpacing.space3)
+        .padding(.vertical, AuroraSpacing.space2)
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                .fill(isHovering ? Color.Aurora.surfaceElevated : Color.clear)
+        )
         .onHover { isHovering = $0 }
         .animation(.auroraFast, value: isHovering)
-        .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive, action: onDelete)
-            Button("Cancel", role: .cancel) {}
+    }
+    
+    private func showDeleteConfirmation() {
+        guard let window = appState.drawerWindowRef else { return }
+        
+        // Suppress auto-hide while alert is shown
+        appState.setDrawerAutoHideSuppressed(true)
+        
+        let alert = NSAlert()
+        alert.messageText = L10n.Alert.deleteSessionTitle
+        let sessionName = String(session.intent.prefix(50))
+        alert.informativeText = String(format: L10n.Alert.deleteSessionMessage, sessionName)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.CommandBar.delete)
+        alert.addButton(withTitle: L10n.CommandBar.cancel)
+        
+        // Show as sheet attached to Drawer window
+        alert.beginSheetModal(for: window) { [onDelete] response in
+            if response == .alertFirstButtonReturn {
+                onDelete()
+            }
+            // Re-enable auto-hide and refocus
+            appState.setDrawerAutoHideSuppressed(false)
+            window.makeKeyAndOrderFront(nil)
         }
     }
     
@@ -537,10 +583,10 @@ private struct SessionPickerItem: View {
         let now = Date()
         let diff = now.timeIntervalSince(session.createdAt)
         
-        if diff < 60 { return "just now" }
-        if diff < 3600 { return "\(Int(diff / 60))m ago" }
-        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
-        if diff < 604800 { return "\(Int(diff / 86400))d ago" }
+        if diff < 60 { return L10n.Time.justNow }
+        if diff < 3600 { return String(format: L10n.Time.minutesAgo, Int(diff / 60)) }
+        if diff < 86400 { return String(format: L10n.Time.hoursAgo, Int(diff / 3600)) }
+        if diff < 604800 { return String(format: L10n.Time.daysAgo, Int(diff / 86400)) }
         
         let formatter = DateFormatter()
         formatter.dateStyle = .short

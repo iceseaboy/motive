@@ -30,6 +30,27 @@ enum L10n {
         static let settings = "commandbar.settings".localized
         static let run = "commandbar.run".localized
         static let close = "commandbar.close".localized
+        static let select = "commandbar.select".localized
+        static let complete = "commandbar.complete".localized
+        static let navigate = "commandbar.navigate".localized
+        static let back = "commandbar.back".localized
+        static let open = "commandbar.open".localized
+        static let delete = "commandbar.delete".localized
+        static let new = "commandbar.new".localized
+        static let commands = "commandbar.commands".localized
+        static let stop = "commandbar.stop".localized
+        static let drawer = "commandbar.drawer".localized
+        static let send = "commandbar.send".localized
+        static let retry = "commandbar.retry".localized
+        static let cancel = "commandbar.cancel".localized
+        static let running = "commandbar.running".localized
+        static let newTask = "commandbar.new_task".localized
+        static let completed = "commandbar.completed".localized
+        static let details = "commandbar.details".localized
+        static let error = "commandbar.error".localized
+        static let dismiss = "commandbar.dismiss".localized
+        static let ready = "commandbar.ready".localized
+        static let typeRequest = "commandbar.type_request".localized
     }
     
     // MARK: - Settings
@@ -198,6 +219,20 @@ enum L10n {
         static let question = "permission.question".localized
         static let allowOnce = "permission.allow_once".localized
         static let denyOnce = "permission.deny_once".localized
+    }
+    
+    // MARK: - Alerts
+    enum Alert {
+        static let deleteSessionTitle = "alert.delete_session_title".localized
+        static let deleteSessionMessage = "alert.delete_session_message".localized
+    }
+    
+    // MARK: - Time
+    enum Time {
+        static let justNow = "time.just_now".localized
+        static let minutesAgo = "time.minutes_ago".localized
+        static let hoursAgo = "time.hours_ago".localized
+        static let daysAgo = "time.days_ago".localized
     }
     
     // MARK: - Status Bar

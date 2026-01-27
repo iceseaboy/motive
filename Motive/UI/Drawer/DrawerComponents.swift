@@ -128,15 +128,15 @@ struct MessageBubble: View {
         .onHover { isHovering = $0 }
     }
     
-    // MARK: - User Bubble (Amber Gradient)
+    // MARK: - User Bubble
     
     private var userBubble: some View {
         Text(message.content)
             .font(.Aurora.body)
-            .foregroundColor(.white)
+            .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, AuroraSpacing.space4)
             .padding(.vertical, AuroraSpacing.space3)
-            .background(Color.Aurora.surfaceElevated)
+            .background(Color.Aurora.surface)
             .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
@@ -383,7 +383,7 @@ struct SessionStatusBadge: View {
     private var foregroundColor: Color {
         switch status {
         case .idle: return Color.Aurora.textMuted
-        case .running: return Color.Aurora.accent
+        case .running: return Color.Aurora.primary  // Amber for active state
         case .completed: return Color.Aurora.success
         case .failed: return Color.Aurora.error
         case .interrupted: return Color.Aurora.warning

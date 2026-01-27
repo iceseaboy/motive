@@ -24,14 +24,23 @@ struct StyledTextField: View {
     
     private var isDark: Bool { colorScheme == .dark }
     
+    // Use explicit color values to ensure correct background
+    private var backgroundColor: Color {
+        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
+               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
+    }
+    
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
             .font(.Aurora.body)
+            .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, AuroraInputFieldStyle.horizontalPadding)
             .frame(height: AuroraInputFieldStyle.height)
-            .background(Color.Aurora.surface)
-            .clipShape(RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
+                    .fill(backgroundColor)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
                     .stroke(Color.Aurora.border, lineWidth: 1)
@@ -49,6 +58,12 @@ struct SecureInputField: View {
     
     private var isDark: Bool { colorScheme == .dark }
     
+    // Use explicit color values to ensure correct background
+    private var backgroundColor: Color {
+        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
+               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
+    }
+    
     var body: some View {
         HStack(spacing: 0) {
             Group {
@@ -60,6 +75,7 @@ struct SecureInputField: View {
             }
             .textFieldStyle(.plain)
             .font(.Aurora.body)
+            .foregroundColor(Color.Aurora.textPrimary)
             
             Button(action: { showingText.toggle() }) {
                 Image(systemName: showingText ? "eye.slash" : "eye")
@@ -71,8 +87,10 @@ struct SecureInputField: View {
         }
         .padding(.horizontal, AuroraInputFieldStyle.horizontalPadding)
         .frame(height: AuroraInputFieldStyle.height)
-        .background(Color.Aurora.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
+                .fill(backgroundColor)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
                 .stroke(Color.Aurora.border, lineWidth: 1)
@@ -484,28 +502,55 @@ struct AuroraAccessibilityStep: View {
             }
             .padding(.top, AuroraSpacing.space5)
             
-            // Status
+            // Status Card
             VStack(spacing: AuroraSpacing.space4) {
-                HStack {
-                    Image(systemName: hasPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(hasPermission ? Color.Aurora.success : Color.Aurora.warning)
-                    Text(hasPermission ? L10n.Onboarding.accessibilityGranted : L10n.Onboarding.accessibilityRequired)
-                        .font(.Aurora.bodySmall)
-                        .foregroundColor(Color.Aurora.textPrimary)
+                HStack(spacing: AuroraSpacing.space3) {
+                    // Status icon with background
+                    ZStack {
+                        Circle()
+                            .fill(hasPermission ? Color.Aurora.success.opacity(0.15) : Color.Aurora.warning.opacity(0.15))
+                            .frame(width: 36, height: 36)
+                        
+                        Image(systemName: hasPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(hasPermission ? Color.Aurora.success : Color.Aurora.warning)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
+                        Text(hasPermission ? L10n.Onboarding.accessibilityGranted : L10n.Onboarding.accessibilityRequired)
+                            .font(.Aurora.body.weight(.medium))
+                            .foregroundColor(Color.Aurora.textPrimary)
+                        
+                        Text(hasPermission ? "Hotkey is ready to use" : "Required for global hotkey")
+                            .font(.Aurora.caption)
+                            .foregroundColor(Color.Aurora.textSecondary)
+                    }
+                    
                     Spacer()
                 }
-                .padding(AuroraSpacing.space3)
-                .background(Color.Aurora.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+                .padding(AuroraSpacing.space4)
+                .background(
+                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                        .fill(Color.Aurora.surface)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                        .stroke(
+                            hasPermission ? Color.Aurora.success.opacity(0.3) : Color.Aurora.warning.opacity(0.3),
+                            lineWidth: 1
+                        )
                 )
                 
                 if !hasPermission {
                     Button(action: openAccessibilitySettings) {
-                        Label(L10n.Onboarding.openSystemSettings, systemImage: "gear")
-                            .font(.Aurora.bodySmall.weight(.medium))
+                        HStack(spacing: AuroraSpacing.space2) {
+                            Image(systemName: "gear")
+                                .font(.system(size: 14, weight: .medium))
+                            Text(L10n.Onboarding.openSystemSettings)
+                                .font(.Aurora.body.weight(.medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
                     }
                     .buttonStyle(AuroraOnboardingButtonStyle(style: .secondary))
                 }

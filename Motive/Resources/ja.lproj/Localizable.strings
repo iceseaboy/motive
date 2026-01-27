@@ -22,6 +22,27 @@
 "commandbar.settings" = "設定";
 "commandbar.run" = "実行";
 "commandbar.close" = "閉じる";
+"commandbar.select" = "選択";
+"commandbar.complete" = "補完";
+"commandbar.navigate" = "移動";
+"commandbar.back" = "戻る";
+"commandbar.open" = "開く";
+"commandbar.delete" = "削除";
+"commandbar.new" = "新規";
+"commandbar.commands" = "コマンド";
+"commandbar.stop" = "停止";
+"commandbar.drawer" = "詳細";
+"commandbar.send" = "送信";
+"commandbar.retry" = "再試行";
+"commandbar.cancel" = "キャンセル";
+"commandbar.running" = "実行中";
+"commandbar.new_task" = "新規タスク";
+"commandbar.completed" = "完了";
+"commandbar.details" = "詳細";
+"commandbar.error" = "エラー";
+"commandbar.dismiss" = "閉じる";
+"commandbar.ready" = "準備完了";
+"commandbar.type_request" = "以下にリクエストを入力";
 
 // MARK: - Settings
 "settings.title" = "設定";
@@ -162,8 +183,8 @@
 "drawer.new_session" = "新規セッション";
 "drawer.new_chat" = "新しいチャット";
 "drawer.conversation" = "会話";
-"drawer.thinking" = "考え中...";
-"drawer.processing" = "処理中...";
+"drawer.thinking" = "考え中";
+"drawer.processing" = "処理中";
 "drawer.completed" = "完了";
 "drawer.failed" = "失敗";
 "drawer.interrupted" = "中断";
@@ -184,6 +205,16 @@
 "permission.question" = "質問";
 "permission.allow_once" = "許可";
 "permission.deny_once" = "拒否";
+
+// MARK: - Alerts
+"alert.delete_session_title" = "このセッションを削除しますか？";
+"alert.delete_session_message" = "「%@」を完全に削除します";
+
+// MARK: - Time
+"time.just_now" = "たった今";
+"time.minutes_ago" = "%d分前";
+"time.hours_ago" = "%d時間前";
+"time.days_ago" = "%d日前";
 
 // MARK: - Status Bar
 "statusbar.idle" = "Motive";

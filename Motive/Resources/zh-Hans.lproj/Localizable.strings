@@ -22,6 +22,27 @@
 "commandbar.settings" = "设置";
 "commandbar.run" = "执行";
 "commandbar.close" = "关闭";
+"commandbar.select" = "选择";
+"commandbar.complete" = "补全";
+"commandbar.navigate" = "导航";
+"commandbar.back" = "返回";
+"commandbar.open" = "打开";
+"commandbar.delete" = "删除";
+"commandbar.new" = "新建";
+"commandbar.commands" = "命令";
+"commandbar.stop" = "停止";
+"commandbar.drawer" = "详情";
+"commandbar.send" = "发送";
+"commandbar.retry" = "重试";
+"commandbar.cancel" = "取消";
+"commandbar.running" = "运行中";
+"commandbar.new_task" = "新任务";
+"commandbar.completed" = "已完成";
+"commandbar.details" = "详情";
+"commandbar.error" = "错误";
+"commandbar.dismiss" = "关闭";
+"commandbar.ready" = "就绪";
+"commandbar.type_request" = "在下方输入你的请求";
 
 // MARK: - Settings
 "settings.title" = "设置";
@@ -162,8 +183,8 @@
 "drawer.new_session" = "新会话";
 "drawer.new_chat" = "新对话";
 "drawer.conversation" = "对话";
-"drawer.thinking" = "思考中...";
-"drawer.processing" = "处理中...";
+"drawer.thinking" = "思考中";
+"drawer.processing" = "处理中";
 "drawer.completed" = "已完成";
 "drawer.failed" = "失败";
 "drawer.interrupted" = "已中断";
@@ -184,6 +205,16 @@
 "permission.question" = "询问";
 "permission.allow_once" = "允许";
 "permission.deny_once" = "拒绝";
+
+// MARK: - Alerts
+"alert.delete_session_title" = "删除此会话？";
+"alert.delete_session_message" = "将永久删除「%@」";
+
+// MARK: - Time
+"time.just_now" = "刚刚";
+"time.minutes_ago" = "%d分钟前";
+"time.hours_ago" = "%d小时前";
+"time.days_ago" = "%d天前";
 
 // MARK: - Status Bar
 "statusbar.idle" = "Motive";

@@ -12,7 +12,7 @@ struct CommandBarHistoriesView: View {
     let sessions: [Session]  // Passed from parent
     @Binding var selectedIndex: Int
     let onSelect: (Session) -> Void
-    let onDelete: (Int) -> Void
+    let onRequestDelete: (Int) -> Void  // Request delete confirmation (don't delete directly)
     
     @Environment(\.colorScheme) private var colorScheme
     
@@ -40,7 +40,7 @@ struct CommandBarHistoriesView: View {
                             session: session,
                             isSelected: index == selectedIndex,
                             onSelect: { onSelect(session) },
-                            onDelete: { onDelete(index) }
+                            onRequestDelete: { onRequestDelete(index) }
                         )
                         .id(index)
                     }
@@ -84,10 +84,9 @@ private struct HistoryListItem: View {
     let session: Session
     let isSelected: Bool
     let onSelect: () -> Void
-    let onDelete: () -> Void
+    let onRequestDelete: () -> Void  // Just request, don't show dialog here
     
     @State private var isHovering = false
-    @State private var showDeleteConfirm = false
     @Environment(\.colorScheme) private var colorScheme
     
     private var isDark: Bool { colorScheme == .dark }
@@ -129,16 +128,17 @@ private struct HistoryListItem: View {
                 // Actions
                 HStack(spacing: AuroraSpacing.space2) {
                     if isHovering || isSelected {
-                        Button(action: { showDeleteConfirm = true }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(Color.Aurora.textMuted)
-                                .frame(width: 24, height: 24)
-                                .background(Color.Aurora.surface)
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .transition(.opacity)
+                        // Delete button - just triggers callback, parent handles confirmation
+                        Image(systemName: "trash")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color.Aurora.textMuted)
+                            .frame(width: 24, height: 24)
+                            .background(Color.Aurora.surface)
+                            .clipShape(Circle())
+                            .onTapGesture {
+                                onRequestDelete()
+                            }
+                            .transition(.opacity)
                     }
                     
                     if isSelected {
@@ -169,10 +169,6 @@ private struct HistoryListItem: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .animation(.auroraFast, value: isHovering)
-        .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive, action: onDelete)
-            Button("Cancel", role: .cancel) {}
-        }
     }
     
     private var statusColor: Color {

@@ -99,11 +99,14 @@ struct ModelConfigView: View {
                                 }
                             }
                             
-                            SecureField(apiKeyPlaceholder, text: Binding(
-                                get: { configManager.apiKey },
-                                set: { configManager.apiKey = $0 }
-                            ))
-                            .textFieldStyle(AuroraModernTextFieldStyle(isFocused: focusedField == .apiKey))
+                            SettingsSecureField(
+                                placeholder: apiKeyPlaceholder,
+                                text: Binding(
+                                    get: { configManager.apiKey },
+                                    set: { configManager.apiKey = $0 }
+                                ),
+                                isFocused: focusedField == .apiKey
+                            )
                             .focused($focusedField, equals: .apiKey)
                         }
                         .padding(AuroraSpacing.space4)
@@ -120,9 +123,12 @@ struct ModelConfigView: View {
                             .font(.Aurora.body.weight(.medium))
                             .foregroundColor(Color.Aurora.textPrimary)
                         
-                        TextField(baseURLPlaceholder, text: $configManager.baseURL)
-                            .textFieldStyle(AuroraModernTextFieldStyle(isFocused: focusedField == .baseURL))
-                            .focused($focusedField, equals: .baseURL)
+                        SettingsTextField(
+                            placeholder: baseURLPlaceholder,
+                            text: $configManager.baseURL,
+                            isFocused: focusedField == .baseURL
+                        )
+                        .focused($focusedField, equals: .baseURL)
                         
                         Text(L10n.Settings.defaultEndpoint)
                             .font(.Aurora.caption)
@@ -141,9 +147,12 @@ struct ModelConfigView: View {
                             .font(.Aurora.body.weight(.medium))
                             .foregroundColor(Color.Aurora.textPrimary)
                         
-                        TextField(modelPlaceholder, text: $configManager.modelName)
-                            .textFieldStyle(AuroraModernTextFieldStyle(isFocused: focusedField == .modelName))
-                            .focused($focusedField, equals: .modelName)
+                        SettingsTextField(
+                            placeholder: modelPlaceholder,
+                            text: $configManager.modelName,
+                            isFocused: focusedField == .modelName
+                        )
+                        .focused($focusedField, equals: .modelName)
                     }
                     .padding(AuroraSpacing.space4)
                 }
@@ -344,22 +353,31 @@ struct ProviderCard: View {
     }
 }
 
-// MARK: - Aurora Modern Text Field Style
+// MARK: - Settings Text Field (View-based, not TextFieldStyle)
 
-struct AuroraModernTextFieldStyle: TextFieldStyle {
+struct SettingsTextField: View {
+    let placeholder: String
+    @Binding var text: String
     var isFocused: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     
     private var isDark: Bool { colorScheme == .dark }
     
-    func _body(configuration: TextField<_Label>) -> some View {
-        configuration
+    private var backgroundColor: Color {
+        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
+               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
+    }
+    
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
             .font(.Aurora.body)
+            .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, AuroraSpacing.space3)
             .padding(.vertical, AuroraSpacing.space3)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(Color.Aurora.backgroundDeep)
+                    .fill(backgroundColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
@@ -372,12 +390,54 @@ struct AuroraModernTextFieldStyle: TextFieldStyle {
     }
 }
 
-// Legacy ModernTextFieldStyle
-struct ModernTextFieldStyle: TextFieldStyle {
+// MARK: - Settings Secure Field (View-based)
+
+struct SettingsSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+    var isFocused: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     
+    private var isDark: Bool { colorScheme == .dark }
+    
+    private var backgroundColor: Color {
+        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
+               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
+    }
+    
+    var body: some View {
+        SecureField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.Aurora.body)
+            .foregroundColor(Color.Aurora.textPrimary)
+            .padding(.horizontal, AuroraSpacing.space3)
+            .padding(.vertical, AuroraSpacing.space3)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .stroke(
+                        isFocused ? Color.Aurora.borderFocus : Color.Aurora.border,
+                        lineWidth: isFocused ? 1.5 : 1
+                    )
+            )
+            .animation(.auroraFast, value: isFocused)
+    }
+}
+
+// Legacy compatibility
+struct AuroraModernTextFieldStyle: TextFieldStyle {
+    var isFocused: Bool = false
     func _body(configuration: TextField<_Label>) -> some View {
-        AuroraModernTextFieldStyle()._body(configuration: configuration)
+        configuration
+    }
+}
+
+struct ModernTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<_Label>) -> some View {
+        configuration
     }
 }
 

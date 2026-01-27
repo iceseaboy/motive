@@ -77,13 +77,14 @@ struct MotiveApp: App {
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }
-        }
-
-        Settings {
-            SettingsView()
-                .environmentObject(configManager)
-                .environmentObject(appState)
-                .applyColorScheme(configManager.appearanceMode.colorScheme)
+            
+            // Custom Settings command using our window controller
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    SettingsWindowController.shared.show()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }

@@ -24,16 +24,17 @@ struct SettingsView: View {
             // Sidebar
             sidebar
             
-            // Divider
+            // Divider (extend to full height including titlebar)
             Rectangle()
                 .fill(Color.Aurora.border)
                 .frame(width: 1)
+                .ignoresSafeArea()
             
             // Content
             contentArea
         }
         .frame(width: 760, height: 560)
-        .background(Color.Aurora.background)
+        .background(Color.Aurora.background.ignoresSafeArea())
     }
     
     // MARK: - Sidebar
@@ -120,7 +121,7 @@ struct SettingsView: View {
             .padding(.bottom, AuroraSpacing.space4)
         }
         .frame(width: 220)
-        .background(Color.Aurora.backgroundDeep)
+        .background(Color.Aurora.backgroundDeep.ignoresSafeArea())
     }
     
     // MARK: - Content Area

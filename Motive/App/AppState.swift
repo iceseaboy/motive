@@ -32,6 +32,7 @@ final class AppState: ObservableObject {
     @Published var lastErrorMessage: String?
     @Published var currentToolName: String?
     @Published var commandBarResetTrigger: Int = 0  // Increment to trigger reset
+    @Published var sessionListRefreshTrigger: Int = 0  // Increment to refresh session list
 
     private let configManager: ConfigManager
     private lazy var bridge: OpenCodeBridge = {
@@ -191,7 +192,8 @@ final class AppState: ObservableObject {
 
     func ensureStatusBar() {
         if statusBarController == nil {
-        statusBarController = StatusBarController(delegate: self)
+            statusBarController = StatusBarController(delegate: self)
+            statusBarController?.configure(configManager: configManager)
         }
         updateStatusBar()
     }
@@ -275,6 +277,9 @@ final class AppState: ObservableObject {
     }
 
     var commandBarWindowRef: NSWindow? { commandBarController?.getWindow() }
+    
+    /// Reference to current session (for UI to check current selection)
+    var currentSessionRef: Session? { currentSession }
 
     func showCommandBar() {
         guard let commandBarController else {
@@ -298,6 +303,16 @@ final class AppState: ObservableObject {
     func updateCommandBarHeight(for modeName: String) {
         // Disable window animation to prevent height jitter
         commandBarController?.updateHeightForMode(modeName, animated: false)
+    }
+    
+    /// Suppress or allow auto-hide when command bar loses focus
+    func setCommandBarAutoHideSuppressed(_ suppressed: Bool) {
+        commandBarController?.suppressAutoHide = suppressed
+    }
+    
+    /// Refocus the command bar input field
+    func refocusCommandBar() {
+        commandBarController?.focusFirstResponder()
     }
 
     private func createCommandBarIfNeeded() {
@@ -339,6 +354,16 @@ final class AppState: ObservableObject {
     
     func hideDrawer() {
         drawerWindowController?.hide()
+    }
+    
+    /// Get the Drawer window for showing alerts as sheets
+    var drawerWindowRef: NSWindow? {
+        drawerWindowController?.getWindow()
+    }
+    
+    /// Temporarily suppress auto-hide for Drawer (e.g., during alert display)
+    func setDrawerAutoHideSuppressed(_ suppressed: Bool) {
+        drawerWindowController?.suppressAutoHide = suppressed
     }
 
     private func configureBridge() async {

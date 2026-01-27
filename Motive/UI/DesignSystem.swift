@@ -131,8 +131,8 @@ extension Color {
             })
         }
         
-        /// Focus border (Notion accent)
-        static let borderFocus = Color(hex: "8B8B8B").opacity(0.5)
+        /// Focus border (Amber accent for visibility)
+        static let borderFocus = Color(hex: "F59E0B").opacity(0.6)
         
         // MARK: - Gradient Helpers
         
@@ -159,48 +159,11 @@ extension Color {
             )
         }
         
-        // MARK: - Legacy Compatibility (Velvet -> Aurora)
+        // MARK: - Status Colors
         
-        // These map old Velvet colors to new Aurora colors for gradual migration
         static var idle: Color { textMuted }
         static var reasoning: Color { primary }
         static var executing: Color { primary }
-    }
-    
-    // Keep Velvet namespace for backwards compatibility during migration
-    enum Velvet {
-        static var primary: Color { Aurora.primary }
-        static var primaryDark: Color { Aurora.primaryDark }
-        static var primaryLight: Color { Aurora.primaryLight }
-        static var accent: Color { Aurora.accent }
-        static var accentDark: Color { Aurora.accentStart }
-        
-        static var idle: Color { Aurora.textMuted }
-        static var reasoning: Color { Aurora.accentMid }
-        static var executing: Color { Aurora.accentStart }
-        static var success: Color { Aurora.success }
-        static var warning: Color { Aurora.warning }
-        static var error: Color { Aurora.error }
-        
-        static var surface: Color { Aurora.surface }
-        static var surfaceElevated: Color { Aurora.surfaceElevated }
-        static var surfaceLight: Color { Aurora.surfaceElevated }
-        static var surfaceDark: Color { Aurora.backgroundDeep }
-        static var surfaceOverlay: Color { Aurora.background.opacity(0.8) }
-        
-        static var textPrimary: Color { Aurora.textPrimary }
-        static var textSecondary: Color { Aurora.textSecondary }
-        static var textMuted: Color { Aurora.textMuted }
-        static var textOnDark: Color { .white }
-        static var textOnDarkMuted: Color { Color.white.opacity(0.6) }
-        
-        static var border: Color { Aurora.border }
-        static var borderLight: Color { Aurora.borderHover }
-        static var borderFocused: Color { Aurora.borderFocus }
-        
-        static func eventColor(for kind: OpenCodeEvent.Kind) -> Color {
-            return Aurora.accent.opacity(0.8)
-        }
     }
 }
 
@@ -285,20 +248,6 @@ extension Font {
         // Monospace for code/technical
         static let mono = Font.system(size: 13, weight: .regular, design: .monospaced)
         static let monoSmall = Font.system(size: 12, weight: .regular, design: .monospaced)
-    }
-    
-    // Legacy Velvet namespace for backwards compatibility
-    enum Velvet {
-        static let displayLarge = Aurora.display
-        static let displayMedium = Aurora.title1
-        static let headline = Aurora.headline
-        static let subheadline = Font.system(size: 14, weight: .medium, design: .default)
-        static let body = Aurora.body
-        static let bodyMedium = Font.system(size: 15, weight: .medium, design: .default)
-        static let mono = Aurora.mono
-        static let monoSmall = Aurora.monoSmall
-        static let caption = Aurora.micro
-        static let label = Aurora.caption
     }
 }
 
@@ -677,62 +626,37 @@ struct AuroraButtonStyle: ButtonStyle {
     }
 }
 
-// Legacy VelvetButtonStyle
-struct VelvetButtonStyle: ButtonStyle {
-    var isPrimary: Bool = true
-    @Environment(\.colorScheme) private var colorScheme
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.Aurora.caption.weight(.semibold))
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                isPrimary
-                    ? AnyShapeStyle(Color.Aurora.auroraGradient)
-                    : AnyShapeStyle(Color.Aurora.surface)
-            )
-            .foregroundColor(isPrimary ? .white : Color.Aurora.textPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 0.5)
-            )
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
-    }
-}
-
-struct VelvetSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.Aurora.caption.weight(.medium))
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.xs)
-            .background(Color.Aurora.surface.opacity(configuration.isPressed ? 0.8 : 1.0))
-            .foregroundColor(Color.Aurora.textPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.small, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.small, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
-            )
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
 
 // MARK: - Aurora Text Field Style
 
-struct AuroraTextFieldStyle: TextFieldStyle {
+// MARK: - Aurora Styled TextField (View-based component)
+// NOTE: TextFieldStyle cannot use .textFieldStyle(.plain) inside _body
+// Use this View component directly instead of TextFieldStyle
+
+struct AuroraStyledTextField: View {
+    let placeholder: String
+    @Binding var text: String
     var isFocused: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
+    private var isDark: Bool { colorScheme == .dark }
+    
+    private var backgroundColor: Color {
+        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
+               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
+    }
+    
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
             .font(.Aurora.body)
+            .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, AuroraSpacing.space4)
             .padding(.vertical, AuroraSpacing.space3)
-            .background(Color.Aurora.surface)
-            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .fill(backgroundColor)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
                     .stroke(
@@ -744,14 +668,14 @@ struct AuroraTextFieldStyle: TextFieldStyle {
     }
 }
 
-// Legacy VelvetTextFieldStyle
-struct VelvetTextFieldStyle: TextFieldStyle {
+// Legacy TextFieldStyle (kept for compatibility, does nothing special)
+struct AuroraTextFieldStyle: TextFieldStyle {
     var isFocused: Bool = false
-    
     func _body(configuration: TextField<Self._Label>) -> some View {
-        AuroraTextFieldStyle(isFocused: isFocused)._body(configuration: configuration)
+        configuration
     }
 }
+
 
 // MARK: - Aurora Card Component
 
@@ -771,22 +695,6 @@ struct AuroraCard<Content: View>: View {
     }
 }
 
-// Legacy VelvetCard
-struct VelvetCard<Content: View>: View {
-    let content: Content
-    var padding: CGFloat = Spacing.md
-    
-    init(padding: CGFloat = Spacing.md, @ViewBuilder content: () -> Content) {
-        self.content = content()
-        self.padding = padding
-    }
-    
-    var body: some View {
-        AuroraCard(padding: padding) {
-            content
-        }
-    }
-}
 
 // MARK: - Aurora Section Header
 
