@@ -16,6 +16,7 @@ enum CommandBarMode: Equatable {
     case input                          // User is typing intent
     case command(fromSession: Bool)     // User typed /, showing command suggestions
     case histories(fromSession: Bool)   // Showing /histories list
+    case projects(fromSession: Bool)    // Showing /project list
     case running                        // Task is running
     case completed                      // Task completed, showing summary
     case error(String)                  // Error occurred
@@ -32,10 +33,15 @@ enum CommandBarMode: Equatable {
         return false
     }
     
+    var isProjects: Bool {
+        if case .projects = self { return true }
+        return false
+    }
+    
     /// Whether this mode was triggered from a session state (completed/running)
     var isFromSession: Bool {
         switch self {
-        case .command(let fromSession), .histories(let fromSession):
+        case .command(let fromSession), .histories(let fromSession), .projects(let fromSession):
             return fromSession
         default:
             return false
@@ -52,6 +58,8 @@ enum CommandBarMode: Equatable {
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
         case .histories(let fromSession): 
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
+        case .projects(let fromSession):
+            return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
         case .running, .completed, .error: 
             return 160   // status + input + footer + padding
         }
@@ -63,6 +71,7 @@ enum CommandBarMode: Equatable {
         case .input: return "input"
         case .command: return "command"
         case .histories: return "histories"
+        case .projects: return "projects"
         case .running: return "running"
         case .completed: return "completed"
         case .error: return "error"
@@ -80,6 +89,7 @@ struct CommandDefinition: Identifiable {
     let description: String
     
     static let allCommands: [CommandDefinition] = [
+        CommandDefinition(id: "project", name: "project", shortcut: "p", icon: "folder", description: "Switch project directory"),
         CommandDefinition(id: "histories", name: "histories", shortcut: "h", icon: "clock.arrow.circlepath", description: "View session history"),
         CommandDefinition(id: "settings", name: "settings", shortcut: "s", icon: "gearshape", description: "Open settings"),
         CommandDefinition(id: "new", name: "new", shortcut: "n", icon: "plus.circle", description: "Start new session"),
@@ -108,6 +118,7 @@ struct CommandBarView: View {
     @State private var selectedCommandIndex: Int = 0
     @State private var selectedHistoryIndex: Int = 0
     @State private var historySessions: [Session] = []
+    @State private var selectedProjectIndex: Int = 0
     @State private var showDeleteConfirmation: Bool = false
     @FocusState private var isInputFocused: Bool
     
@@ -248,6 +259,10 @@ struct CommandBarView: View {
             if selectedHistoryIndex > 0 {
                 selectedHistoryIndex -= 1
             }
+        } else if mode.isProjects {
+            if selectedProjectIndex > 0 {
+                selectedProjectIndex -= 1
+            }
         }
     }
     
@@ -259,6 +274,12 @@ struct CommandBarView: View {
         } else if mode.isHistories {
             if selectedHistoryIndex < filteredHistorySessions.count - 1 {
                 selectedHistoryIndex += 1
+            }
+        } else if mode.isProjects {
+            // 2 fixed items (Choose folder + Default) + recent projects
+            let totalItems = 2 + configManager.recentProjects.count
+            if selectedProjectIndex < totalItems - 1 {
+                selectedProjectIndex += 1
             }
         }
     }
@@ -299,7 +320,7 @@ struct CommandBarView: View {
     
     // Content BELOW input (lists)
     private var showsBelowContent: Bool {
-        mode.isCommand || mode.isHistories
+        mode.isCommand || mode.isHistories || mode.isProjects
     }
     
     // MARK: - Above Input Content (Session Status)
@@ -336,6 +357,8 @@ struct CommandBarView: View {
                 commandListView
             } else if mode.isHistories {
                 historiesListView
+            } else if mode.isProjects {
+                projectsListView
             } else {
                 EmptyView()
             }
@@ -399,6 +422,68 @@ struct CommandBarView: View {
         if selectedHistoryIndex >= filteredHistorySessions.count {
             selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
         }
+    }
+    
+    // MARK: - Projects List (below input)
+    
+    private var projectsListView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 2) {
+                    // "Choose folder..." option at the top
+                    ProjectListItem(
+                        name: "Choose folder...",
+                        path: "",
+                        icon: "folder.badge.plus",
+                        isSelected: selectedProjectIndex == 0,
+                        isCurrent: false
+                    ) {
+                        appState.showProjectPicker()
+                    }
+                    .id(0)
+                    
+                    // Default ~/.motive option
+                    ProjectListItem(
+                        name: "Default (~/.motive)",
+                        path: "~/.motive",
+                        icon: "house",
+                        isSelected: selectedProjectIndex == 1,
+                        isCurrent: configManager.currentProjectPath.isEmpty
+                    ) {
+                        selectProject(nil)
+                    }
+                    .id(1)
+                    
+                    // Recent projects
+                    ForEach(Array(configManager.recentProjects.enumerated()), id: \.element.id) { index, project in
+                        ProjectListItem(
+                            name: project.name,
+                            path: project.shortPath,
+                            icon: "folder",
+                            isSelected: selectedProjectIndex == index + 2,
+                            isCurrent: configManager.currentProjectPath == project.path
+                        ) {
+                            selectProject(project.path)
+                        }
+                        .id(index + 2)
+                    }
+                }
+                .padding(.vertical, AuroraSpacing.space2)
+                .padding(.horizontal, AuroraSpacing.space3)
+            }
+            .onChange(of: selectedProjectIndex) { _, newIndex in
+                withAnimation(.auroraFast) {
+                    proxy.scrollTo(newIndex, anchor: .center)
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+    
+    private func selectProject(_ path: String?) {
+        appState.switchProjectDirectory(path)
+        inputText = ""
+        mode = .idle
     }
     
     // MARK: - Running Status (above input)
@@ -722,8 +807,29 @@ struct CommandBarView: View {
     
     @ViewBuilder
     private var leftFooterContent: some View {
-        // Status is shown in above content area, not duplicated in footer
-        EmptyView()
+        // Show current project directory
+        HStack(spacing: AuroraSpacing.space2) {
+            Image(systemName: "folder")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Color.Aurora.textMuted)
+            
+            Text(configManager.currentProjectShortPath)
+                .font(.Aurora.micro)
+                .foregroundColor(Color.Aurora.textMuted)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, AuroraSpacing.space2)
+        .padding(.vertical, AuroraSpacing.space1)
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                .fill(Color.Aurora.surface.opacity(0.5))
+        )
+        .onTapGesture {
+            // Quick access to /project command
+            inputText = "/"
+            mode = .command(fromSession: !appState.messages.isEmpty)
+            selectedCommandIndex = 0  // /project is first in the list
+        }
     }
     
     @ViewBuilder
@@ -737,6 +843,10 @@ struct CommandBarView: View {
             } else if mode.isHistories {
                 AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.open)
                 AuroraShortcutBadge(keys: ["⌘", "⌫"], label: L10n.CommandBar.delete)
+                AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
+                AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
+            } else if mode.isProjects {
+                AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.select)
                 AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
                 AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
             } else {
@@ -864,8 +974,8 @@ struct CommandBarView: View {
     }
     
     private func handleSessionStatusChange(_ status: AppState.SessionStatus) {
-        // Don't change mode if user is browsing commands/histories
-        if mode.isCommand || mode.isHistories {
+        // Don't change mode if user is browsing commands/histories/projects
+        if mode.isCommand || mode.isHistories || mode.isProjects {
             return
         }
         
@@ -885,11 +995,44 @@ struct CommandBarView: View {
     
     private func handleSubmit() {
         if mode.isCommand {
+            // Check if input has arguments (e.g., "/project /path/to/dir")
+            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.hasPrefix("/project ") || text.hasPrefix("/p ") {
+                // Extract path argument
+                let pathArg = text.replacingOccurrences(of: "^/p(roject)?\\s+", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !pathArg.isEmpty {
+                    if appState.switchProjectDirectory(pathArg) {
+                        inputText = ""
+                        mode = .idle
+                    } else {
+                        // Directory doesn't exist - show error briefly then stay in command mode
+                        inputText = ""
+                        mode = .error("Directory not found: \(pathArg)")
+                    }
+                    return
+                }
+            }
             executeSelectedCommand()
         } else if mode.isHistories {
             // Select the highlighted session
             if selectedHistoryIndex < filteredHistorySessions.count {
                 selectHistorySession(filteredHistorySessions[selectedHistoryIndex])
+            }
+        } else if mode.isProjects {
+            // Select the highlighted project
+            if selectedProjectIndex == 0 {
+                // "Choose folder..." option
+                appState.showProjectPicker()
+            } else if selectedProjectIndex == 1 {
+                // Default ~/.motive
+                selectProject(nil)
+            } else {
+                // Recent project
+                let projectIndex = selectedProjectIndex - 2
+                if projectIndex < configManager.recentProjects.count {
+                    selectProject(configManager.recentProjects[projectIndex].path)
+                }
             }
         } else if case .completed = mode {
             sendFollowUp()
@@ -899,7 +1042,7 @@ struct CommandBarView: View {
     }
     
     private func handleEscape() {
-        if mode.isCommand || mode.isHistories {
+        if mode.isCommand || mode.isHistories || mode.isProjects {
             // Return to previous mode (session or idle)
             if appState.sessionStatus == .running {
                 mode = .running
@@ -932,6 +1075,10 @@ struct CommandBarView: View {
     private func executeCommand(_ command: CommandDefinition) {
         let wasFromSession = mode.isFromSession || !appState.messages.isEmpty
         switch command.id {
+        case "project":
+            inputText = ""
+            mode = .projects(fromSession: wasFromSession)
+            selectedProjectIndex = 0
         case "histories":
             inputText = ""
             mode = .histories(fromSession: wasFromSession)
@@ -966,7 +1113,7 @@ struct CommandBarView: View {
     /// Syncs mode with current session state
     private func recenterAndFocus() {
         // Sync mode with current session status (unless user is mid-action)
-        if !mode.isCommand && !mode.isHistories {
+        if !mode.isCommand && !mode.isHistories && !mode.isProjects {
             switch appState.sessionStatus {
             case .running:
                 mode = .running
@@ -1027,6 +1174,84 @@ private struct CommandListItem: View {
                     Text(command.description)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
+                }
+                
+                Spacer()
+                
+                if isSelected {
+                    Image(systemName: "return")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color.Aurora.textMuted)
+                }
+            }
+            .padding(.horizontal, AuroraSpacing.space3)
+            .padding(.vertical, AuroraSpacing.space2)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .fill(isSelected ? Color.Aurora.accent.opacity(0.1) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+            )
+            .overlay(
+                HStack {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.Aurora.auroraGradient)
+                            .frame(width: 3)
+                    }
+                    Spacer()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
+// MARK: - Project List Item
+
+private struct ProjectListItem: View {
+    let name: String
+    let path: String
+    let icon: String
+    let isSelected: Bool
+    let isCurrent: Bool
+    let action: () -> Void
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AuroraSpacing.space3) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isSelected ? Color.Aurora.accent : Color.Aurora.textSecondary)
+                    .frame(width: 24)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: AuroraSpacing.space2) {
+                        Text(name)
+                            .font(.Aurora.body.weight(.medium))
+                            .foregroundColor(Color.Aurora.textPrimary)
+                        
+                        if isCurrent {
+                            Text("current")
+                                .font(.Aurora.micro)
+                                .foregroundColor(Color.Aurora.accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.Aurora.accent.opacity(0.15))
+                                )
+                        }
+                    }
+                    
+                    if !path.isEmpty {
+                        Text(path)
+                            .font(.Aurora.caption)
+                            .foregroundColor(Color.Aurora.textMuted)
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()

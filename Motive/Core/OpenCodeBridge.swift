@@ -120,7 +120,9 @@ actor OpenCodeBridge {
         
         Log.bridge("Running OpenCode via PTY: \(binaryPath) \(args.prefix(3).joined(separator: " "))...")
         
-        let safeCwd = FileManager.default.temporaryDirectory.path
+        // Use the provided cwd (from ConfigManager.currentProjectURL)
+        // This ensures OpenCode operates in the correct project context
+        let safeCwd = cwd
         Log.bridge("Using working directory: \(safeCwd)")
         
         // Retry logic for OpenCode startup failures

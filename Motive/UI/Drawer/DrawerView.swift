@@ -417,6 +417,23 @@ struct DrawerView: View {
         let isRunning = appState.sessionStatus == .running
         
         return VStack(spacing: 0) {
+            // Project directory indicator
+            HStack(spacing: AuroraSpacing.space2) {
+                Image(systemName: "folder")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color.Aurora.textMuted)
+                
+                Text(configManager.currentProjectShortPath)
+                    .font(.Aurora.micro)
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .lineLimit(1)
+                
+                Spacer()
+            }
+            .padding(.horizontal, AuroraSpacing.space4)
+            .padding(.vertical, AuroraSpacing.space2)
+            .background(Color.Aurora.backgroundDeep.opacity(0.3))
+            
             Rectangle()
                 .fill(Color.Aurora.border)
                 .frame(height: 1)

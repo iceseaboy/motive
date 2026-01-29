@@ -64,6 +64,9 @@ final class AppState: ObservableObject {
         guard !hasStarted else { return }
         hasStarted = true
         
+        // Ensure default project directory exists
+        configManager.ensureDefaultProjectDirectory()
+        
         // Preload API keys early to trigger Keychain prompts at startup
         // This avoids scattered prompts during usage
         configManager.preloadAPIKeys()
@@ -232,7 +235,8 @@ final class AppState: ObservableObject {
         )
         messages.append(userMessage)
 
-        let cwd = FileManager.default.currentDirectoryPath
+        // Use the configured project directory (not process cwd)
+        let cwd = configManager.currentProjectURL.path
         Task { await bridge.submitIntent(text: trimmed, cwd: cwd) }
     }
     
@@ -252,7 +256,8 @@ final class AppState: ObservableObject {
         )
         messages.append(userMessage)
 
-        let cwd = FileManager.default.currentDirectoryPath
+        // Use the configured project directory
+        let cwd = configManager.currentProjectURL.path
         Task { await bridge.submitIntent(text: trimmed, cwd: cwd) }
     }
 
@@ -484,6 +489,53 @@ final class AppState: ObservableObject {
         objectWillChange.send()
     }
     
+    // MARK: - Project Directory Management
+    
+    /// Switch to a different project directory
+    /// This clears the current session to avoid context confusion
+    /// - Parameter path: The directory path, or nil to use default ~/.motive
+    /// - Returns: true if the directory was set successfully
+    @discardableResult
+    func switchProjectDirectory(_ path: String?) -> Bool {
+        // Clear current session first to avoid mixing contexts
+        if sessionStatus == .running {
+            interruptSession()
+        }
+        clearCurrentSession()
+        
+        // Set the new directory
+        let success = configManager.setProjectDirectory(path)
+        
+        // Notify UI to update
+        objectWillChange.send()
+        
+        return success
+    }
+    
+    /// Open a folder picker dialog to select project directory
+    func showProjectPicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a project directory"
+        panel.prompt = "Select"
+        
+        // Hide command bar during picker
+        hideCommandBar()
+        
+        panel.begin { [weak self] response in
+            guard let self = self else { return }
+            if response == .OK, let url = panel.url {
+                self.switchProjectDirectory(url.path)
+            }
+            // Reshow command bar after picker closes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.showCommandBar()
+            }
+        }
+    }
+    
     /// Resume a session with a follow-up message
     func resumeSession(with text: String) {
         guard let session = currentSession,
@@ -507,7 +559,8 @@ final class AppState: ObservableObject {
         )
         messages.append(userMessage)
         
-        let cwd = FileManager.default.currentDirectoryPath
+        // Use the configured project directory
+        let cwd = configManager.currentProjectURL.path
         Task { await bridge.resumeSession(sessionId: openCodeSessionId, text: trimmed, cwd: cwd) }
     }
 
