@@ -94,6 +94,10 @@ final class ConfigManager: ObservableObject {
     // Onboarding
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
     
+    // Project directory
+    @AppStorage("currentProjectPath") var currentProjectPath: String = ""
+    @AppStorage("recentProjectsJSON") var recentProjectsJSON: String = "[]"
+    
     /// Launch at Login with actual ServiceManagement implementation
     var launchAtLogin: Bool {
         get { launchAtLoginStorage }

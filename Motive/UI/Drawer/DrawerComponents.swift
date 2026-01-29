@@ -88,6 +88,7 @@ struct MessageBubble: View {
     let message: ConversationMessage
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
+    @State private var isOutputExpanded = false
     
     private var isDark: Bool { colorScheme == .dark }
     
@@ -187,22 +188,61 @@ struct MessageBubble: View {
     // MARK: - Tool Bubble (Compact inline)
     
     private var toolBubble: some View {
-        HStack(spacing: AuroraSpacing.space2) {
-            Image(systemName: toolIcon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color.Aurora.accent)
-            
-            VStack(alignment: .leading, spacing: AuroraSpacing.space0_5) {
+        VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
+            HStack(spacing: AuroraSpacing.space2) {
+                Image(systemName: toolIcon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color.Aurora.accent)
+                
                 Text(message.toolName?.simplifiedToolName ?? L10n.Drawer.tool)
                     .font(.Aurora.caption.weight(.medium))
                     .foregroundColor(Color.Aurora.textSecondary)
                 
-                if !message.content.isEmpty && message.content != "…" {
-                    Text(message.content)
-                        .font(.Aurora.monoSmall)
-                        .foregroundColor(Color.Aurora.textMuted)
-                        .lineLimit(2)
+                Spacer()
+                
+                if message.toolOutput != nil {
+                    Button(action: { withAnimation(.auroraFast) { isOutputExpanded.toggle() } }) {
+                        Text(isOutputExpanded ? "Hide" : "Show")
+                            .font(.Aurora.micro.weight(.medium))
+                            .foregroundColor(Color.Aurora.textMuted)
+                    }
+                    .buttonStyle(.plain)
                 }
+            }
+            
+            if let toolInput = message.toolInput, !toolInput.isEmpty {
+                Text(toolInput)
+                    .font(.Aurora.monoSmall)
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else if !message.content.isEmpty && message.content != "…" {
+                Text(message.content)
+                    .font(.Aurora.monoSmall)
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .lineLimit(2)
+            }
+            
+            if let outputSummary = message.toolOutputSummary {
+                Text(outputSummary)
+                    .font(.Aurora.micro)
+                    .foregroundColor(Color.Aurora.textMuted)
+            }
+            
+            if isOutputExpanded, let output = message.toolOutput, !output.isEmpty {
+                ScrollView {
+                    Text(output)
+                        .font(.Aurora.monoSmall)
+                        .foregroundColor(Color.Aurora.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 180)
+                .padding(.top, AuroraSpacing.space1)
+                .background(
+                    RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                        .fill(Color.Aurora.surface.opacity(0.4))
+                )
             }
         }
         .padding(.horizontal, AuroraSpacing.space3)

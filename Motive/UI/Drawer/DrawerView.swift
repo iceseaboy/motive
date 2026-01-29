@@ -19,6 +19,12 @@ struct DrawerView: View {
     @State private var sessions: [Session] = []
     @FocusState private var isInputFocused: Bool
     
+    // @ file completion state
+    @StateObject private var fileCompletion = FileCompletionManager()
+    @State private var showFileCompletion: Bool = false
+    @State private var selectedFileIndex: Int = 0
+    @State private var atQueryRange: Range<String.Index>? = nil
+    
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
@@ -73,6 +79,11 @@ struct DrawerView: View {
                 sessionPickerOverlay
             }
             
+            // File completion overlay
+            if showFileCompletion && !fileCompletion.items.isEmpty {
+                fileCompletionOverlay
+            }
+            
             // Permission request overlay
             if permissionManager.isShowingRequest, let request = permissionManager.currentRequest {
                 PermissionRequestView(request: request) { response in
@@ -93,6 +104,40 @@ struct DrawerView: View {
                 showContent = true
             }
             loadSessions()
+        }
+        .onKeyPress(.upArrow) {
+            if showFileCompletion && !fileCompletion.items.isEmpty {
+                if selectedFileIndex > 0 {
+                    selectedFileIndex -= 1
+                }
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.downArrow) {
+            if showFileCompletion && !fileCompletion.items.isEmpty {
+                if selectedFileIndex < fileCompletion.items.count - 1 {
+                    selectedFileIndex += 1
+                }
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.tab) {
+            if showFileCompletion && !fileCompletion.items.isEmpty {
+                if selectedFileIndex < fileCompletion.items.count {
+                    selectFileCompletion(fileCompletion.items[selectedFileIndex])
+                }
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.escape) {
+            if showFileCompletion {
+                hideFileCompletion()
+                return .handled
+            }
+            return .ignored
         }
     }
     
@@ -417,6 +462,23 @@ struct DrawerView: View {
         let isRunning = appState.sessionStatus == .running
         
         return VStack(spacing: 0) {
+            // Project directory indicator
+            HStack(spacing: AuroraSpacing.space2) {
+                Image(systemName: "folder")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color.Aurora.textMuted)
+                
+                Text(configManager.currentProjectShortPath)
+                    .font(.Aurora.micro)
+                    .foregroundColor(Color.Aurora.textMuted)
+                    .lineLimit(1)
+                
+                Spacer()
+            }
+            .padding(.horizontal, AuroraSpacing.space4)
+            .padding(.vertical, AuroraSpacing.space2)
+            .background(Color.Aurora.backgroundDeep.opacity(0.3))
+            
             Rectangle()
                 .fill(Color.Aurora.border)
                 .frame(height: 1)
@@ -429,8 +491,11 @@ struct DrawerView: View {
                         .font(.Aurora.body)
                         .foregroundColor(Color.Aurora.textPrimary)
                         .focused($isInputFocused)
-                        .onSubmit(sendMessage)
+                        .onSubmit(handleInputSubmit)
                         .disabled(isRunning)
+                        .onChange(of: inputText) { _, newValue in
+                            checkForAtCompletion(newValue)
+                        }
                     
                     if isRunning {
                         // Stop button when running
@@ -445,7 +510,7 @@ struct DrawerView: View {
                         .buttonStyle(.plain)
                     } else {
                         // Send button when not running
-                        Button(action: sendMessage) {
+                        Button(action: handleInputSubmit) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 24, weight: .medium))
                                 .foregroundColor(inputText.isEmpty ? Color.Aurora.textMuted : Color.Aurora.primary)
@@ -473,15 +538,159 @@ struct DrawerView: View {
         }
     }
     
+    // MARK: - File Completion Overlay
+    
+    private var fileCompletionOverlay: some View {
+        ZStack(alignment: .bottom) {
+            // Dismiss area
+            Color.black.opacity(0.01)
+                .onTapGesture {
+                    hideFileCompletion()
+                }
+            
+            // File completion popup
+            VStack(spacing: 0) {
+                FileCompletionView(
+                    items: fileCompletion.items,
+                    selectedIndex: selectedFileIndex,
+                    currentPath: fileCompletion.currentPath,
+                    onSelect: selectFileCompletion,
+                    maxHeight: 240
+                )
+                .id("fileCompletion-\(fileCompletion.currentPath)-\(fileCompletion.items.count)")
+            }
+            .frame(width: 360)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                    .fill(Color.Aurora.backgroundDeep)
+                    .shadow(color: Color.black.opacity(0.2), radius: 12, y: -4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 0.5)
+            )
+            .padding(.bottom, 80) // Position above input area
+        }
+        .transition(.opacity)
+    }
+    
+    // MARK: - Input Handling
+    
+    private func handleInputSubmit() {
+        // File completion: select item on Enter
+        if showFileCompletion && !fileCompletion.items.isEmpty {
+            if selectedFileIndex < fileCompletion.items.count {
+                selectFileCompletion(fileCompletion.items[selectedFileIndex])
+            }
+            return
+        }
+        
+        sendMessage()
+    }
+    
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         inputText = ""
+        hideFileCompletion()
         
         if appState.messages.isEmpty {
             appState.submitIntent(text)
         } else {
             appState.resumeSession(with: text)
+        }
+    }
+    
+    // MARK: - @ File Completion
+    
+    private func checkForAtCompletion(_ text: String) {
+        guard let token = currentAtToken(in: text) else {
+            hideFileCompletion()
+            return
+        }
+        
+        let query = token.query
+        let newRange = token.range
+        
+        // Skip if range and query haven't changed (avoid re-loading after manual selection)
+        if showFileCompletion, let oldRange = atQueryRange, oldRange == newRange {
+            return
+        }
+        
+        atQueryRange = newRange
+        
+        let baseDir = fileCompletion.getBaseDirectory(for: configManager)
+        fileCompletion.loadItems(query: query, baseDir: baseDir)
+        
+        showFileCompletion = true
+        selectedFileIndex = 0
+    }
+    
+    /// Find the current @ token (from @ to next whitespace)
+    private func currentAtToken(in text: String) -> (query: String, range: Range<String.Index>)? {
+        guard let atIndex = text.lastIndex(of: "@") else { return nil }
+        
+        // Require @ to be at start or preceded by whitespace
+        if atIndex > text.startIndex {
+            let beforeAt = text[text.index(before: atIndex)]
+            if !beforeAt.isWhitespace {
+                return nil
+            }
+        }
+        
+        let afterAt = text[atIndex...]
+        if let spaceIndex = afterAt.dropFirst().firstIndex(where: { $0.isWhitespace }) {
+            // Found space after @ - this means the @ token is complete
+            // Return nil to exit completion mode (user typed "@path " with space)
+            return nil
+        } else {
+            let range = atIndex..<text.endIndex
+            let query = String(text[range])
+            return (query, range)
+        }
+    }
+    
+    private func hideFileCompletion() {
+        showFileCompletion = false
+        atQueryRange = nil
+        fileCompletion.clear()
+    }
+    
+    private func selectFileCompletion(_ item: FileCompletionItem) {
+        guard let range = atQueryRange else { return }
+        
+        let replacement: String
+        if item.isDirectory {
+            replacement = "@\(item.path)/"
+        } else {
+            replacement = "@\(item.path) "
+        }
+        
+        // Calculate the new @ range after replacement
+        let startIndex = range.lowerBound
+        inputText.replaceSubrange(range, with: replacement)
+        
+        // Reset selection index
+        selectedFileIndex = 0
+        
+        // If it's a directory, reload completions for the new path
+        if item.isDirectory {
+            // Update atQueryRange to point to the new @ token
+            if let newEndIndex = inputText.index(startIndex, offsetBy: replacement.count, limitedBy: inputText.endIndex) {
+                atQueryRange = startIndex..<newEndIndex
+                
+                // Directly load items for the new directory
+                let baseDir = fileCompletion.getBaseDirectory(for: configManager)
+                fileCompletion.loadItems(query: replacement, baseDir: baseDir)
+                
+                // Keep completion visible
+                showFileCompletion = true
+            } else {
+                hideFileCompletion()
+            }
+        } else {
+            // File selected - hide completion (space already added)
+            hideFileCompletion()
         }
     }
 }

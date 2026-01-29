@@ -192,7 +192,7 @@ struct CommandBarCompletedView: View {
             if let toolName = message.toolName?.lowercased() {
                 if toolName.contains("write") || toolName.contains("edit") {
                     // Try to extract file path from content
-                    let content = message.content
+                    let content = message.toolInput ?? message.content
                     if content.contains("/") {
                         // Simple extraction - take the first path-like string
                         let words = content.components(separatedBy: .whitespaces)

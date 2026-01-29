@@ -29,15 +29,34 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
     
     func show(tab: SettingsTab = .general) {
+        let previousTab = initialTab
         initialTab = tab
         
         // Hide command bar first to avoid layer conflicts
         appState?.hideCommandBar()
         
-        // If window exists and visible but requesting different tab, recreate it
-        if let existingWindow = window, existingWindow.isVisible {
-            existingWindow.close()
-            window = nil
+        // If window exists, just bring it to front (don't recreate)
+        if let existingWindow = window,
+           let configManager = configManager,
+           let appState = appState {
+            // Update content view if tab changed or window was hidden
+            if previousTab != tab || !existingWindow.isVisible {
+                let settingsView = SettingsView(initialTab: tab)
+                    .environmentObject(configManager)
+                    .environmentObject(appState)
+                existingWindow.contentView = NSHostingView(rootView: settingsView)
+            }
+            
+            // Ensure window is visible and focused
+            NSApp.setActivationPolicy(.regular)
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            
+            // Double-check focus after a short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak existingWindow] in
+                existingWindow?.makeKeyAndOrderFront(nil)
+            }
+            return
         }
         
         guard let configManager = configManager, let appState = appState else {
@@ -45,47 +64,53 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             return
         }
         
+        // Set activation policy FIRST before creating window
+        NSApp.setActivationPolicy(.regular)
+        
         // Create settings view with initial tab
         let settingsView = SettingsView(initialTab: tab)
             .environmentObject(configManager)
             .environmentObject(appState)
         
         // Create window with unified titlebar appearance
-        let window = NSWindow(
+        let newWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         
-        window.title = ""
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
+        newWindow.title = ""
+        newWindow.titlebarAppearsTransparent = true
+        newWindow.titleVisibility = .hidden
+        newWindow.isMovableByWindowBackground = true
         
         // Match Aurora.backgroundDeep (#191919 dark / #FAFAFA light) for sidebar area
-        window.backgroundColor = NSColor(name: nil) { appearance in
+        newWindow.backgroundColor = NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
                 ? NSColor(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0, alpha: 1.0)
                 : NSColor(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0, alpha: 1.0)
         }
         
-        window.contentView = NSHostingView(rootView: settingsView)
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.delegate = self
+        newWindow.contentView = NSHostingView(rootView: settingsView)
+        newWindow.center()
+        newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
         
-        self.window = window
+        // Use normal window level (not floating) - this prevents layer conflicts
+        newWindow.level = .normal
         
-        // Show window and bring to front
-        NSApp.setActivationPolicy(.regular)
-        window.level = .floating  // Ensure window is above others initially
-        window.makeKeyAndOrderFront(nil)
+        // Store reference BEFORE showing
+        self.window = newWindow
+        
+        // Show window and activate app
+        newWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         
-        // Reset to normal level after activation so it behaves normally
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            window.level = .normal
+        // Ensure focus is maintained after activation settles
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak newWindow] in
+            guard let window = newWindow, window.isVisible else { return }
+            window.makeKeyAndOrderFront(nil)
         }
     }
     

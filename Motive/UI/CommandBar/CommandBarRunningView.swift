@@ -172,8 +172,11 @@ private struct ActivityLogItem: View {
                 .font(.Aurora.caption.weight(.medium))
                 .foregroundColor(Color.Aurora.textSecondary)
             
-            if !message.content.isEmpty && message.content != "…" {
-                Text(message.content)
+            let summary = message.toolInput?.isEmpty == false
+                ? message.toolInput!
+                : (message.toolOutputSummary ?? message.content)
+            if !summary.isEmpty && summary != "…" {
+                Text(summary)
                     .font(.Aurora.monoSmall)
                     .foregroundColor(Color.Aurora.textMuted)
                     .lineLimit(1)

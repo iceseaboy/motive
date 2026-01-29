@@ -43,6 +43,7 @@ struct ConversationMessage: Identifiable, Sendable {
     let timestamp: Date
     let toolName: String?
     let toolInput: String?
+    let toolOutput: String?
     let isStreaming: Bool
     
     init(
@@ -52,6 +53,7 @@ struct ConversationMessage: Identifiable, Sendable {
         timestamp: Date = Date(),
         toolName: String? = nil,
         toolInput: String? = nil,
+        toolOutput: String? = nil,
         isStreaming: Bool = false
     ) {
         self.id = id
@@ -60,6 +62,7 @@ struct ConversationMessage: Identifiable, Sendable {
         self.timestamp = timestamp
         self.toolName = toolName
         self.toolInput = toolInput
+        self.toolOutput = toolOutput
         self.isStreaming = isStreaming
     }
 }
@@ -85,9 +88,10 @@ struct OpenCodeEvent: Sendable, Identifiable {
     let toolName: String?
     let toolInput: String?
     let toolInputDict: [String: Any]?  // Full tool input for AskUserQuestion parsing
+    let toolOutput: String?
     let sessionId: String?
 
-    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, sessionId: String? = nil) {
+    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, toolOutput: String? = nil, sessionId: String? = nil) {
         self.id = id
         self.kind = kind
         self.rawJson = rawJson
@@ -95,6 +99,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         self.toolName = toolName
         self.toolInput = toolInput
         self.toolInputDict = toolInputDict
+        self.toolOutput = toolOutput
         self.sessionId = sessionId
     }
 
@@ -129,7 +134,9 @@ struct OpenCodeEvent: Sendable, Identifiable {
             let inputDict = part?["input"] as? [String: Any]
             if let inputDict = inputDict {
                 // Extract meaningful info from tool input
-                if let path = inputDict["path"] as? String {
+                if let path = inputDict["filePath"] as? String {
+                    inputStr = path
+                } else if let path = inputDict["path"] as? String {
                     inputStr = path
                 } else if let command = inputDict["command"] as? String {
                     inputStr = command
@@ -145,24 +152,26 @@ struct OpenCodeEvent: Sendable, Identifiable {
             var inputStr: String? = nil
             let state = part?["state"] as? [String: Any]
             let inputDict = state?["input"] as? [String: Any]
+            let outputStr = state?["output"] as? String
             if let state = state {
-                if let output = state["output"] as? String, !output.isEmpty {
-                    // Tool completed with output
-                    inputStr = String(output.prefix(100))
-                } else if let inputDict = inputDict {
-                    if let path = inputDict["path"] as? String {
+                if let inputDict = inputDict {
+                    if let path = inputDict["filePath"] as? String {
+                        inputStr = path
+                    } else if let path = inputDict["path"] as? String {
                         inputStr = path
                     } else if let command = inputDict["command"] as? String {
                         inputStr = command
                     }
                 }
             }
-            self.init(kind: .tool, rawJson: rawJson, text: inputStr ?? "", toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, sessionId: sessionId)
+            let summary = OpenCodeEvent.summarizeToolOutput(toolName: toolName, toolInput: inputStr, toolOutput: outputStr)
+            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolOutput: outputStr, sessionId: sessionId)
             
         case "tool_result":
             // Tool result: { type: "tool_result", part: { output: "..." } }
             let output = part?["output"] as? String ?? ""
-            self.init(kind: .tool, rawJson: rawJson, text: String(output.prefix(200)), toolName: "Result", sessionId: sessionId)
+            let summary = OpenCodeEvent.summarizeToolOutput(toolName: "Result", toolInput: nil, toolOutput: output)
+            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: "Result", toolOutput: output, sessionId: sessionId)
             
         case "step_start":
             // Step started
@@ -202,6 +211,31 @@ struct OpenCodeEvent: Sendable, Identifiable {
         }
         return nil
     }
+
+    private static func summarizeToolOutput(toolName: String, toolInput: String?, toolOutput: String?) -> String {
+        if let toolInput = toolInput, !toolInput.isEmpty {
+            return toolInput
+        }
+        guard let toolOutput = toolOutput, !toolOutput.isEmpty else {
+            return ""
+        }
+        let trimmed = toolOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        // Prefer line-count summary when available
+        if let range = trimmed.range(of: "End of file - total ") {
+            let suffix = trimmed[range.upperBound...]
+            let countStr = suffix.prefix { $0.isNumber }
+            if let count = Int(countStr) {
+                return "Output · \(count) lines"
+            }
+        }
+        let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false)
+        if lines.count > 1 {
+            return "Output · \(lines.count) lines"
+        }
+        let firstLine = lines.first.map { String($0) } ?? ""
+        return "Output · \(firstLine)"
+    }
     
     /// Convert to ConversationMessage for UI display
     func toMessage() -> ConversationMessage? {
@@ -234,7 +268,29 @@ struct OpenCodeEvent: Sendable, Identifiable {
             type: messageType,
             content: text,
             toolName: toolName ?? (kind == .call ? "Command" : nil),
-            toolInput: toolInput
+            toolInput: toolInput,
+            toolOutput: toolOutput
         )
+    }
+}
+
+extension ConversationMessage {
+    var toolOutputSummary: String? {
+        guard let toolOutput = toolOutput, !toolOutput.isEmpty else { return nil }
+        let trimmed = toolOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if let range = trimmed.range(of: "End of file - total ") {
+            let suffix = trimmed[range.upperBound...]
+            let countStr = suffix.prefix { $0.isNumber }
+            if let count = Int(countStr) {
+                return "Output · \(count) lines"
+            }
+        }
+        let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false)
+        if lines.count > 1 {
+            return "Output · \(lines.count) lines"
+        }
+        let firstLine = lines.first.map { String($0) } ?? ""
+        return "Output · \(firstLine)"
     }
 }

@@ -64,6 +64,9 @@ final class AppState: ObservableObject {
         guard !hasStarted else { return }
         hasStarted = true
         
+        // Ensure default project directory exists
+        configManager.ensureDefaultProjectDirectory()
+        
         // Preload API keys early to trigger Keychain prompts at startup
         // This avoids scattered prompts during usage
         configManager.preloadAPIKeys()
@@ -232,28 +235,14 @@ final class AppState: ObservableObject {
         )
         messages.append(userMessage)
 
-        let cwd = FileManager.default.currentDirectoryPath
+        // Use the configured project directory (not process cwd)
+        let cwd = configManager.currentProjectURL.path
         Task { await bridge.submitIntent(text: trimmed, cwd: cwd) }
     }
     
     func sendFollowUp(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        guard sessionStatus == .completed || sessionStatus == .interrupted else { return }
-        
-        lastErrorMessage = nil
-        sessionStatus = .running
-        menuBarState = .executing
-        
-        // Add user message
-        let userMessage = ConversationMessage(
-            type: .user,
-            content: trimmed
-        )
-        messages.append(userMessage)
-
-        let cwd = FileManager.default.currentDirectoryPath
-        Task { await bridge.submitIntent(text: trimmed, cwd: cwd) }
+        // Use resumeSession to continue the current session properly
+        resumeSession(with: text)
     }
 
     /// Interrupt the current running session (like Ctrl+C)
@@ -303,6 +292,11 @@ final class AppState: ObservableObject {
     func updateCommandBarHeight(for modeName: String) {
         // Disable window animation to prevent height jitter
         commandBarController?.updateHeightForMode(modeName, animated: false)
+    }
+    
+    func updateCommandBarHeight(to height: CGFloat) {
+        // Disable window animation to prevent height jitter
+        commandBarController?.updateHeight(to: height, animated: false)
     }
     
     /// Suppress or allow auto-hide when command bar loses focus
@@ -400,7 +394,8 @@ final class AppState: ObservableObject {
         // Clear OpenCodeBridge session ID for fresh start
         Task { await bridge.setSessionId(nil) }
         
-        let session = Session(intent: intent)
+        let sessionProjectPath = configManager.currentProjectURL.path
+        let session = Session(intent: intent, projectPath: sessionProjectPath)
         currentSession = session
         modelContext?.insert(session)
     }
@@ -421,6 +416,16 @@ final class AppState: ObservableObject {
         
         // Sync OpenCodeBridge session ID
         Task { await bridge.setSessionId(session.openCodeSessionId) }
+        
+        // Ensure project directory matches the session's original cwd
+        if !session.projectPath.isEmpty {
+            let defaultPath = ConfigManager.defaultProjectDirectory.path
+            if session.projectPath == defaultPath {
+                _ = configManager.setProjectDirectory(nil)
+            } else {
+                _ = configManager.setProjectDirectory(session.projectPath)
+            }
+        }
         
         // Rebuild messages from logs
         messages = []
@@ -484,6 +489,53 @@ final class AppState: ObservableObject {
         objectWillChange.send()
     }
     
+    // MARK: - Project Directory Management
+    
+    /// Switch to a different project directory
+    /// This clears the current session to avoid context confusion
+    /// - Parameter path: The directory path, or nil to use default ~/.motive
+    /// - Returns: true if the directory was set successfully
+    @discardableResult
+    func switchProjectDirectory(_ path: String?) -> Bool {
+        // Clear current session first to avoid mixing contexts
+        if sessionStatus == .running {
+            interruptSession()
+        }
+        clearCurrentSession()
+        
+        // Set the new directory
+        let success = configManager.setProjectDirectory(path)
+        
+        // Notify UI to update
+        objectWillChange.send()
+        
+        return success
+    }
+    
+    /// Open a folder picker dialog to select project directory
+    func showProjectPicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a project directory"
+        panel.prompt = "Select"
+        
+        // Hide command bar during picker
+        hideCommandBar()
+        
+        panel.begin { [weak self] response in
+            guard let self = self else { return }
+            if response == .OK, let url = panel.url {
+                self.switchProjectDirectory(url.path)
+            }
+            // Reshow command bar after picker closes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.showCommandBar()
+            }
+        }
+    }
+    
     /// Resume a session with a follow-up message
     func resumeSession(with text: String) {
         guard let session = currentSession,
@@ -507,7 +559,8 @@ final class AppState: ObservableObject {
         )
         messages.append(userMessage)
         
-        let cwd = FileManager.default.currentDirectoryPath
+        // Use the project directory that this session was created with
+        let cwd = session.projectPath.isEmpty ? configManager.currentProjectURL.path : session.projectPath
         Task { await bridge.resumeSession(sessionId: openCodeSessionId, text: trimmed, cwd: cwd) }
     }
 
@@ -672,6 +725,17 @@ final class AppState: ObservableObject {
         // Check for Ollama specific errors
         if lowerText.contains("ollama") && (lowerText.contains("not running") || lowerText.contains("not found")) {
             return "Ollama is not running. Start Ollama and try again."
+        }
+        
+        // Check for encrypted content verification errors (session/project mismatch)
+        if lowerText.contains("encrypted content") && (lowerText.contains("could not be verified") || lowerText.contains("invalid_encrypted_content")) {
+            // Clear session ID and retry as new session
+            if let session = currentSession {
+                Log.debug("Encrypted content verification failed - clearing session ID (likely project mismatch)")
+                session.openCodeSessionId = nil
+            }
+            Task { await bridge.setSessionId(nil) }
+            return "Session context mismatch. Please try again - a new session will be started."
         }
         
         // Generic error detection

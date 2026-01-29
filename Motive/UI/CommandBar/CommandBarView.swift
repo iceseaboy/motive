@@ -16,6 +16,7 @@ enum CommandBarMode: Equatable {
     case input                          // User is typing intent
     case command(fromSession: Bool)     // User typed /, showing command suggestions
     case histories(fromSession: Bool)   // Showing /histories list
+    case projects(fromSession: Bool)    // Showing /project list
     case running                        // Task is running
     case completed                      // Task completed, showing summary
     case error(String)                  // Error occurred
@@ -32,10 +33,15 @@ enum CommandBarMode: Equatable {
         return false
     }
     
+    var isProjects: Bool {
+        if case .projects = self { return true }
+        return false
+    }
+    
     /// Whether this mode was triggered from a session state (completed/running)
     var isFromSession: Bool {
         switch self {
-        case .command(let fromSession), .histories(let fromSession):
+        case .command(let fromSession), .histories(let fromSession), .projects(let fromSession):
             return fromSession
         default:
             return false
@@ -52,6 +58,8 @@ enum CommandBarMode: Equatable {
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
         case .histories(let fromSession): 
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
+        case .projects(let fromSession):
+            return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
         case .running, .completed, .error: 
             return 160   // status + input + footer + padding
         }
@@ -63,6 +71,7 @@ enum CommandBarMode: Equatable {
         case .input: return "input"
         case .command: return "command"
         case .histories: return "histories"
+        case .projects: return "projects"
         case .running: return "running"
         case .completed: return "completed"
         case .error: return "error"
@@ -80,6 +89,7 @@ struct CommandDefinition: Identifiable {
     let description: String
     
     static let allCommands: [CommandDefinition] = [
+        CommandDefinition(id: "project", name: "project", shortcut: "p", icon: "folder", description: "Switch project directory"),
         CommandDefinition(id: "histories", name: "histories", shortcut: "h", icon: "clock.arrow.circlepath", description: "View session history"),
         CommandDefinition(id: "settings", name: "settings", shortcut: "s", icon: "gearshape", description: "Open settings"),
         CommandDefinition(id: "new", name: "new", shortcut: "n", icon: "plus.circle", description: "Start new session"),
@@ -108,8 +118,15 @@ struct CommandBarView: View {
     @State private var selectedCommandIndex: Int = 0
     @State private var selectedHistoryIndex: Int = 0
     @State private var historySessions: [Session] = []
+    @State private var selectedProjectIndex: Int = 0
     @State private var showDeleteConfirmation: Bool = false
     @FocusState private var isInputFocused: Bool
+    
+    // @ file completion state
+    @StateObject private var fileCompletion = FileCompletionManager()
+    @State private var showFileCompletion: Bool = false
+    @State private var selectedFileIndex: Int = 0
+    @State private var atQueryRange: Range<String.Index>? = nil
     
     private var isDark: Bool { colorScheme == .dark }
     
@@ -122,25 +139,32 @@ struct CommandBarView: View {
     var body: some View {
         mainContent
             .onAppear(perform: handleOnAppear)
-            .onChange(of: appState.commandBarResetTrigger) { _, _ in recenterAndFocus() }
-            .onChange(of: inputText) { _, newValue in handleInputChange(newValue) }
-            .onChange(of: mode) { oldMode, newMode in handleModeChange(from: oldMode, to: newMode) }
-            .onChange(of: appState.sessionStatus) { _, newStatus in handleSessionStatusChange(newStatus) }
-            .onExitCommand { handleEscape() }
-            .onKeyPress(.upArrow, action: { handleUpArrow(); return .handled })
-            .onKeyPress(.downArrow, action: { handleDownArrow(); return .handled })
-            .onKeyPress(.tab, action: { handleTab(); return .handled })
-            .onChange(of: showDeleteConfirmation) { _, shouldShow in
-                if shouldShow {
-                    showDeleteAlert()
-                }
+        .onChange(of: appState.commandBarResetTrigger) { _, _ in recenterAndFocus() }
+        .onChange(of: inputText) { _, newValue in handleInputChange(newValue) }
+        .onChange(of: mode) { oldMode, newMode in handleModeChange(from: oldMode, to: newMode) }
+        .onChange(of: appState.sessionStatus) { _, newStatus in handleSessionStatusChange(newStatus) }
+        .onKeyPress(.escape, action: { handleEscape(); return .handled })
+        .onKeyPress(.upArrow, action: { handleUpArrow(); return .handled })
+        .onKeyPress(.downArrow, action: { handleDownArrow(); return .handled })
+        .onKeyPress(.tab, action: { handleTab(); return .handled })
+        .onChange(of: showDeleteConfirmation) { _, shouldShow in
+            if shouldShow {
+                showDeleteAlert()
             }
+        }
             .onChange(of: appState.sessionListRefreshTrigger) { _, _ in
                 // Refresh session list after deletion
                 historySessions = appState.getAllSessions()
                 if selectedHistoryIndex >= filteredHistorySessions.count {
                     selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
                 }
+            }
+            .onChange(of: showFileCompletion) { _, isShowing in
+                // File completion doesn't change height, just shows/hides list
+                // Height is controlled by mode, not file completion state
+            }
+            .onChange(of: fileCompletion.items) { _, newItems in
+                // Items change doesn't affect height either
             }
     }
     
@@ -162,7 +186,7 @@ struct CommandBarView: View {
             }
             footerView
         }
-        .frame(width: 600, height: mode.dynamicHeight)
+        .frame(width: 600, height: currentHeight)
         .background(commandBarBackground)
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous))
         .overlay(borderOverlay)  // Border on top of everything
@@ -240,6 +264,14 @@ struct CommandBarView: View {
     // MARK: - Keyboard Navigation
     
     private func handleUpArrow() {
+        // File completion takes priority
+        if showFileCompletion && !fileCompletion.items.isEmpty {
+            if selectedFileIndex > 0 {
+                selectedFileIndex -= 1
+            }
+            return
+        }
+        
         if mode.isCommand {
             if selectedCommandIndex > 0 {
                 selectedCommandIndex -= 1
@@ -248,10 +280,22 @@ struct CommandBarView: View {
             if selectedHistoryIndex > 0 {
                 selectedHistoryIndex -= 1
             }
+        } else if mode.isProjects {
+            if selectedProjectIndex > 0 {
+                selectedProjectIndex -= 1
+            }
         }
     }
     
     private func handleDownArrow() {
+        // File completion takes priority
+        if showFileCompletion && !fileCompletion.items.isEmpty {
+            if selectedFileIndex < fileCompletion.items.count - 1 {
+                selectedFileIndex += 1
+            }
+            return
+        }
+        
         if mode.isCommand {
             if selectedCommandIndex < filteredCommands.count - 1 {
                 selectedCommandIndex += 1
@@ -260,10 +304,24 @@ struct CommandBarView: View {
             if selectedHistoryIndex < filteredHistorySessions.count - 1 {
                 selectedHistoryIndex += 1
             }
+        } else if mode.isProjects {
+            // 2 fixed items (Choose folder + Default) + recent projects
+            let totalItems = 2 + configManager.recentProjects.count
+            if selectedProjectIndex < totalItems - 1 {
+                selectedProjectIndex += 1
+            }
         }
     }
     
     private func handleTab() {
+        // File completion takes priority
+        if showFileCompletion && !fileCompletion.items.isEmpty {
+            if selectedFileIndex < fileCompletion.items.count {
+                selectFileCompletion(fileCompletion.items[selectedFileIndex])
+            }
+            return
+        }
+        
         // Tab completion: complete the autocomplete hint
         if let hint = autocompleteHint {
             inputText = hint
@@ -299,7 +357,17 @@ struct CommandBarView: View {
     
     // Content BELOW input (lists)
     private var showsBelowContent: Bool {
-        mode.isCommand || mode.isHistories
+        mode.isCommand || mode.isHistories || mode.isProjects || showFileCompletion
+    }
+
+    /// Height to use when file completion is showing (matches command list)
+    private var fileCompletionHeight: CGFloat {
+        showsAboveContent ? 450 : 400
+    }
+
+    /// Current command bar height
+    private var currentHeight: CGFloat {
+        showFileCompletion ? fileCompletionHeight : mode.dynamicHeight
     }
     
     // MARK: - Above Input Content (Session Status)
@@ -332,15 +400,32 @@ struct CommandBarView: View {
     @ViewBuilder
     private var belowInputContent: some View {
         Group {
-            if mode.isCommand {
+            if showFileCompletion {
+                // File completion takes priority (show even if items empty, for loading state)
+                fileCompletionListView
+            } else if mode.isCommand {
                 commandListView
             } else if mode.isHistories {
                 historiesListView
+            } else if mode.isProjects {
+                projectsListView
             } else {
                 EmptyView()
             }
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+    
+    // MARK: - File Completion List (below input)
+    
+    private var fileCompletionListView: some View {
+        FileCompletionView(
+            items: fileCompletion.items,
+            selectedIndex: selectedFileIndex,
+            currentPath: fileCompletion.currentPath,
+            onSelect: selectFileCompletion
+        )
+        .id("fileCompletion-\(fileCompletion.currentPath)-\(fileCompletion.items.count)")
     }
     
     // MARK: - Histories List (below input)
@@ -401,6 +486,181 @@ struct CommandBarView: View {
         }
     }
     
+    // MARK: - Projects List (below input)
+    
+    private var projectsListView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 2) {
+                    // "Choose folder..." option at the top
+                    ProjectListItem(
+                        name: "Choose folder...",
+                        path: "",
+                        icon: "folder.badge.plus",
+                        isSelected: selectedProjectIndex == 0,
+                        isCurrent: false
+                    ) {
+                        appState.showProjectPicker()
+                    }
+                    .id(0)
+                    
+                    // Default ~/.motive option
+                    ProjectListItem(
+                        name: "Default (~/.motive)",
+                        path: "~/.motive",
+                        icon: "house",
+                        isSelected: selectedProjectIndex == 1,
+                        isCurrent: configManager.currentProjectPath.isEmpty
+                    ) {
+                        selectProject(nil)
+                    }
+                    .id(1)
+                    
+                    // Recent projects
+                    ForEach(Array(configManager.recentProjects.enumerated()), id: \.element.id) { index, project in
+                        ProjectListItem(
+                            name: project.name,
+                            path: project.shortPath,
+                            icon: "folder",
+                            isSelected: selectedProjectIndex == index + 2,
+                            isCurrent: configManager.currentProjectPath == project.path
+                        ) {
+                            selectProject(project.path)
+                        }
+                        .id(index + 2)
+                    }
+                }
+                .padding(.vertical, AuroraSpacing.space2)
+                .padding(.horizontal, AuroraSpacing.space3)
+            }
+            .onChange(of: selectedProjectIndex) { _, newIndex in
+                withAnimation(.auroraFast) {
+                    proxy.scrollTo(newIndex, anchor: .center)
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+    
+    private func selectProject(_ path: String?) {
+        appState.switchProjectDirectory(path)
+        inputText = ""
+        mode = .idle
+    }
+    
+    // MARK: - @ File Completion
+    
+    /// Check if input contains @ trigger for file completion
+    private func checkForAtCompletion(_ text: String) {
+        guard let token = currentAtToken(in: text) else {
+            hideFileCompletion()
+            return
+        }
+        
+        let query = token.query
+        let newRange = token.range
+        
+        // Skip if range and query haven't changed (avoid re-loading after manual selection)
+        if showFileCompletion, let oldRange = atQueryRange, oldRange == newRange {
+            Log.config("🔍 checkForAtCompletion: skipping (range unchanged)")
+            return
+        }
+        
+        atQueryRange = newRange
+        
+        // Load file completions
+        let baseDir = fileCompletion.getBaseDirectory(for: configManager)
+        Log.config("🔍 checkForAtCompletion: loading query '\(query)'")
+        fileCompletion.loadItems(query: query, baseDir: baseDir)
+        
+        showFileCompletion = true
+        selectedFileIndex = 0
+        
+        // Update window height to accommodate file completion list
+        appState.updateCommandBarHeight(to: fileCompletionHeight)
+    }
+    
+    /// Find the current @ token (from @ to next whitespace)
+    private func currentAtToken(in text: String) -> (query: String, range: Range<String.Index>)? {
+        guard let atIndex = text.lastIndex(of: "@") else { return nil }
+        
+        // Require @ to be at start or preceded by whitespace
+        if atIndex > text.startIndex {
+            let beforeAt = text[text.index(before: atIndex)]
+            if !beforeAt.isWhitespace {
+                return nil
+            }
+        }
+        
+        let afterAt = text[atIndex...]
+        if let spaceIndex = afterAt.dropFirst().firstIndex(where: { $0.isWhitespace }) {
+            // Found space after @ - this means the @ token is complete
+            // Return nil to exit completion mode (user typed "@path " with space)
+            return nil
+        } else {
+            let range = atIndex..<text.endIndex
+            let query = String(text[range])
+            return (query, range)
+        }
+    }
+    
+    /// Hide file completion popup
+    private func hideFileCompletion() {
+        showFileCompletion = false
+        atQueryRange = nil
+        fileCompletion.clear()
+
+        // Restore window height to mode's default height
+        appState.updateCommandBarHeight(to: mode.dynamicHeight)
+    }
+    
+    /// Select a file completion item
+    private func selectFileCompletion(_ item: FileCompletionItem) {
+        guard let range = atQueryRange else { return }
+        
+        Log.config("📂 Select: '\(item.name)' isDir:\(item.isDirectory) path:'\(item.path)'")
+        
+        // Build the replacement text
+        let replacement: String
+        if item.isDirectory {
+            replacement = "@\(item.path)/"
+        } else {
+            replacement = "@\(item.path) " // Add space after file selection
+        }
+        
+        Log.config("📂 Replacement: '\(replacement)'")
+        
+        // Calculate the new @ range after replacement
+        let startIndex = range.lowerBound
+        inputText.replaceSubrange(range, with: replacement)
+        
+        Log.config("📂 New inputText: '\(inputText)'")
+        
+        // Reset selection index
+        selectedFileIndex = 0
+        
+        // If it's a directory, reload completions for the new path
+        if item.isDirectory {
+            // Update atQueryRange to point to the new @ token
+            if let newEndIndex = inputText.index(startIndex, offsetBy: replacement.count, limitedBy: inputText.endIndex) {
+                atQueryRange = startIndex..<newEndIndex
+                
+                // Directly load items for the new directory
+                let baseDir = fileCompletion.getBaseDirectory(for: configManager)
+                Log.config("📂 Reloading with query: '\(replacement)', baseDir: \(baseDir.path)")
+                fileCompletion.loadItems(query: replacement, baseDir: baseDir)
+                
+                // Keep completion visible
+                showFileCompletion = true
+            } else {
+                hideFileCompletion()
+            }
+        } else {
+            // File selected - hide completion (space already added)
+            hideFileCompletion()
+        }
+    }
+
     // MARK: - Running Status (above input)
     
     private var runningStatusView: some View {
@@ -595,7 +855,8 @@ struct CommandBarView: View {
                             handleCmdDelete()
                         }
                     },
-                    onCmdN: handleCmdN
+                    onCmdN: handleCmdN,
+                    onEscape: handleEscape
                 )
                 .focused($isInputFocused)
             }
@@ -708,11 +969,13 @@ struct CommandBarView: View {
         HStack(spacing: 0) {
             // Left side: status or hints
             leftFooterContent
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(0)
             
-            Spacer()
-            
-            // Right side: keyboard shortcuts
+            // Right side: keyboard shortcuts (keep visible)
             rightFooterContent
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         }
         .frame(height: 40)
         .padding(.horizontal, AuroraSpacing.space5)
@@ -721,8 +984,30 @@ struct CommandBarView: View {
     
     @ViewBuilder
     private var leftFooterContent: some View {
-        // Status is shown in above content area, not duplicated in footer
-        EmptyView()
+        // Show current project directory
+        HStack(spacing: AuroraSpacing.space2) {
+            Image(systemName: "folder")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Color.Aurora.textMuted)
+            
+            Text(configManager.currentProjectShortPath)
+                .font(.Aurora.micro)
+                .foregroundColor(Color.Aurora.textMuted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.horizontal, AuroraSpacing.space2)
+        .padding(.vertical, AuroraSpacing.space1)
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                .fill(Color.Aurora.surface.opacity(0.5))
+        )
+        .onTapGesture {
+            // Quick access to /project command
+            inputText = "/"
+            mode = .command(fromSession: !appState.messages.isEmpty)
+            selectedCommandIndex = 0  // /project is first in the list
+        }
     }
     
     @ViewBuilder
@@ -738,16 +1023,22 @@ struct CommandBarView: View {
                 AuroraShortcutBadge(keys: ["⌘", "⌫"], label: L10n.CommandBar.delete)
                 AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
                 AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
+            } else if mode.isProjects {
+                AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.select)
+                AuroraShortcutBadge(keys: ["↑↓"], label: L10n.CommandBar.navigate)
+                AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.back)
             } else {
                 switch mode {
-                case .idle, .input:
+                case .idle:
                     AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.run)
-                    AuroraShortcutBadge(keys: ["⌘", "N"], label: L10n.CommandBar.new)
+                    AuroraShortcutBadge(keys: ["/"], label: L10n.CommandBar.commands)
+                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
+                case .input:
+                    AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.run)
                     AuroraShortcutBadge(keys: ["/"], label: L10n.CommandBar.commands)
                     AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
                 case .running:
-                    AuroraShortcutBadge(keys: ["⌘", "N"], label: L10n.CommandBar.new)
-                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.stop)
+                    AuroraShortcutBadge(keys: ["esc"], label: L10n.CommandBar.close)
                     AuroraShortcutBadge(keys: ["⌘", "D"], label: L10n.CommandBar.drawer)
                 case .completed:
                     AuroraShortcutBadge(keys: ["↵"], label: L10n.CommandBar.send)
@@ -774,7 +1065,7 @@ struct CommandBarView: View {
         switch mode {
         case .running:
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
-                .strokeBorder(Color.Aurora.primary.opacity(0.8), lineWidth: 1.0)
+                .strokeBorder(Color.Aurora.border.opacity(0.8), lineWidth: 1.0)
                 .modifier(PulsingBorderModifier())
         case .completed:
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
@@ -808,6 +1099,15 @@ struct CommandBarView: View {
     // MARK: - State Handlers
     
     private func handleInputChange(_ newValue: String) {
+        // Always check for @ file completion
+        checkForAtCompletion(newValue)
+
+        // If @ completion is showing, do not change mode/height here.
+        // Height is handled in checkForAtCompletion / hideFileCompletion.
+        if showFileCompletion {
+            return
+        }
+        
         // In histories mode, input is used for filtering, don't change mode
         if mode.isHistories {
             return
@@ -849,7 +1149,7 @@ struct CommandBarView: View {
     
     private func handleModeChange(from oldMode: CommandBarMode, to newMode: CommandBarMode) {
         // Update window height for new mode
-        appState.updateCommandBarHeight(for: newMode.modeName)
+        appState.updateCommandBarHeight(to: currentHeight)
         
         // Load data when entering specific modes
         if newMode.isHistories {
@@ -863,8 +1163,8 @@ struct CommandBarView: View {
     }
     
     private func handleSessionStatusChange(_ status: AppState.SessionStatus) {
-        // Don't change mode if user is browsing commands/histories
-        if mode.isCommand || mode.isHistories {
+        // Don't change mode if user is browsing commands/histories/projects
+        if mode.isCommand || mode.isHistories || mode.isProjects {
             return
         }
         
@@ -883,12 +1183,53 @@ struct CommandBarView: View {
     }
     
     private func handleSubmit() {
+        // File completion takes priority
+        if showFileCompletion && !fileCompletion.items.isEmpty {
+            if selectedFileIndex < fileCompletion.items.count {
+                selectFileCompletion(fileCompletion.items[selectedFileIndex])
+            }
+            return
+        }
+        
         if mode.isCommand {
+            // Check if input has arguments (e.g., "/project /path/to/dir")
+            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.hasPrefix("/project ") || text.hasPrefix("/p ") {
+                // Extract path argument
+                let pathArg = text.replacingOccurrences(of: "^/p(roject)?\\s+", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !pathArg.isEmpty {
+                    if appState.switchProjectDirectory(pathArg) {
+                        inputText = ""
+                        mode = .idle
+                    } else {
+                        // Directory doesn't exist - show error briefly then stay in command mode
+                        inputText = ""
+                        mode = .error("Directory not found: \(pathArg)")
+                    }
+                    return
+                }
+            }
             executeSelectedCommand()
         } else if mode.isHistories {
             // Select the highlighted session
             if selectedHistoryIndex < filteredHistorySessions.count {
                 selectHistorySession(filteredHistorySessions[selectedHistoryIndex])
+            }
+        } else if mode.isProjects {
+            // Select the highlighted project
+            if selectedProjectIndex == 0 {
+                // "Choose folder..." option
+                appState.showProjectPicker()
+            } else if selectedProjectIndex == 1 {
+                // Default ~/.motive
+                selectProject(nil)
+            } else {
+                // Recent project
+                let projectIndex = selectedProjectIndex - 2
+                if projectIndex < configManager.recentProjects.count {
+                    selectProject(configManager.recentProjects[projectIndex].path)
+                }
             }
         } else if case .completed = mode {
             sendFollowUp()
@@ -898,7 +1239,13 @@ struct CommandBarView: View {
     }
     
     private func handleEscape() {
-        if mode.isCommand || mode.isHistories {
+        // File completion: ESC closes it first
+        if showFileCompletion {
+            hideFileCompletion()
+            return
+        }
+        
+        if mode.isCommand || mode.isHistories || mode.isProjects {
             // Return to previous mode (session or idle)
             if appState.sessionStatus == .running {
                 mode = .running
@@ -909,17 +1256,8 @@ struct CommandBarView: View {
             }
             inputText = ""
         } else {
-            switch mode {
-            case .running:
-                // ESC during running = interrupt and hide
-                appState.interruptSession()
-                appState.hideCommandBar()
-            case .completed, .error, .idle, .input:
-                // ESC = hide CommandBar
-                appState.hideCommandBar()
-            default:
-                appState.hideCommandBar()
-            }
+            // ESC = hide CommandBar (task continues running in background)
+            appState.hideCommandBar()
         }
     }
     
@@ -940,6 +1278,10 @@ struct CommandBarView: View {
     private func executeCommand(_ command: CommandDefinition) {
         let wasFromSession = mode.isFromSession || !appState.messages.isEmpty
         switch command.id {
+        case "project":
+            inputText = ""
+            mode = .projects(fromSession: wasFromSession)
+            selectedProjectIndex = 0
         case "histories":
             inputText = ""
             mode = .histories(fromSession: wasFromSession)
@@ -974,7 +1316,7 @@ struct CommandBarView: View {
     /// Syncs mode with current session state
     private func recenterAndFocus() {
         // Sync mode with current session status (unless user is mid-action)
-        if !mode.isCommand && !mode.isHistories {
+        if !mode.isCommand && !mode.isHistories && !mode.isProjects {
             switch appState.sessionStatus {
             case .running:
                 mode = .running
@@ -993,7 +1335,7 @@ struct CommandBarView: View {
         }
         
         // Update window height to match current mode
-        appState.updateCommandBarHeight(for: mode.modeName)
+        appState.updateCommandBarHeight(to: currentHeight)
         
         // Refocus input
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -1035,6 +1377,84 @@ private struct CommandListItem: View {
                     Text(command.description)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
+                }
+                
+                Spacer()
+                
+                if isSelected {
+                    Image(systemName: "return")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color.Aurora.textMuted)
+                }
+            }
+            .padding(.horizontal, AuroraSpacing.space3)
+            .padding(.vertical, AuroraSpacing.space2)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .fill(isSelected ? Color.Aurora.accent.opacity(0.1) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+            )
+            .overlay(
+                HStack {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.Aurora.auroraGradient)
+                            .frame(width: 3)
+                    }
+                    Spacer()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
+// MARK: - Project List Item
+
+private struct ProjectListItem: View {
+    let name: String
+    let path: String
+    let icon: String
+    let isSelected: Bool
+    let isCurrent: Bool
+    let action: () -> Void
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AuroraSpacing.space3) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isSelected ? Color.Aurora.accent : Color.Aurora.textSecondary)
+                    .frame(width: 24)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: AuroraSpacing.space2) {
+                        Text(name)
+                            .font(.Aurora.body.weight(.medium))
+                            .foregroundColor(Color.Aurora.textPrimary)
+                        
+                        if isCurrent {
+                            Text("current")
+                                .font(.Aurora.micro)
+                                .foregroundColor(Color.Aurora.accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.Aurora.accent.opacity(0.15))
+                                )
+                        }
+                    }
+                    
+                    if !path.isEmpty {
+                        Text(path)
+                            .font(.Aurora.caption)
+                            .foregroundColor(Color.Aurora.textMuted)
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
@@ -1230,6 +1650,7 @@ struct CommandBarTextField: NSViewRepresentable {
     var onSubmit: () -> Void
     var onCmdDelete: () -> Void
     var onCmdN: (() -> Void)?
+    var onEscape: (() -> Void)?
     
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
@@ -1258,6 +1679,7 @@ struct CommandBarTextField: NSViewRepresentable {
         // Update callbacks
         context.coordinator.onCmdDelete = onCmdDelete
         context.coordinator.onCmdN = onCmdN
+        context.coordinator.onEscape = onEscape
     }
     
     func makeCoordinator() -> Coordinator {
@@ -1272,19 +1694,27 @@ struct CommandBarTextField: NSViewRepresentable {
         var parent: CommandBarTextField
         var onCmdDelete: (() -> Void)?
         var onCmdN: (() -> Void)?
+        var onEscape: (() -> Void)?
         private var keyboardMonitor: Any?
         
         init(_ parent: CommandBarTextField) {
             self.parent = parent
             self.onCmdDelete = parent.onCmdDelete
             self.onCmdN = parent.onCmdN
+            self.onEscape = parent.onEscape
         }
         
         func setupKeyboardMonitor() {
             keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self = self else { return event }
                 
-                // Check for Cmd modifier
+                // ESC key (keyCode 53) - no modifier required
+                if event.keyCode == 53 {
+                    self.onEscape?()
+                    return nil  // Consume the event
+                }
+                
+                // Check for Cmd modifier for other shortcuts
                 guard event.modifierFlags.contains(.command) else { return event }
                 
                 // Cmd+Delete (backspace, keyCode 51)
@@ -1324,3 +1754,4 @@ struct CommandBarTextField: NSViewRepresentable {
         }
     }
 }
+

@@ -30,6 +30,8 @@ final class CommandBarWindowController {
         "input": 100,
         "command": 450,   // Same as histories for consistency
         "histories": 450, // status(50) + input + footer + list(280) + padding (max case)
+        "projects": 450,  // Same as histories
+        "fileCompletion": 450, // File/directory completion list
         "running": 160,   // status + input + footer + padding
         "completed": 160,
         "error": 160

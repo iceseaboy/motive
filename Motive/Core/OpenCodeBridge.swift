@@ -120,7 +120,9 @@ actor OpenCodeBridge {
         
         Log.bridge("Running OpenCode via PTY: \(binaryPath) \(args.prefix(3).joined(separator: " "))...")
         
-        let safeCwd = FileManager.default.temporaryDirectory.path
+        // Use the provided cwd (from ConfigManager.currentProjectURL)
+        // This ensures OpenCode operates in the correct project context
+        let safeCwd = cwd
         Log.bridge("Using working directory: \(safeCwd)")
         
         // Retry logic for OpenCode startup failures
@@ -198,11 +200,11 @@ actor OpenCodeBridge {
                 
                 // Only process JSON lines
                 guard trimmed.hasPrefix("{") else {
-                    Log.bridge("[pty] Non-JSON: \(trimmed.prefix(80))")
+                    Log.bridge("[pty] Non-JSON: \(trimmed)")
                     continue
                 }
                 
-                Log.bridge("[pty] JSON: \(trimmed.prefix(200))")
+                Log.bridge("[pty] JSON: \(trimmed)")
                 
                 let event = OpenCodeEvent(rawJson: trimmed)
                 
