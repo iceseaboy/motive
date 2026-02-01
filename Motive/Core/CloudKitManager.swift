@@ -22,11 +22,22 @@ final class CloudKitManager {
     private var pollTimer: Timer?
     private weak var appState: AppState?
     
+    /// Whether CloudKit is enabled (checked at startup)
+    private var isEnabled = false
+    
     // MARK: - Public Methods
     
     /// Start listening for remote commands from iOS
     func startListening(appState: AppState) {
         self.appState = appState
+        
+        // Check if CloudKit entitlement is present before attempting any CloudKit operations
+        guard hasCloudKitEntitlement else {
+            Log.debug("CloudKitManager: CloudKit not available (missing entitlement or not signed in). iOS Remote disabled.")
+            return
+        }
+        
+        isEnabled = true
         
         Task {
             // Setup CloudKit subscription for real-time updates
@@ -53,6 +64,7 @@ final class CloudKitManager {
     
     /// Update command status to running
     func startCommand(commandId: String, toolName: String? = nil) {
+        guard isEnabled else { return }
         Task {
             await updateCommandStatus(
                 commandId: commandId,
@@ -64,6 +76,7 @@ final class CloudKitManager {
     
     /// Update command with current tool name
     func updateProgress(commandId: String, toolName: String?, progress: Double? = nil) {
+        guard isEnabled else { return }
         Task {
             await updateCommandStatus(
                 commandId: commandId,
@@ -76,6 +89,7 @@ final class CloudKitManager {
     
     /// Mark command as completed
     func completeCommand(commandId: String, result: String?) {
+        guard isEnabled else { return }
         Task {
             await updateCommandStatus(
                 commandId: commandId,
@@ -87,6 +101,7 @@ final class CloudKitManager {
     
     /// Mark command as failed
     func failCommand(commandId: String, error: String) {
+        guard isEnabled else { return }
         Task {
             await updateCommandStatus(
                 commandId: commandId,
@@ -100,6 +115,7 @@ final class CloudKitManager {
     
     /// Send a permission request to iOS for user confirmation
     func sendPermissionRequest(commandId: String, question: String, options: [String]) async -> String? {
+        guard isEnabled else { return nil }
         Log.debug("CloudKitManager: Creating permission request for command \(commandId)")
         Log.debug("CloudKitManager: Question: \(question)")
         Log.debug("CloudKitManager: Options: \(options)")

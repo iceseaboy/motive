@@ -21,10 +21,59 @@ import UIKit
 // Format: iCloud.{bundle-id-prefix}.{app-name}
 let motiveCloudKitContainerID = "iCloud.velvetai.Motive"
 
+/// Check if CloudKit entitlement is present in the app bundle
+/// This prevents crashes when the app is signed without CloudKit capability
+var hasCloudKitEntitlement: Bool {
+    #if DEBUG
+    return true  // Debug builds from Xcode have entitlements
+    #else
+    #if os(macOS)
+    // For macOS release builds, check entitlements via codesign
+    return FileManager.default.ubiquityIdentityToken != nil && hasCloudKitEntitlementInBundle()
+    #else
+    // For iOS, App Store apps always have proper entitlements
+    return FileManager.default.ubiquityIdentityToken != nil
+    #endif
+    #endif
+}
+
+#if os(macOS)
+/// Check if the app bundle was signed with CloudKit entitlements (macOS only)
+private func hasCloudKitEntitlementInBundle() -> Bool {
+    guard let executableURL = Bundle.main.executableURL else { return false }
+    
+    // Use codesign to check entitlements
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+    process.arguments = ["-d", "--entitlements", ":-", executableURL.path]
+    
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    
+    do {
+        try process.run()
+        process.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let output = String(data: data, encoding: .utf8) {
+            return output.contains("com.apple.developer.icloud-services") &&
+                   output.contains("CloudKit")
+        }
+    } catch {
+        // If we can't check, assume no entitlement to be safe
+    }
+    
+    return false
+}
+#endif
+
+/// CloudKit container - only access after checking hasCloudKitEntitlement
 var motiveCloudKitContainer: CKContainer {
     CKContainer(identifier: motiveCloudKitContainerID)
 }
 
+/// CloudKit private database - only access after checking hasCloudKitEntitlement
 var motivePrivateDatabase: CKDatabase {
     motiveCloudKitContainer.privateCloudDatabase
 }
