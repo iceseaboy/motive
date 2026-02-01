@@ -28,6 +28,30 @@ open Motive.xcodeproj
 - Xcode 16.0+
 - Swift 6.0
 
+### Xcode Signing Configuration
+
+After opening the project, configure signing in Xcode:
+
+1. Select the project root in the sidebar
+2. Go to **Signing & Capabilities** tab
+3. Select your **Development Team** for both targets:
+   - **Motive** (macOS app)
+   - **MotiveRemote** (iOS app, optional)
+
+**Important**: Please **do not commit** changes to `DEVELOPMENT_TEAM` in your pull requests. The `.pbxproj` file may show your team ID locally — this is expected. When submitting PRs, only commit functional code changes.
+
+### CloudKit & iOS Remote (Optional)
+
+The **iOS Remote** feature (controlling Motive from iPhone) is optional for contributors:
+
+- **For macOS-only development**: You can ignore the MotiveRemote target. The main Motive app works without CloudKit capabilities.
+- **For iOS Remote development**: You'll need:
+  1. A paid Apple Developer account
+  2. Enable **iCloud** and **Push Notifications** capabilities in both Motive and MotiveRemote targets
+  3. CloudKit container ID: `iCloud.velvetai.Motive`
+
+If you see build errors related to CloudKit entitlements, it's safe to remove the iCloud/Push Notifications capabilities from the **Motive** target if you're not testing iOS Remote features.
+
 ### OpenCode Binary
 
 For development, download and place the OpenCode binary:
