@@ -18,8 +18,20 @@ enum SkillGating {
         let skillKey = resolveSkillKey(entry)
         let skillConfig = config.entries[skillKey] ?? config.entries[entry.name]
 
-        if skillConfig?.enabled == false {
-            reasons.append("disabled")
+        // Check enabled/disabled state
+        // - Managed and extra skills default to disabled (must be explicitly enabled)
+        // - Bundled and workspace skills default to enabled (can be explicitly disabled)
+        let isManagedOrExtra = (entry.source == .managed || entry.source == .extra)
+        
+        if let explicitEnabled = skillConfig?.enabled {
+            // User has explicitly set enabled state
+            if !explicitEnabled {
+                reasons.append("disabled")
+                return SkillEligibility(isEligible: false, reasons: reasons)
+            }
+        } else if isManagedOrExtra {
+            // Managed/extra skills with no config default to disabled
+            reasons.append("disabled_by_default")
             return SkillEligibility(isEligible: false, reasons: reasons)
         }
 

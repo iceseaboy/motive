@@ -11,6 +11,7 @@ import MarkdownUI
 
 struct SkillsSettingsView: View {
     @EnvironmentObject private var configManager: ConfigManager
+    @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = SkillsSettingsViewModel()
     @Environment(\.colorScheme) private var colorScheme
     
@@ -92,6 +93,16 @@ struct SkillsSettingsView: View {
                 return
             }
             loadMarkdown(for: entry)
+        }
+        // Auto-restart agent when skill config changes
+        .onChange(of: viewModel.needsRestart) { _, needsRestart in
+            if needsRestart {
+                // Small delay to let UI update first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    appState.restartAgent()
+                    viewModel.clearRestartNeeded()
+                }
+            }
         }
     }
     
@@ -735,11 +746,17 @@ private struct SkillDetail: View {
                 
                 Spacer()
                 
-                // Toggle moved here
+                // Toggle moved here - disabled when skill is blocked
                 HStack(spacing: 8) {
-                    Text(status.disabled ? "Disabled" : "Enabled")
-                        .font(.system(size: 11))
-                        .foregroundColor(status.disabled ? Color.Aurora.textMuted : Color.Aurora.success)
+                    if !isReady {
+                        Text("Blocked")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.Aurora.warning)
+                    } else {
+                        Text(status.disabled ? "Disabled" : "Enabled")
+                            .font(.system(size: 11))
+                            .foregroundColor(status.disabled ? Color.Aurora.textMuted : Color.Aurora.success)
+                    }
                     
                     Toggle("", isOn: Binding(
                         get: { !status.disabled },
@@ -747,6 +764,7 @@ private struct SkillDetail: View {
                     ))
                     .toggleStyle(.switch)
                     .tint(Color.Aurora.primary)
+                    .disabled(!isReady)  // Can't enable blocked skills
                 }
             }
             

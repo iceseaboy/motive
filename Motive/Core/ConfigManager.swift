@@ -13,10 +13,30 @@ import SwiftUI
 @MainActor
 final class ConfigManager: ObservableObject {
     enum Provider: String, CaseIterable, Identifiable {
+        // Primary providers (most common)
         case claude
         case openai
         case gemini
         case ollama
+        
+        // Cloud providers
+        case openrouter
+        case mistral
+        case groq
+        case xai
+        case cohere
+        case deepinfra
+        case togetherai
+        case perplexity
+        case cerebras
+        
+        // Enterprise / Cloud
+        case azure
+        case bedrock
+        case googleVertex
+        
+        // OpenAI-compatible endpoints
+        case openaiCompatible
 
         var id: String { rawValue }
 
@@ -26,6 +46,96 @@ final class ConfigManager: ObservableObject {
             case .openai: return "OpenAI"
             case .gemini: return "Gemini"
             case .ollama: return "Ollama"
+            case .openrouter: return "OpenRouter"
+            case .mistral: return "Mistral"
+            case .groq: return "Groq"
+            case .xai: return "xAI"
+            case .cohere: return "Cohere"
+            case .deepinfra: return "DeepInfra"
+            case .togetherai: return "Together"
+            case .perplexity: return "Perplexity"
+            case .cerebras: return "Cerebras"
+            case .azure: return "Azure"
+            case .bedrock: return "Bedrock"
+            case .googleVertex: return "Vertex AI"
+            case .openaiCompatible: return "OpenAI Compatible"
+            }
+        }
+        
+        /// OpenCode provider name used in config
+        var openCodeProviderName: String {
+            switch self {
+            case .claude: return "anthropic"
+            case .openai: return "openai"
+            case .gemini: return "google"
+            case .ollama: return "ollama"
+            case .openrouter: return "openrouter"
+            case .mistral: return "mistral"
+            case .groq: return "groq"
+            case .xai: return "xai"
+            case .cohere: return "cohere"
+            case .deepinfra: return "deepinfra"
+            case .togetherai: return "togetherai"
+            case .perplexity: return "perplexity"
+            case .cerebras: return "cerebras"
+            case .azure: return "azure"
+            case .bedrock: return "amazon-bedrock"
+            case .googleVertex: return "google-vertex"
+            case .openaiCompatible: return "openai-compatible"
+            }
+        }
+        
+        /// Whether this provider requires an API key
+        var requiresAPIKey: Bool {
+            switch self {
+            case .ollama: return false
+            default: return true
+            }
+        }
+        
+        /// Environment variable name for API key
+        var envKeyName: String {
+            switch self {
+            case .claude: return "ANTHROPIC_API_KEY"
+            case .openai: return "OPENAI_API_KEY"
+            case .gemini: return "GOOGLE_GENERATIVE_AI_API_KEY"
+            case .ollama: return ""
+            case .openrouter: return "OPENROUTER_API_KEY"
+            case .mistral: return "MISTRAL_API_KEY"
+            case .groq: return "GROQ_API_KEY"
+            case .xai: return "XAI_API_KEY"
+            case .cohere: return "COHERE_API_KEY"
+            case .deepinfra: return "DEEPINFRA_API_KEY"
+            case .togetherai: return "TOGETHER_API_KEY"
+            case .perplexity: return "PERPLEXITY_API_KEY"
+            case .cerebras: return "CEREBRAS_API_KEY"
+            case .azure: return "AZURE_OPENAI_API_KEY"
+            case .bedrock: return "AWS_ACCESS_KEY_ID"
+            case .googleVertex: return "GOOGLE_CLOUD_PROJECT"
+            case .openaiCompatible: return "OPENAI_API_KEY"
+            }
+        }
+        
+        /// Default model for the provider
+        var defaultModel: String {
+            switch self {
+            case .claude: return "claude-sonnet-4-5-20250929"
+            case .openai: return "gpt-5.1-codex"
+            case .gemini: return "gemini-3-pro-preview"
+            case .ollama: return "llama3"
+            case .openrouter: return "anthropic/claude-sonnet-4"
+            case .mistral: return "mistral-large-latest"
+            case .groq: return "llama-3.3-70b-versatile"
+            case .xai: return "grok-2"
+            case .cohere: return "command-r-plus"
+            case .deepinfra: return "meta-llama/Llama-3.3-70B-Instruct"
+            case .togetherai: return "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+            case .perplexity: return "llama-3.1-sonar-large-128k-online"
+            case .cerebras: return "llama3.1-70b"
+            case .azure: return "gpt-4o"
+            case .bedrock: return "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            case .googleVertex: return "gemini-2.0-flash-001"
+            case .openaiCompatible: return "gpt-4o"
             }
         }
     }
@@ -64,7 +174,7 @@ final class ConfigManager: ObservableObject {
     
     @AppStorage("provider") var providerRawValue: String = Provider.claude.rawValue
     
-    // Per-provider configurations
+    // Per-provider configurations - Primary providers
     @AppStorage("claude.baseURL") var claudeBaseURL: String = ""
     @AppStorage("claude.modelName") var claudeModelName: String = ""
     @AppStorage("openai.baseURL") var openaiBaseURL: String = ""
@@ -73,6 +183,38 @@ final class ConfigManager: ObservableObject {
     @AppStorage("gemini.modelName") var geminiModelName: String = ""
     @AppStorage("ollama.baseURL") var ollamaBaseURL: String = "http://localhost:11434"
     @AppStorage("ollama.modelName") var ollamaModelName: String = ""
+    
+    // Per-provider configurations - Cloud providers
+    @AppStorage("openrouter.baseURL") var openrouterBaseURL: String = ""
+    @AppStorage("openrouter.modelName") var openrouterModelName: String = ""
+    @AppStorage("mistral.baseURL") var mistralBaseURL: String = ""
+    @AppStorage("mistral.modelName") var mistralModelName: String = ""
+    @AppStorage("groq.baseURL") var groqBaseURL: String = ""
+    @AppStorage("groq.modelName") var groqModelName: String = ""
+    @AppStorage("xai.baseURL") var xaiBaseURL: String = ""
+    @AppStorage("xai.modelName") var xaiModelName: String = ""
+    @AppStorage("cohere.baseURL") var cohereBaseURL: String = ""
+    @AppStorage("cohere.modelName") var cohereModelName: String = ""
+    @AppStorage("deepinfra.baseURL") var deepinfraBaseURL: String = ""
+    @AppStorage("deepinfra.modelName") var deepinfraModelName: String = ""
+    @AppStorage("togetherai.baseURL") var togetheraiBaseURL: String = ""
+    @AppStorage("togetherai.modelName") var togetheraiModelName: String = ""
+    @AppStorage("perplexity.baseURL") var perplexityBaseURL: String = ""
+    @AppStorage("perplexity.modelName") var perplexityModelName: String = ""
+    @AppStorage("cerebras.baseURL") var cerebrasBaseURL: String = ""
+    @AppStorage("cerebras.modelName") var cerebrasModelName: String = ""
+    
+    // Per-provider configurations - Enterprise / Cloud
+    @AppStorage("azure.baseURL") var azureBaseURL: String = ""
+    @AppStorage("azure.modelName") var azureModelName: String = ""
+    @AppStorage("bedrock.baseURL") var bedrockBaseURL: String = ""
+    @AppStorage("bedrock.modelName") var bedrockModelName: String = ""
+    @AppStorage("googleVertex.baseURL") var googleVertexBaseURL: String = ""
+    @AppStorage("googleVertex.modelName") var googleVertexModelName: String = ""
+    
+    // Per-provider configurations - OpenAI-compatible
+    @AppStorage("openaiCompatible.baseURL") var openaiCompatibleBaseURL: String = ""
+    @AppStorage("openaiCompatible.modelName") var openaiCompatibleModelName: String = ""
     
     @AppStorage("openCodeBinarySourcePath") var openCodeBinarySourcePath: String = ""
     @AppStorage("debugMode") var debugMode: Bool = false

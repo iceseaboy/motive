@@ -20,21 +20,11 @@ extension ConfigManager {
         }
         
         // Only sync current provider's API key (to avoid multiple keychain prompts)
-        let providerName: String
-        switch provider {
-        case .claude:
-            providerName = "anthropic"
-        case .openai:
-            providerName = "openai"
-        case .gemini:
-            providerName = "google"
-        case .ollama:
-            providerName = "ollama"
-        }
+        let providerName = provider.openCodeProviderName
         
         // Use the cached apiKey property instead of direct keychain read
         let apiKeyValue = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !apiKeyValue.isEmpty && provider != .ollama {
+        if !apiKeyValue.isEmpty && provider.requiresAPIKey {
             auth[providerName] = [
                 "type": "api",
                 "key": apiKeyValue
@@ -63,17 +53,7 @@ extension ConfigManager {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
         
         // Determine provider name for OpenCode
-        let providerName: String
-        switch provider {
-        case .claude:
-            providerName = "anthropic"
-        case .openai:
-            providerName = "openai"
-        case .gemini:
-            providerName = "google"
-        case .ollama:
-            providerName = "ollama"
-        }
+        let providerName = provider.openCodeProviderName
         
         let baseURLValue = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let mcpDir = appSupport.appendingPathComponent("mcp")
@@ -140,6 +120,38 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
 \(fullSystemPrompt)
 """
         
+        // Build skill permissions using WHITELIST approach
+        // Default: deny all, then explicitly allow enabled skills
+        var skillPermissions: [String: String] = ["*": "deny"]
+        
+        // Get enabled skills and add them to allow list
+        let skillsConfig = self.skillsConfig
+        for entry in SkillRegistry.shared.entries {
+            let skillKey = entry.metadata?.skillKey ?? entry.name
+            let entryConfig = skillsConfig.entries[skillKey] ?? skillsConfig.entries[entry.name]
+            
+            // Check if skill is enabled
+            let isEnabled: Bool
+            if let explicitEnabled = entryConfig?.enabled {
+                isEnabled = explicitEnabled
+            } else {
+                // Bundled/workspace skills default to enabled
+                // Managed/extra skills default to disabled
+                isEnabled = (entry.source == .bundled || entry.source == .workspace)
+            }
+            
+            if isEnabled {
+                skillPermissions[entry.name] = "allow"
+                Log.config(" Skill '\(entry.name)' is enabled -> allow")
+            }
+        }
+        
+        // Always allow system MCP tools (bundled by Motive)
+        let systemSkills = ["ask-user-question", "file-permission", "safe-file-deletion"]
+        for skill in systemSkills {
+            skillPermissions[skill] = "allow"
+        }
+        
         // Build config - always include permission: "allow"
         let permissionRules: [String: Any] = [
             "*": "allow",
@@ -148,7 +160,8 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
             // Block OpenCode's built-in question prompt (CLI-only),
             // but keep MCP ask-user-question available via skills.
             "question": "deny",
-            "skill": "allow"
+            // Skill-level permissions using WHITELIST (deny all, allow specific)
+            "skill": skillPermissions
         ]
         var config: [String: Any] = [
             "$schema": "https://opencode.ai/config.json",

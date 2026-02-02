@@ -15,6 +15,7 @@ final class SkillsSettingsViewModel: ObservableObject {
     @Published var installMessages: [String: SkillInstallMessage] = [:]
     @Published var isLoading: Bool = false
     @Published var error: String? = nil
+    @Published var needsRestart: Bool = false  // Indicates agent restart is needed
     
     struct SkillInstallMessage: Equatable {
         var kind: MessageKind
@@ -97,6 +98,15 @@ final class SkillsSettingsViewModel: ObservableObject {
     func toggleSkill(_ name: String, enabled: Bool) {
         guard let configManager else { return }
         
+        // Prevent enabling blocked skills (skills with missing dependencies)
+        if enabled {
+            if let status = statusEntries.first(where: { $0.entry.name == name }),
+               !status.missing.isEmpty {
+                // Skill is blocked - cannot enable
+                return
+            }
+        }
+        
         var skillsConfig = configManager.skillsConfig
         var entryConfig = skillsConfig.entries[name] ?? SkillEntryConfig()
         entryConfig.enabled = enabled
@@ -105,6 +115,18 @@ final class SkillsSettingsViewModel: ObservableObject {
         
         registry.refresh()
         refreshStatusEntriesAsync()
+        
+        // Regenerate OpenCode config so the updated skills list is applied
+        // This uses whitelist approach: deny all, only allow enabled skills
+        configManager.generateOpenCodeConfig()
+        
+        // Mark that restart is needed for changes to take effect
+        needsRestart = true
+    }
+    
+    /// Clear the restart needed flag (called after agent is restarted)
+    func clearRestartNeeded() {
+        needsRestart = false
     }
     
     func install(_ entry: SkillEntry, option: SkillInstallOption) async {
@@ -163,7 +185,14 @@ final class SkillsSettingsViewModel: ObservableObject {
         configManager.skillsConfig = skillsConfig
         
         // Refresh to update eligibility based on new API key
+        registry.refresh()
         refreshStatusEntriesAsync()
+        
+        // Regenerate OpenCode config so updated environment variables are applied
+        configManager.generateOpenCodeConfig()
+        
+        // Mark that restart is needed for changes to take effect
+        needsRestart = true
     }
     
     private func findInstallSpec(entry: SkillEntry, optionId: String) -> SkillInstallSpec? {

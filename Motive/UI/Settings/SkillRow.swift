@@ -133,13 +133,14 @@ struct SkillRow: View {
                         }
                     }
                     
-                    // Enable/disable toggle
+                    // Enable/disable toggle - disabled when skill is blocked
                     Toggle("", isOn: Binding(
                         get: { !status.disabled },
                         set: { onToggle($0) }
                     ))
                     .toggleStyle(.switch)
                     .tint(Color.Aurora.accent)
+                    .disabled(!status.missing.isEmpty)  // Can't enable blocked skills
                 }
             }
             .padding(.horizontal, AuroraSpacing.space4)

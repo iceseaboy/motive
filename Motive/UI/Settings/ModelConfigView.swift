@@ -63,8 +63,8 @@ struct ModelConfigView: View {
             
             // Configuration
             SettingSection(L10n.Settings.configuration) {
-                // API Key (not for Ollama)
-                if configManager.provider != .ollama {
+                // API Key (only for providers that require it)
+                if configManager.provider.requiresAPIKey {
                     SettingRow(L10n.Settings.apiKey) {
                         // API Key field with visibility toggle
                         ZStack(alignment: .trailing) {
@@ -194,19 +194,21 @@ struct ModelConfigView: View {
     // MARK: - Provider Picker
     
     private var providerPicker: some View {
-        HStack(spacing: 10) {
-            ForEach(ConfigManager.Provider.allCases) { provider in
-                CompactProviderCard(
-                    provider: provider,
-                    isSelected: configManager.provider == provider
-                ) {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        configManager.provider = provider
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ConfigManager.Provider.allCases) { provider in
+                    CompactProviderCard(
+                        provider: provider,
+                        isSelected: configManager.provider == provider
+                    ) {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            configManager.provider = provider
+                        }
                     }
                 }
             }
+            .padding(12)
         }
-        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.Aurora.surface)
@@ -218,30 +220,15 @@ struct ModelConfigView: View {
     }
     
     private var modelPlaceholder: String {
-        switch configManager.provider {
-        case .claude: return "claude-sonnet-4-5-20250929"
-        case .openai: return "gpt-5.1-codex"
-        case .gemini: return "gemini-3-pro-preview"
-        case .ollama: return "llama3"
-        }
+        configManager.provider.defaultModel
     }
     
     private var apiKeyPlaceholder: String {
-        switch configManager.provider {
-        case .claude: return "sk-ant-..."
-        case .openai: return "sk-..."
-        case .gemini: return "AIza..."
-        case .ollama: return ""
-        }
+        configManager.provider.apiKeyPlaceholder
     }
     
     private var baseURLPlaceholder: String {
-        switch configManager.provider {
-        case .claude: return "https://api.anthropic.com"
-        case .openai: return "https://api.openai.com"
-        case .gemini: return "https://generativelanguage.googleapis.com"
-        case .ollama: return "http://localhost:11434"
-        }
+        configManager.provider.baseURLPlaceholder
     }
     
     private func saveAndRestart() {
@@ -269,21 +256,20 @@ private struct CompactProviderCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
-                // Provider icon
-                Image(provider.iconAsset)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
+            VStack(spacing: 6) {
+                // Provider icon (custom asset or SF Symbol)
+                providerIcon
+                    .frame(width: 22, height: 22)
                     .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
                 
                 Text(provider.displayName)
-                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
                     .foregroundColor(isSelected ? Color.Aurora.textPrimary : Color.Aurora.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .frame(width: 70)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(backgroundColor)
@@ -295,6 +281,19 @@ private struct CompactProviderCard: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+    }
+    
+    @ViewBuilder
+    private var providerIcon: some View {
+        if provider.usesCustomIcon {
+            Image(provider.iconAsset)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: provider.sfSymbol)
+                .font(.system(size: 18, weight: .medium))
+        }
     }
     
     private var backgroundColor: Color {
@@ -399,13 +398,93 @@ struct ModernTextFieldStyle: TextFieldStyle {
 // MARK: - Provider Extension
 
 extension ConfigManager.Provider {
-    /// Asset Catalog icon name
+    /// Asset Catalog icon name (SF Symbol for providers without custom icon)
     var iconAsset: String {
         switch self {
+        // Primary providers with custom icons
         case .claude: return "anthropic"
         case .openai: return "open-ai"
         case .gemini: return "gemini-ai"
         case .ollama: return "ollama"
+        // Cloud providers (use SF Symbols)
+        case .openrouter, .mistral, .groq, .xai, .cohere, .deepinfra, .togetherai, .perplexity, .cerebras:
+            return ""  // Will use SF Symbol
+        // Enterprise / Cloud (use SF Symbols)
+        case .azure, .bedrock, .googleVertex:
+            return ""  // Will use SF Symbol
+        // OpenAI-compatible
+        case .openaiCompatible:
+            return ""  // Will use SF Symbol
+        }
+    }
+    
+    /// SF Symbol name for providers without custom icons
+    var sfSymbol: String {
+        switch self {
+        case .claude, .openai, .gemini, .ollama: return ""  // Use custom icon
+        case .openrouter: return "arrow.triangle.branch"
+        case .mistral: return "wind"
+        case .groq: return "bolt.fill"
+        case .xai: return "x.circle.fill"
+        case .cohere: return "circle.hexagongrid.fill"
+        case .deepinfra: return "server.rack"
+        case .togetherai: return "person.2.fill"
+        case .perplexity: return "sparkle.magnifyingglass"
+        case .cerebras: return "brain.head.profile"
+        case .azure: return "cloud.fill"
+        case .bedrock: return "square.3.layers.3d.down.right"
+        case .googleVertex: return "triangle.fill"
+        case .openaiCompatible: return "network"
+        }
+    }
+    
+    /// Whether this provider uses a custom asset or SF Symbol
+    var usesCustomIcon: Bool {
+        !iconAsset.isEmpty
+    }
+    
+    /// API key placeholder text
+    var apiKeyPlaceholder: String {
+        switch self {
+        case .claude: return "sk-ant-..."
+        case .openai, .openaiCompatible: return "sk-..."
+        case .gemini: return "AIza..."
+        case .ollama: return ""
+        case .openrouter: return "sk-or-..."
+        case .mistral: return "..."
+        case .groq: return "gsk_..."
+        case .xai: return "xai-..."
+        case .cohere: return "..."
+        case .deepinfra: return "..."
+        case .togetherai: return "..."
+        case .perplexity: return "pplx-..."
+        case .cerebras: return "csk-..."
+        case .azure: return "..."
+        case .bedrock: return "AKIA..."
+        case .googleVertex: return "project-id"
+        }
+    }
+    
+    /// Base URL placeholder text
+    var baseURLPlaceholder: String {
+        switch self {
+        case .claude: return "https://api.anthropic.com"
+        case .openai: return "https://api.openai.com"
+        case .gemini: return "https://generativelanguage.googleapis.com"
+        case .ollama: return "http://localhost:11434"
+        case .openrouter: return "https://openrouter.ai/api"
+        case .mistral: return "https://api.mistral.ai"
+        case .groq: return "https://api.groq.com"
+        case .xai: return "https://api.x.ai"
+        case .cohere: return "https://api.cohere.ai"
+        case .deepinfra: return "https://api.deepinfra.com"
+        case .togetherai: return "https://api.together.xyz"
+        case .perplexity: return "https://api.perplexity.ai"
+        case .cerebras: return "https://api.cerebras.ai"
+        case .azure: return "https://<resource>.openai.azure.com"
+        case .bedrock: return "https://bedrock-runtime.<region>.amazonaws.com"
+        case .googleVertex: return "https://<region>-aiplatform.googleapis.com"
+        case .openaiCompatible: return "https://your-api.example.com"
         }
     }
 }

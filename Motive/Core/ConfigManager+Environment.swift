@@ -30,23 +30,17 @@ extension ConfigManager {
         // ALWAYS generate config (sets permission: "allow" to avoid blocking)
         generateOpenCodeConfig()
         
-        if !apiKeyValue.isEmpty {
-            // Also set environment variables as backup
-            switch provider {
-            case .claude:
-                environment["ANTHROPIC_API_KEY"] = apiKeyValue
-                Log.config(" Using Anthropic API key: \(apiKeyValue.prefix(10))...")
-            case .openai:
-                environment["OPENAI_API_KEY"] = apiKeyValue
-                Log.config(" Using OpenAI API key: \(apiKeyValue.prefix(10))...")
-            case .gemini:
-                environment["GOOGLE_API_KEY"] = apiKeyValue
-                Log.config(" Using Google API key: \(apiKeyValue.prefix(10))...")
-            case .ollama:
-                Log.config(" Using Ollama (no API key needed)")
+        if provider.requiresAPIKey {
+            if !apiKeyValue.isEmpty {
+                // Set environment variable for the provider
+                let envKeyName = provider.envKeyName
+                environment[envKeyName] = apiKeyValue
+                Log.config(" Using \(provider.displayName) API key (\(envKeyName)): \(apiKeyValue.prefix(10))...")
+            } else {
+                Log.config(" WARNING - No API key configured for \(provider.displayName)!")
             }
         } else {
-            Log.config(" WARNING - No API key configured!")
+            Log.config(" Using \(provider.displayName) (no API key needed)")
         }
         
         // Note: baseURL is configured via opencode.json provider.options.baseURL
