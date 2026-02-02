@@ -98,7 +98,7 @@ struct AboutView: View {
                     name: "OpenCode",
                     description: "AI-powered coding agent",
                     license: "MIT",
-                    url: "https://github.com/opencode-ai/opencode"
+                    url: "https://github.com/anomalyco/opencode"
                 )
                 
                 Divider()

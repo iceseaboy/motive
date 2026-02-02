@@ -34,8 +34,8 @@ struct SettingsView: View {
                     selectedTab.contentView
                         .padding(.horizontal, 28)
                         .padding(.vertical, 24)
-                } else if selectedTab == .advanced {
-                    // Advanced needs scroll for collapsible sections
+                } else if selectedTab == .advanced || selectedTab == .permissions {
+                    // Advanced and Permissions need scroll
                     ScrollView {
                         VStack {
                             selectedTab.contentView

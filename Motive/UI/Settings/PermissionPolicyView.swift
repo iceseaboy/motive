@@ -14,43 +14,12 @@ struct PermissionPolicyView: View {
     private var isDark: Bool { colorScheme == .dark }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 16) {
             // File Operations Section
-            SettingSection(L10n.Settings.fileOperations) {
-                ForEach(Array(FileOperation.allCases.enumerated()), id: \.element) { index, operation in
-                    SettingRow(
-                        operation.localizedName,
-                        showDivider: index < FileOperation.allCases.count - 1
-                    ) {
-                        HStack(spacing: 10) {
-                            // Risk indicator
-                            Circle()
-                                .fill(riskColor(for: operation.riskLevel))
-                                .frame(width: 8, height: 8)
-                            
-                            // Policy picker
-                            Picker("", selection: Binding(
-                                get: { operationPolicies[operation] ?? .alwaysAsk },
-                                set: { newPolicy in
-                                    operationPolicies[operation] = newPolicy
-                                    FileOperationPolicy.shared.setDefaultPolicy(newPolicy, for: operation)
-                                }
-                            )) {
-                                ForEach(PermissionPolicy.allCases, id: \.self) { policy in
-                                    Text(policy.localizedName).tag(policy)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: 130)
-                        }
-                    }
-                }
-            }
+            fileOperationsSection
             
             // Risk Legend - compact inline display
             riskLegend
-            
-            Spacer()
             
             // Reset Button
             HStack {
@@ -68,6 +37,66 @@ struct PermissionPolicyView: View {
         }
         .onAppear {
             loadCurrentPolicies()
+        }
+    }
+    
+    private var fileOperationsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.Settings.fileOperations)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color.Aurora.textMuted)
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 0) {
+                ForEach(Array(FileOperation.allCases.enumerated()), id: \.element) { index, operation in
+                    HStack(spacing: 16) {
+                        Text(operation.localizedName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.Aurora.textPrimary)
+                        
+                        Spacer()
+                        
+                        // Risk indicator
+                        Circle()
+                            .fill(riskColor(for: operation.riskLevel))
+                            .frame(width: 8, height: 8)
+                        
+                        // Policy picker
+                        Picker("", selection: Binding(
+                            get: { operationPolicies[operation] ?? .alwaysAsk },
+                            set: { newPolicy in
+                                operationPolicies[operation] = newPolicy
+                                FileOperationPolicy.shared.setDefaultPolicy(newPolicy, for: operation)
+                            }
+                        )) {
+                            ForEach(PermissionPolicy.allCases, id: \.self) { policy in
+                                Text(policy.localizedName).tag(policy)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    
+                    if index < FileOperation.allCases.count - 1 {
+                        Rectangle()
+                            .fill(Color.Aurora.border)
+                            .frame(height: 1)
+                            .padding(.leading, 14)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.Aurora.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 1)
+            )
         }
     }
     
