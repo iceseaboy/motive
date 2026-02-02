@@ -20,21 +20,22 @@ extension CommandBarView {
 
     func confirmDeleteSession() {
         guard selectedHistoryIndex < filteredHistorySessions.count else { return }
-        let session = filteredHistorySessions[selectedHistoryIndex]
-        appState.deleteSession(session)
-        historySessions = appState.getAllSessions()
-        if selectedHistoryIndex >= filteredHistorySessions.count {
-            selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
+        let deleteId = filteredHistorySessions[selectedHistoryIndex].id
+        removeHistorySession(id: deleteId, preferredIndex: selectedHistoryIndex)
+        appState.deleteSession(id: deleteId)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            refreshHistorySessions(preferredIndex: selectedHistoryIndex)
         }
     }
 
     func showDeleteAlert() {
-        guard selectedHistoryIndex < filteredHistorySessions.count else {
+        let targetIndex = deleteCandidateIndex ?? selectedHistoryIndex
+        guard targetIndex < filteredHistorySessions.count else {
             showDeleteConfirmation = false
             return
         }
 
-        let sessionName = filteredHistorySessions[selectedHistoryIndex].intent
+        let sessionName = filteredHistorySessions[targetIndex].intent
 
         // Suppress auto-hide while alert is showing
         appState.setCommandBarAutoHideSuppressed(true)
@@ -50,14 +51,21 @@ extension CommandBarView {
         // Show alert attached to command bar window
         if let window = appState.commandBarWindowRef {
             // Capture values needed in closure (struct cannot use weak self)
-            let sessionToDelete = filteredHistorySessions[selectedHistoryIndex]
+            let deleteId = deleteCandidateId ?? filteredHistorySessions[targetIndex].id
+            let preferredIndex = deleteCandidateIndex ?? targetIndex
             let appStateRef = appState
 
             alert.beginSheetModal(for: window) { response in
                 if response == .alertFirstButtonReturn {
-                    // Delete the session and trigger list refresh
-                    appStateRef.deleteSession(sessionToDelete)
-                    appStateRef.sessionListRefreshTrigger += 1
+                    // Delete the session and refresh list/selection immediately
+                    DispatchQueue.main.async {
+                        removeHistorySession(id: deleteId, preferredIndex: preferredIndex)
+                        appStateRef.deleteSession(id: deleteId)
+                        // Sync with persisted state after deletion
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            refreshHistorySessions(preferredIndex: selectedHistoryIndex)
+                        }
+                    }
                 }
 
                 // Reset state and restore focus
@@ -70,8 +78,12 @@ extension CommandBarView {
 
             // Reset the flag (will be handled after alert closes)
             showDeleteConfirmation = false
+            deleteCandidateIndex = nil
+            deleteCandidateId = nil
         } else {
             showDeleteConfirmation = false
+            deleteCandidateIndex = nil
+            deleteCandidateId = nil
             appState.setCommandBarAutoHideSuppressed(false)
         }
     }
@@ -94,6 +106,9 @@ extension CommandBarView {
         } else if mode.isHistory {
             if selectedHistoryIndex > 0 {
                 selectedHistoryIndex -= 1
+            }
+            if selectedHistoryIndex < filteredHistorySessions.count {
+                selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
             }
         } else if mode.isProjects {
             if selectedProjectIndex > 0 {
@@ -118,6 +133,9 @@ extension CommandBarView {
         } else if mode.isHistory {
             if selectedHistoryIndex < filteredHistorySessions.count - 1 {
                 selectedHistoryIndex += 1
+            }
+            if selectedHistoryIndex < filteredHistorySessions.count {
+                selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
             }
         } else if mode.isProjects {
             // 2 fixed items (Choose folder + Default) + recent projects
@@ -153,6 +171,9 @@ extension CommandBarView {
     func handleCmdDelete() {
         // Cmd+Delete to delete selected session in history mode
         if mode.isHistory && selectedHistoryIndex < filteredHistorySessions.count {
+            deleteCandidateIndex = selectedHistoryIndex
+            deleteCandidateId = filteredHistorySessions[selectedHistoryIndex].id
+            selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
             showDeleteConfirmation = true
         }
     }
@@ -210,7 +231,7 @@ extension CommandBarView {
 
     func handleModeChange(from oldMode: CommandBarMode, to newMode: CommandBarMode) {
         // Update window height for new mode
-        appState.updateCommandBarHeight(to: currentHeight)
+        applyCommandBarHeight()
 
         // Load data when entering specific modes
         if newMode.isHistory {
@@ -399,7 +420,7 @@ extension CommandBarView {
         }
 
         // Update window height to match current mode
-        appState.updateCommandBarHeight(to: currentHeight)
+        applyCommandBarHeight()
 
         // Refocus input
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -410,8 +431,12 @@ extension CommandBarView {
     // MARK: - Histories
 
     func requestDeleteHistorySession(at index: Int) {
+        guard index < filteredHistorySessions.count else { return }
         // Set the selected index to the one being deleted
         selectedHistoryIndex = index
+        deleteCandidateIndex = index
+        deleteCandidateId = filteredHistorySessions[index].id
+        selectedHistoryId = filteredHistorySessions[index].id
         // Show confirmation dialog
         showDeleteConfirmation = true
     }
@@ -424,20 +449,57 @@ extension CommandBarView {
     }
 
     func loadHistorySessions() {
+        refreshHistorySessions(preferredIndex: nil)
+    }
+
+    func applyCommandBarHeight() {
+        let newHeight = currentHeight
+        if abs(newHeight - lastHeightApplied) < 0.5 { return }
+        lastHeightApplied = newHeight
+        DispatchQueue.main.async {
+            appState.updateCommandBarHeight(to: newHeight)
+        }
+    }
+
+    func refreshHistorySessions(preferredIndex: Int?) {
         historySessions = appState.getAllSessions()
+        let list = filteredHistorySessions
+        guard !list.isEmpty else {
+            selectedHistoryIndex = 0
+            selectedHistoryId = nil
+            return
+        }
+
+        if let selectedHistoryId,
+           let index = list.firstIndex(where: { $0.id == selectedHistoryId }) {
+            selectedHistoryIndex = index
+            return
+        }
+
+        if let preferredIndex {
+            selectedHistoryIndex = min(preferredIndex, list.count - 1)
+            selectedHistoryId = list[selectedHistoryIndex].id
+            return
+        }
 
         // Select current session if exists, otherwise default to first
         if let currentSession = appState.currentSessionRef,
-           let index = historySessions.firstIndex(where: { $0.id == currentSession.id }) {
+           let index = list.firstIndex(where: { $0.id == currentSession.id }) {
             selectedHistoryIndex = index
+            selectedHistoryId = currentSession.id
         } else {
             selectedHistoryIndex = 0
+            selectedHistoryId = list[0].id
         }
     }
 
     func selectHistorySession(_ session: Session) {
         appState.switchToSession(session)
         inputText = ""
+        if let index = filteredHistorySessions.firstIndex(where: { $0.id == session.id }) {
+            selectedHistoryIndex = index
+        }
+        selectedHistoryId = session.id
         // Stay in CommandBar, switch to appropriate mode based on session status
         if appState.sessionStatus == .running {
             mode = .running
@@ -448,11 +510,23 @@ extension CommandBarView {
 
     func deleteHistorySession(at index: Int) {
         guard index < filteredHistorySessions.count else { return }
-        let session = filteredHistorySessions[index]
-        appState.deleteSession(session)
-        historySessions = appState.getAllSessions()
-        if selectedHistoryIndex >= filteredHistorySessions.count {
-            selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
+        let deleteId = filteredHistorySessions[index].id
+        removeHistorySession(id: deleteId, preferredIndex: index)
+        appState.deleteSession(id: deleteId)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            refreshHistorySessions(preferredIndex: selectedHistoryIndex)
+        }
+    }
+
+    func removeHistorySession(id: UUID, preferredIndex: Int) {
+        historySessions.removeAll { $0.id == id }
+        let list = filteredHistorySessions
+        if list.isEmpty {
+            selectedHistoryIndex = 0
+            selectedHistoryId = nil
+        } else {
+            selectedHistoryIndex = min(preferredIndex, list.count - 1)
+            selectedHistoryId = list[selectedHistoryIndex].id
         }
     }
 

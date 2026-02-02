@@ -109,9 +109,9 @@ final class SkillManager {
         }
     }
     
-    /// Generate SKILL.md content in OpenCode's expected format
+    /// Generate SKILL.md content following official AgentSkills spec
     private func generateSkillMd(for skill: Skill) -> String {
-        """
+        return """
 ---
 name: \(skill.id)
 description: \(skill.description)
@@ -515,6 +515,18 @@ description: \(skill.description)
             # Step 4: When completed
             browser-use-sidecar close
             ```
+            
+            ## Progressive Clarification (Required)
+            
+            Minimize user questions. Only ask when necessary.
+            
+            If the task is ambiguous:
+            - Phase 1 (coarse): ask for high-level constraints that narrow the search space.
+              Examples: goal, priority, budget/time range, scope, preference direction.
+            - Phase 2 (concrete): AFTER you have real candidates (from the web page or results),
+              ask the user to choose among those concrete options via AskUserQuestion.
+            
+            Do NOT ask for concrete choices before real candidates exist.
             
             ## Key Commands
             

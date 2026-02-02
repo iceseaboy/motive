@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MarkdownUI
 
 // MARK: - Session List Item
 
@@ -161,9 +162,18 @@ struct MessageBubble: View {
                     .foregroundColor(Color.Aurora.textSecondary)
             }
             
-            Text(message.content)
-                .font(.Aurora.body)
-                .foregroundColor(Color.Aurora.textPrimary)
+            // Render markdown content
+            Markdown(message.content)
+                .markdownTextStyle {
+                    FontSize(14)
+                    ForegroundColor(Color.Aurora.textPrimary)
+                }
+                .markdownBlockStyle(\.codeBlock) { configuration in
+                    configuration.label
+                        .padding(8)
+                        .background(Color.Aurora.backgroundDeep)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
                 .textSelection(.enabled)
         }
         .padding(AuroraSpacing.space3)

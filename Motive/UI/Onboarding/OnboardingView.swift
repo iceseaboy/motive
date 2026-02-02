@@ -370,20 +370,20 @@ struct AuroraAIProviderStep: View {
                         Text(provider.displayName).tag(provider.rawValue)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .onChange(of: configManager.providerRawValue) { _, _ in
                     apiKey = ""
                     baseURL = ""
                 }
                 
-                // API Key input
-                if configManager.provider != .ollama {
+                // API Key input (only for providers that require it)
+                if configManager.provider.requiresAPIKey {
                     VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
                         Text(L10n.Settings.apiKey)
                             .font(.Aurora.caption)
                             .foregroundColor(Color.Aurora.textSecondary)
                         
-                        SecureInputField(placeholder: apiKeyPlaceholder, text: $apiKey)
+                        SecureInputField(placeholder: configManager.provider.apiKeyPlaceholder, text: $apiKey)
                     }
                 }
                 
@@ -393,7 +393,7 @@ struct AuroraAIProviderStep: View {
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textSecondary)
                     
-                    StyledTextField(placeholder: baseURLPlaceholder, text: $baseURL)
+                    StyledTextField(placeholder: configManager.provider.baseURLPlaceholder, text: $baseURL)
                     
                     Text(L10n.Settings.defaultEndpoint)
                         .font(.Aurora.micro)
@@ -431,28 +431,10 @@ struct AuroraAIProviderStep: View {
                         .padding(.vertical, AuroraSpacing.space3)
                 }
                 .buttonStyle(AuroraOnboardingButtonStyle(style: .primary))
-                .disabled(configManager.provider != .ollama && apiKey.isEmpty)
+                .disabled(configManager.provider.requiresAPIKey && apiKey.isEmpty)
             }
             .padding(.horizontal, AuroraSpacing.space10)
             .padding(.bottom, AuroraSpacing.space8)
-        }
-    }
-    
-    private var apiKeyPlaceholder: String {
-        switch configManager.provider {
-        case .claude: return "sk-ant-..."
-        case .openai: return "sk-..."
-        case .gemini: return "AIza..."
-        case .ollama: return ""
-        }
-    }
-    
-    private var baseURLPlaceholder: String {
-        switch configManager.provider {
-        case .claude: return "https://api.anthropic.com"
-        case .openai: return "https://api.openai.com"
-        case .gemini: return "https://generativelanguage.googleapis.com"
-        case .ollama: return "http://localhost:11434"
         }
     }
     
@@ -666,7 +648,7 @@ struct AuroraBrowserStep: View {
                         Spacer()
                         Toggle("", isOn: $configManager.browserUseEnabled)
                             .toggleStyle(.switch)
-                            .tint(Color.Aurora.accent)
+                            .tint(Color.Aurora.primary)
                             .labelsHidden()
                     }
                 }
@@ -687,7 +669,7 @@ struct AuroraBrowserStep: View {
                             Spacer()
                             Toggle("", isOn: $configManager.browserUseHeadedMode)
                                 .toggleStyle(.switch)
-                                .tint(Color.Aurora.accent)
+                                .tint(Color.Aurora.primary)
                                 .labelsHidden()
                         }
                     }

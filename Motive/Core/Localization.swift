@@ -67,6 +67,9 @@ enum L10n {
         static let permissionsSubtitle = "settings.tab.permissions.subtitle".localized
         static let advanced = "settings.tab.advanced".localized
         static let advancedSubtitle = "settings.tab.advanced.subtitle".localized
+        static let skills = "settings.tab.skills".localized
+        static let skillsSubtitle = "settings.tab.skills.subtitle".localized
+        static let aboutSubtitle = "settings.tab.about.subtitle".localized
         
         // General
         static let startup = "settings.general.startup".localized
@@ -156,6 +159,17 @@ enum L10n {
         static let browserStatusNotFound = "settings.browser.status.not_found".localized
         static let browserStatusDisabled = "settings.browser.status.disabled".localized
         static let browserNotSet = "settings.browser.not_set".localized
+
+        // Skills
+        static let skillsSystem = "settings.skills.system".localized
+        static let skillsEnable = "settings.skills.enable".localized
+        static let skillsEnableDesc = "settings.skills.enable.desc".localized
+        static let skillsList = "settings.skills.list".localized
+        static let skillsEligible = "settings.skills.eligible".localized
+        static let skillsIneligible = "settings.skills.ineligible".localized
+        static let skillsRefresh = "settings.skills.refresh".localized
+        static let skillsNoSkills = "settings.skills.no_skills".localized
+        static let skillsNoSkillsDesc = "settings.skills.no_skills.desc".localized
         
         // Advanced
         static let openCodeBinary = "settings.advanced.opencode_binary".localized

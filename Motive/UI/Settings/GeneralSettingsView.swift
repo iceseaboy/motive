@@ -2,7 +2,7 @@
 //  GeneralSettingsView.swift
 //  Motive
 //
-//  Aurora Design System - General Settings
+//  Compact unified settings layout
 //
 
 import AppKit
@@ -17,42 +17,32 @@ struct GeneralSettingsView: View {
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AuroraSpacing.space6) {
-            // Startup
-            SettingsCard(title: L10n.Settings.startup, icon: "power") {
-                SettingsRow(label: L10n.Settings.launchAtLogin, description: L10n.Settings.launchAtLoginDesc, showDivider: false) {
+        VStack(alignment: .leading, spacing: 24) {
+            // Startup Section
+            SettingSection(L10n.Settings.startup) {
+                SettingRow(L10n.Settings.launchAtLogin, showDivider: false) {
                     Toggle("", isOn: $configManager.launchAtLogin)
                         .toggleStyle(.switch)
-                        .tint(Color.Aurora.accent)
+                        .tint(Color.Aurora.primary)
                 }
             }
             
-            // Keyboard
-            SettingsCard(title: L10n.Settings.keyboard, icon: "keyboard") {
-                SettingsRow(label: L10n.Settings.globalHotkey, description: L10n.Settings.globalHotkeyDesc, showDivider: false) {
-                    HotkeyRecorderView(hotkey: $configManager.hotkey)
-                        .frame(width: 120, height: 28)
-                }
-            }
-
-            // Appearance
-            SettingsCard(title: L10n.Settings.appearance, icon: "circle.lefthalf.filled") {
-                VStack(spacing: 0) {
-                    SettingsRow(label: L10n.Settings.theme, description: L10n.Settings.themeDesc, showDivider: true) {
-                        Picker("", selection: Binding(
+            // Appearance Section
+            SettingSection(L10n.Settings.appearance) {
+                SettingRow(L10n.Settings.theme) {
+                    menuPicker(
+                        selection: Binding(
                             get: { configManager.appearanceMode },
                             set: { configManager.appearanceMode = $0 }
-                        )) {
-                            ForEach(ConfigManager.AppearanceMode.allCases) { mode in
-                                Text(mode.localizedName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 120)
-                    }
-                    
-                    SettingsRow(label: L10n.Settings.language, description: L10n.Settings.languageDesc, showDivider: false) {
-                        Picker("", selection: Binding(
+                        ),
+                        options: ConfigManager.AppearanceMode.allCases,
+                        label: { $0.localizedName }
+                    )
+                }
+                
+                SettingRow(L10n.Settings.language, showDivider: false) {
+                    menuPicker(
+                        selection: Binding(
                             get: { configManager.language },
                             set: { newValue in
                                 let oldValue = configManager.language
@@ -61,16 +51,22 @@ struct GeneralSettingsView: View {
                                     showRestartAlert = true
                                 }
                             }
-                        )) {
-                            ForEach(ConfigManager.Language.allCases) { lang in
-                                Text(lang.displayName).tag(lang)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 120)
-                    }
+                        ),
+                        options: ConfigManager.Language.allCases,
+                        label: { $0.displayName }
+                    )
                 }
             }
+            
+            // Keyboard Section
+            SettingSection(L10n.Settings.keyboard) {
+                SettingRow(L10n.Settings.globalHotkey, showDivider: false) {
+                    HotkeyRecorderView(hotkey: $configManager.hotkey)
+                        .frame(width: 140, height: 32)
+                }
+            }
+            
+            Spacer()
         }
         .alert(L10n.Settings.language, isPresented: $showRestartAlert) {
             Button(L10n.cancel) { }
@@ -103,6 +99,42 @@ struct GeneralSettingsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApplication.shared.terminate(nil)
         }
+    }
+    
+    // MARK: - Custom Menu Picker
+    
+    /// Creates a consistent-width menu picker
+    private func menuPicker<T: Hashable>(
+        selection: Binding<T>,
+        options: [T],
+        label: @escaping (T) -> String
+    ) -> some View {
+        Menu {
+            ForEach(options, id: \.self) { option in
+                Button(label(option)) {
+                    selection.wrappedValue = option
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(label(selection.wrappedValue))
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.Aurora.textPrimary)
+                
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color.Aurora.textSecondary)
+            }
+            .frame(width: 140, alignment: .trailing)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 }
 

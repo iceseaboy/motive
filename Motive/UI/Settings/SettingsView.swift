@@ -2,10 +2,13 @@
 //  SettingsView.swift
 //  Motive
 //
-//  Aurora Design System - Settings Window
+//  Redesigned Settings Window
+//  Compact tab bar + unified layout system
 //
 
 import SwiftUI
+
+// MARK: - Settings View
 
 struct SettingsView: View {
     var initialTab: SettingsTab = .general
@@ -20,136 +23,44 @@ struct SettingsView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar
-            sidebar
+        VStack(spacing: 0) {
+            // Compact Tab Bar
+            CompactTabBar(selectedTab: $selectedTab)
             
-            // Divider (extend to full height including titlebar)
-            Rectangle()
-                .fill(Color.Aurora.border)
-                .frame(width: 1)
-                .ignoresSafeArea()
-            
-            // Content
-            contentArea
-        }
-        .frame(width: 760, height: 560)
-        .background(Color.Aurora.background.ignoresSafeArea())
-    }
-    
-    // MARK: - Sidebar
-    
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // App branding
-            HStack(spacing: AuroraSpacing.space3) {
-                // Logo with aurora glow
-                ZStack {
-                    if let logoImage = NSImage(named: isDark ? "logo-light" : "logo-dark") {
-                        Image(nsImage: logoImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 48, height: 48)
-                            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
-                    } else {
-                        RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                            .fill(Color.Aurora.auroraGradient)
-                            .frame(width: 48, height: 48)
-                    }
-                }
-                .shadow(color: Color.Aurora.accentMid.opacity(0.2), radius: 8, y: 2)
-                
-                VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
-                    Text(L10n.appName)
-                        .font(.Aurora.headline)
-                        .foregroundColor(Color.Aurora.textPrimary)
-                    
-                    Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
-                        .font(.Aurora.micro)
-                        .foregroundColor(Color.Aurora.textMuted)
-                }
-            }
-            .padding(.horizontal, AuroraSpacing.space5)
-            .padding(.top, AuroraSpacing.space6)
-            .padding(.bottom, AuroraSpacing.space8)
-            
-            // Navigation
-            VStack(spacing: AuroraSpacing.space1) {
-                ForEach(SettingsTab.allCases) { tab in
-                    AuroraSettingsNavItem(
-                        tab: tab,
-                        isSelected: selectedTab == tab
-                    ) {
-                        withAnimation(.auroraSpring) {
-                            selectedTab = tab
+            // Content area - centered with max width
+            Group {
+                if selectedTab == .skills {
+                    // Skills uses full width
+                    selectedTab.contentView
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 24)
+                } else if selectedTab == .advanced || selectedTab == .permissions {
+                    // Advanced and Permissions need scroll
+                    ScrollView {
+                        VStack {
+                            selectedTab.contentView
+                                .frame(maxWidth: 520)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 40)
+                        .padding(.vertical, 24)
                     }
-                }
-            }
-            .padding(.horizontal, AuroraSpacing.space3)
-            
-            Spacer()
-            
-            // Footer
-            VStack(spacing: AuroraSpacing.space3) {
-                Rectangle()
-                    .fill(Color.Aurora.border)
-                    .frame(height: 1)
-                
-                Link(destination: URL(string: "https://github.com/geezerrrr/motive")!) {
-                    HStack(spacing: AuroraSpacing.space2) {
-                        Image(systemName: "star")
-                            .font(.system(size: 13))
-                        Text(L10n.Settings.starOnGitHub)
-                            .font(.Aurora.bodySmall.weight(.medium))
+                } else {
+                    // Other tabs: no scroll, vertically centered
+                    VStack {
+                        selectedTab.contentView
+                            .frame(maxWidth: 520)
                     }
-                    .foregroundColor(Color.Aurora.textSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, AuroraSpacing.space3)
-                    .background(
-                        RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                            .fill(Color.Aurora.surface)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                            .stroke(Color.Aurora.border, lineWidth: 0.5)
-                    )
+                    .padding(.horizontal, 40)
+                    .padding(.vertical, 20)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, AuroraSpacing.space3)
             }
-            .padding(.bottom, AuroraSpacing.space4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.Aurora.background)
         }
-        .frame(width: 220)
-        .background(Color.Aurora.backgroundDeep.ignoresSafeArea())
-    }
-    
-    // MARK: - Content Area
-    
-    private var contentArea: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Header
-                VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
-                    Text(selectedTab.title)
-                        .font(.Aurora.title1)
-                        .foregroundColor(Color.Aurora.textPrimary)
-                    
-                    Text(selectedTab.subtitle)
-                        .font(.Aurora.body)
-                        .foregroundColor(Color.Aurora.textSecondary)
-                }
-                .padding(.top, AuroraSpacing.space8)
-                .padding(.bottom, AuroraSpacing.space6)
-                .padding(.horizontal, AuroraSpacing.space8)
-                
-                // Content
-                selectedTab.contentView
-                    .padding(.horizontal, AuroraSpacing.space8)
-                    .padding(.bottom, AuroraSpacing.space8)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(width: selectedTab.windowSize.width, height: selectedTab.windowSize.height)
+        .background(Color.Aurora.backgroundDeep)
     }
 }
 
@@ -158,8 +69,10 @@ struct SettingsView: View {
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case model
+    case skills
     case permissions
     case advanced
+    case about
     
     var id: String { rawValue }
     
@@ -167,17 +80,10 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return L10n.Settings.general
         case .model: return L10n.Settings.aiProvider
+        case .skills: return L10n.Settings.skills
         case .permissions: return L10n.Settings.permissions
         case .advanced: return L10n.Settings.advanced
-        }
-    }
-    
-    var subtitle: String {
-        switch self {
-        case .general: return L10n.Settings.generalSubtitle
-        case .model: return L10n.Settings.aiProviderSubtitle
-        case .permissions: return L10n.Settings.permissionsSubtitle
-        case .advanced: return L10n.Settings.advancedSubtitle
+        case .about: return L10n.Settings.about
         }
     }
     
@@ -185,9 +91,17 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .model: return "cpu.fill"
+        case .skills: return "sparkles"
         case .permissions: return "lock.shield.fill"
         case .advanced: return "wrench.and.screwdriver.fill"
+        case .about: return "info.circle.fill"
         }
+    }
+    
+    /// Fixed window size for all tabs
+    var windowSize: CGSize {
+        // Use consistent size for all tabs
+        CGSize(width: 720, height: 560)
     }
     
     @ViewBuilder
@@ -197,17 +111,56 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             GeneralSettingsView()
         case .model:
             ModelConfigView()
+        case .skills:
+            SkillsSettingsView()
         case .permissions:
             PermissionPolicyView()
         case .advanced:
             AdvancedSettingsView()
+        case .about:
+            AboutView()
         }
     }
 }
 
-// MARK: - Aurora Settings Navigation Item
+// MARK: - Compact Tab Bar
 
-private struct AuroraSettingsNavItem: View {
+struct CompactTabBar: View {
+    @Binding var selectedTab: SettingsTab
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDark: Bool { colorScheme == .dark }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(SettingsTab.allCases) { tab in
+                CompactTabButton(
+                    tab: tab,
+                    isSelected: selectedTab == tab
+                ) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        selectedTab = tab
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color.Aurora.backgroundDeep)
+    }
+}
+
+// MARK: - Compact Tab Button
+
+private struct CompactTabButton: View {
     let tab: SettingsTab
     let isSelected: Bool
     let action: () -> Void
@@ -219,112 +172,101 @@ private struct AuroraSettingsNavItem: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: AuroraSpacing.space3) {
+            VStack(spacing: 4) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(isSelected ? Color.Aurora.accent : Color.Aurora.textSecondary)
-                    .frame(width: 22)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(iconColor)
                 
                 Text(tab.title)
-                    .font(.Aurora.body.weight(isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? Color.Aurora.textPrimary : Color.Aurora.textSecondary)
-                
-                Spacer()
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(textColor)
             }
-            .padding(.horizontal, AuroraSpacing.space4)
-            .padding(.vertical, AuroraSpacing.space3)
+            .frame(width: 64, height: 52)
             .background(
-                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(backgroundColor)
-            )
-            .overlay(
-                // Gradient left border for selected
-                HStack {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.Aurora.auroraGradient)
-                            .frame(width: 3)
-                    }
-                    Spacer()
-                }
-                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
             )
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
     }
     
+    private var iconColor: Color {
+        if isSelected {
+            return Color.Aurora.primary
+        }
+        return isHovering ? Color.Aurora.textPrimary : Color.Aurora.textSecondary
+    }
+    
+    private var textColor: Color {
+        if isSelected {
+            return Color.Aurora.textPrimary
+        }
+        return Color.Aurora.textSecondary
+    }
+    
     private var backgroundColor: Color {
         if isSelected {
-            return Color.Aurora.accent.opacity(isDark ? 0.15 : 0.12)
+            return Color.Aurora.primary.opacity(isDark ? 0.15 : 0.12)
         } else if isHovering {
-            return Color.Aurora.surfaceElevated
+            return isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04)
         }
         return Color.clear
     }
 }
 
-// MARK: - Aurora Settings Card
+// MARK: - New Setting Section Component
 
-struct SettingsCard<Content: View>: View {
+struct SettingSection<Content: View>: View {
     let title: String
-    var icon: String? = nil
     let content: Content
-    @Environment(\.colorScheme) private var colorScheme
     
+    @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
     
-    init(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ title: String, @ViewBuilder content: () -> Content) {
         self.title = title
-        self.icon = icon
         self.content = content()
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: AuroraSpacing.space4) {
-            // Header
-            HStack(spacing: AuroraSpacing.space2) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.Aurora.auroraGradient)
-                }
-                
-                Text(title)
-                    .font(.Aurora.caption)
-                    .foregroundColor(Color.Aurora.textSecondary)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            // Section title
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color.Aurora.textMuted)
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .padding(.leading, 4)
             
-            // Content card
+            // Content card with rows
             VStack(spacing: 0) {
                 content
             }
             .background(
-                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.Aurora.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color.Aurora.border, lineWidth: 1)
             )
         }
     }
 }
 
-// MARK: - Aurora Settings Row
+// MARK: - New Setting Row Component
 
-struct SettingsRow<Content: View>: View {
+struct SettingRow<Content: View>: View {
     let label: String
     var description: String? = nil
     let content: Content
     var showDivider: Bool = true
-    @Environment(\.colorScheme) private var colorScheme
     
+    @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
     
-    init(label: String, description: String? = nil, showDivider: Bool = true, @ViewBuilder content: () -> Content) {
+    init(_ label: String, description: String? = nil, showDivider: Bool = true, @ViewBuilder content: () -> Content) {
         self.label = label
         self.description = description
         self.showDivider = showDivider
@@ -333,52 +275,108 @@ struct SettingsRow<Content: View>: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
+            HStack(alignment: .center, spacing: 16) {
+                // Label
+                VStack(alignment: .leading, spacing: 3) {
                     Text(label)
-                        .font(.Aurora.body.weight(.medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color.Aurora.textPrimary)
                     
                     if let description {
                         Text(description)
-                            .font(.Aurora.caption)
+                            .font(.system(size: 12))
                             .foregroundColor(Color.Aurora.textMuted)
+                            .lineLimit(2)
                     }
                 }
                 
                 Spacer()
                 
+                // Control
                 content
             }
-            .padding(.horizontal, AuroraSpacing.space4)
-            .padding(.vertical, AuroraSpacing.space4)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             
+            // Divider
             if showDivider {
                 Rectangle()
                     .fill(Color.Aurora.border)
                     .frame(height: 1)
-                    .padding(.leading, AuroraSpacing.space4)
+                    .padding(.leading, 16)
             }
         }
     }
 }
 
-// MARK: - Legacy Support
+// MARK: - Collapsible Section (for Advanced)
 
-struct SettingsSection<Content: View>: View {
+struct CollapsibleSection<Content: View>: View {
     let title: String
     var icon: String? = nil
     let content: Content
     
-    init(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) {
+    @State private var isExpanded: Bool = true
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDark: Bool { colorScheme == .dark }
+    
+    init(_ title: String, icon: String? = nil, expanded: Bool = true, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
+        self._isExpanded = State(initialValue: expanded)
         self.content = content()
     }
     
     var body: some View {
-        SettingsCard(title: title, icon: icon) {
-            content
+        VStack(alignment: .leading, spacing: 0) {
+            // Header (clickable)
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if let icon {
+                        Image(systemName: icon)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.Aurora.auroraGradient)
+                    }
+                    
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color.Aurora.textMuted)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.Aurora.textMuted)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            // Content
+            if isExpanded {
+                VStack(spacing: 0) {
+                    content
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.Aurora.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.Aurora.border, lineWidth: 1)
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 }
+

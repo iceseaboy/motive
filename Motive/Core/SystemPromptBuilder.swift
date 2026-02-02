@@ -26,6 +26,7 @@ final class SystemPromptBuilder {
         sections.append(buildIdentity())
         sections.append(buildEnvironment(cwd: workingDirectory))
         sections.append(buildCommunicationRules())
+        sections.append(buildSkillsList())
         sections.append(buildFileOperationRules())
         sections.append(buildMCPToolInstructions())
         
@@ -246,6 +247,18 @@ final class SystemPromptBuilder {
            - Batch multiple questions into one if you must ask
            - Skip confirmation for low-risk, reversible actions
         
+        ## Progressive Clarification (Minimize Asking)
+        
+        Only ask when necessary. Default to action when clear.
+        
+        Use staged clarification for ambiguous tasks:
+        - Phase 1 (coarse): ask for high-level constraints that narrow the search space.
+          Examples: goal, priority, budget/time range, scope, preference direction.
+        - Phase 2 (concrete): AFTER you have real candidates (from files, web pages, tool output),
+          ask the user to choose among those concrete options.
+        
+        Do NOT ask for concrete choices before candidates exist.
+        
         4. **Intelligent Defaults**
            - Use sensible conventions
            - Follow existing project patterns
@@ -257,14 +270,46 @@ final class SystemPromptBuilder {
         - Multiple valid approaches exist and user preference matters
         - Destructive/irreversible action needs explicit approval
         - You're genuinely blocked and need user decision
+        - You need the user to choose among real candidates you already found
         
         ❌ DON'T USE when:
         - Just chatting or responding to conversation
         - Confirming you understood the task
         - Asking rhetorical questions
         - Low-risk operations that can be done directly
+        - The task is clear and you can proceed without blocking
         </behavior>
         """
+    }
+
+    private func buildSkillsList() -> String {
+        let skills = SkillRegistry.shared.promptEntries()
+        return Self.formatAvailableSkills(skills)
+    }
+
+    static func formatAvailableSkills(_ skills: [SkillEntry]) -> String {
+        guard !skills.isEmpty else { return "" }
+
+        var content: [String] = []
+        content.append("## Skills (mandatory)")
+        content.append("Before replying: scan <available_skills> <description> entries.")
+        content.append("- If exactly one skill clearly applies: read its SKILL.md at <location> with `Read`, then follow it.")
+        content.append("- If multiple could apply: choose the most specific one, then read/follow it.")
+        content.append("- If none clearly apply: do not read any SKILL.md.")
+        content.append("Constraints: never read more than one skill up front; only read after selecting.")
+        content.append("")
+        content.append("<available_skills>")
+
+        for skill in skills {
+            content.append("<skill>")
+            content.append("<name>\(skill.name)</name>")
+            content.append("<description>\(skill.description)</description>")
+            content.append("<location>\(skill.filePath)</location>")
+            content.append("</skill>")
+        }
+
+        content.append("</available_skills>")
+        return content.joined(separator: "\n")
     }
     
     private func buildExamples() -> String {

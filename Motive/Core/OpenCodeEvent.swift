@@ -44,6 +44,7 @@ struct ConversationMessage: Identifiable, Sendable {
     let toolName: String?
     let toolInput: String?
     let toolOutput: String?
+    let toolCallId: String?
     let isStreaming: Bool
     
     init(
@@ -54,6 +55,7 @@ struct ConversationMessage: Identifiable, Sendable {
         toolName: String? = nil,
         toolInput: String? = nil,
         toolOutput: String? = nil,
+        toolCallId: String? = nil,
         isStreaming: Bool = false
     ) {
         self.id = id
@@ -63,6 +65,7 @@ struct ConversationMessage: Identifiable, Sendable {
         self.toolName = toolName
         self.toolInput = toolInput
         self.toolOutput = toolOutput
+        self.toolCallId = toolCallId
         self.isStreaming = isStreaming
     }
 }
@@ -89,9 +92,10 @@ struct OpenCodeEvent: Sendable, Identifiable {
     let toolInput: String?
     let toolInputDict: [String: Any]?  // Full tool input for AskUserQuestion parsing
     let toolOutput: String?
+    let toolCallId: String?
     let sessionId: String?
 
-    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, toolOutput: String? = nil, sessionId: String? = nil) {
+    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, toolOutput: String? = nil, toolCallId: String? = nil, sessionId: String? = nil) {
         self.id = id
         self.kind = kind
         self.rawJson = rawJson
@@ -100,6 +104,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         self.toolInput = toolInput
         self.toolInputDict = toolInputDict
         self.toolOutput = toolOutput
+        self.toolCallId = toolCallId
         self.sessionId = sessionId
     }
 
@@ -131,8 +136,9 @@ struct OpenCodeEvent: Sendable, Identifiable {
             // Tool call: { type: "tool_call", part: { tool: "Read", input: {...} } }
             let toolName = part?["tool"] as? String ?? "Tool"
             var inputStr: String? = nil
-            let inputDict = part?["input"] as? [String: Any]
-            if let inputDict = inputDict {
+            let inputDict = OpenCodeEvent.extractToolInputDict(from: part)
+            let toolCallId = OpenCodeEvent.extractToolCallId(from: part)
+            if let inputDict {
                 // Extract meaningful info from tool input
                 if let path = inputDict["filePath"] as? String {
                     inputStr = path
@@ -144,34 +150,34 @@ struct OpenCodeEvent: Sendable, Identifiable {
                     inputStr = description
                 }
             }
-            self.init(kind: .tool, rawJson: rawJson, text: inputStr ?? "", toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, sessionId: sessionId)
+            self.init(kind: .tool, rawJson: rawJson, text: inputStr ?? "", toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolCallId: toolCallId, sessionId: sessionId)
             
         case "tool_use":
             // Tool use (combined): { type: "tool_use", part: { tool: "Read", state: { status, input, output } } }
             let toolName = part?["tool"] as? String ?? "Tool"
             var inputStr: String? = nil
             let state = part?["state"] as? [String: Any]
-            let inputDict = state?["input"] as? [String: Any]
+            let inputDict = OpenCodeEvent.extractToolInputDict(from: state)
             let outputStr = state?["output"] as? String
-            if let state = state {
-                if let inputDict = inputDict {
-                    if let path = inputDict["filePath"] as? String {
-                        inputStr = path
-                    } else if let path = inputDict["path"] as? String {
-                        inputStr = path
-                    } else if let command = inputDict["command"] as? String {
-                        inputStr = command
-                    }
+            let toolCallId = OpenCodeEvent.extractToolCallId(from: state) ?? OpenCodeEvent.extractToolCallId(from: part)
+            if let inputDict {
+                if let path = inputDict["filePath"] as? String {
+                    inputStr = path
+                } else if let path = inputDict["path"] as? String {
+                    inputStr = path
+                } else if let command = inputDict["command"] as? String {
+                    inputStr = command
                 }
             }
             let summary = OpenCodeEvent.summarizeToolOutput(toolName: toolName, toolInput: inputStr, toolOutput: outputStr)
-            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolOutput: outputStr, sessionId: sessionId)
+            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolOutput: outputStr, toolCallId: toolCallId, sessionId: sessionId)
             
         case "tool_result":
             // Tool result: { type: "tool_result", part: { output: "..." } }
             let output = part?["output"] as? String ?? ""
             let summary = OpenCodeEvent.summarizeToolOutput(toolName: "Result", toolInput: nil, toolOutput: output)
-            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: "Result", toolOutput: output, sessionId: sessionId)
+            let toolCallId = OpenCodeEvent.extractToolCallId(from: part)
+            self.init(kind: .tool, rawJson: rawJson, text: summary, toolName: "Result", toolOutput: output, toolCallId: toolCallId, sessionId: sessionId)
             
         case "step_start":
             // Step started
@@ -212,6 +218,47 @@ struct OpenCodeEvent: Sendable, Identifiable {
         return nil
     }
 
+    private static func extractToolInputDict(from container: [String: Any]?) -> [String: Any]? {
+        guard let container else { return nil }
+        if let dict = container["input"] as? [String: Any] {
+            return dict
+        }
+        if let dict = container["arguments"] as? [String: Any] {
+            return dict
+        }
+        if let dict = container["args"] as? [String: Any] {
+            return dict
+        }
+        if let inputStr = container["input"] as? String,
+           let data = inputStr.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        if let inputStr = container["arguments"] as? String,
+           let data = inputStr.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        return nil
+    }
+
+    private static func extractToolCallId(from container: [String: Any]?) -> String? {
+        guard let container else { return nil }
+        if let id = container["id"] as? String, !id.isEmpty {
+            return id
+        }
+        if let id = container["toolCallId"] as? String, !id.isEmpty {
+            return id
+        }
+        if let id = container["toolCallID"] as? String, !id.isEmpty {
+            return id
+        }
+        if let id = container["callId"] as? String, !id.isEmpty {
+            return id
+        }
+        return nil
+    }
+
     private static func summarizeToolOutput(toolName: String, toolInput: String?, toolOutput: String?) -> String {
         if let toolInput = toolInput, !toolInput.isEmpty {
             return toolInput
@@ -241,6 +288,13 @@ struct OpenCodeEvent: Sendable, Identifiable {
     func toMessage() -> ConversationMessage? {
         // Skip empty messages and step events
         if text.isEmpty && kind != .finish {
+            if case .tool = kind, toolName != nil {
+                // Allow tool messages with empty input so we can show "tool started"
+            } else {
+                return nil
+            }
+        }
+        if text.isEmpty && kind != .finish && kind != .tool {
             return nil
         }
         
@@ -269,7 +323,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
             content: text,
             toolName: toolName ?? (kind == .call ? "Command" : nil),
             toolInput: toolInput,
-            toolOutput: toolOutput
+            toolOutput: toolOutput,
+            toolCallId: toolCallId
         )
     }
 }

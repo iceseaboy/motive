@@ -2,7 +2,7 @@
 //  AdvancedSettingsView.swift
 //  Motive
 //
-//  Created by geezerrrr on 2026/1/19.
+//  Compact advanced settings with collapsible sections
 //
 
 import SwiftUI
@@ -23,185 +23,132 @@ struct AdvancedSettingsView: View {
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            // Binary Section
-            SettingsCard(title: L10n.Settings.openCodeBinary, icon: "terminal") {
-                VStack(spacing: 0) {
-                    // Status Row
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L10n.Settings.binaryStatus)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Color.Aurora.textPrimary)
-                            
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // OpenCode Binary Section
+                CollapsibleSection(L10n.Settings.openCodeBinary, icon: "terminal.fill") {
+                    SettingRow(L10n.Settings.binaryStatus) {
+                        HStack(spacing: 10) {
+                            binaryStatusIcon
                             binaryStatusText
                         }
-                        
-                        Spacer()
-                        
-                        binaryStatusIcon
                     }
-                    .padding(16)
                     
-                    Divider()
-                        .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
-                        .padding(.leading, 16)
-                    
-                    // Source Path (if set)
                     if !configManager.openCodeBinarySourcePath.isEmpty {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(L10n.Settings.sourcePath)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(Color.Aurora.textPrimary)
-                                
-                                Text(configManager.openCodeBinarySourcePath)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(Color.Aurora.textMuted)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                            
-                            Spacer()
+                        SettingRow(L10n.Settings.sourcePath) {
+                            Text(configManager.openCodeBinarySourcePath)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundColor(Color.Aurora.textMuted)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 200, alignment: .trailing)
                         }
-                        .padding(16)
-                        
-                        Divider()
-                            .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
-                            .padding(.leading, 16)
                     }
                     
-                    // Actions
-                    HStack(spacing: 12) {
-                        Button {
-                            showFileImporter = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                if isImporting {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
-                                } else {
-                                    Image(systemName: "folder")
-                                        .font(.system(size: 11))
+                    SettingRow("Actions", showDivider: false) {
+                        HStack(spacing: 10) {
+                            Button {
+                                showFileImporter = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    if isImporting {
+                                        ProgressView()
+                                            .scaleEffect(0.5)
+                                            .frame(width: 12, height: 12)
+                                    } else {
+                                        Image(systemName: "folder")
+                                            .font(.system(size: 11))
+                                    }
+                                    Text(isImporting ? L10n.Settings.importing : L10n.Settings.selectBinary)
+                                        .font(.system(size: 12, weight: .medium))
                                 }
-                                Text(isImporting ? L10n.Settings.importing : L10n.Settings.selectBinary)
-                                    .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color.Aurora.textPrimary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                )
                             }
-                            .foregroundColor(Color.Aurora.textPrimary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1), lineWidth: 1)
-                            )
+                            .buttonStyle(.plain)
+                            .disabled(isImporting)
+                            
+                            Button {
+                                autoDetectAndImport()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 11))
+                                    Text(L10n.Settings.autoDetect)
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .foregroundColor(Color.Aurora.textSecondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.03))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isImporting)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(isImporting)
+                    }
+                }
+                
+                // Import Error
+                if let error = importError {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.Aurora.error)
                         
-                        Button {
-                            autoDetectAndImport()
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 11))
-                                Text(L10n.Settings.autoDetect)
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .foregroundColor(Color.Aurora.textSecondary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.03))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isImporting)
+                        Text(error)
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.Aurora.error)
                         
                         Spacer()
+                        
+                        Button {
+                            importError = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(Color.Aurora.error.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(16)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.Aurora.error.opacity(0.1))
+                    )
                 }
-            }
-            
-            // Import Error
-            if let error = importError {
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.Aurora.error)
-                    
-                    Text(error)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.Aurora.error)
-                    
-                    Spacer()
-                    
-                    Button {
-                        importError = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Color.Aurora.error.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.Aurora.error.opacity(0.1))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.Aurora.error.opacity(0.3), lineWidth: 1)
-                )
-            }
-            
-            // Browser Automation Section
-            SettingsCard(title: L10n.Settings.browserTitle, icon: "globe") {
-                VStack(spacing: 0) {
-                    // Enable toggle
-                    SettingsRow(label: L10n.Settings.browserEnable, description: L10n.Settings.browserEnableDesc) {
+                
+                // Browser Automation Section
+                CollapsibleSection(L10n.Settings.browserTitle, icon: "globe") {
+                    SettingRow(L10n.Settings.browserEnable) {
                         Toggle("", isOn: $configManager.browserUseEnabled)
                             .toggleStyle(.switch)
-                            .tint(Color.Aurora.accent)
-                            .onChange(of: configManager.browserUseEnabled) { _, newValue in
-                                // Reload skills when toggled
+                            .tint(Color.Aurora.primary)
+                            .onChange(of: configManager.browserUseEnabled) { _, _ in
                                 SkillManager.shared.reloadSkills()
                                 appState.restartAgent()
                             }
                     }
                     
                     if configManager.browserUseEnabled {
-                        // Headed mode toggle
-                        SettingsRow(label: L10n.Settings.browserShowWindow, description: L10n.Settings.browserShowWindowDesc) {
+                        SettingRow(L10n.Settings.browserShowWindow) {
                             Toggle("", isOn: $configManager.browserUseHeadedMode)
                                 .toggleStyle(.switch)
-                                .tint(Color.Aurora.accent)
+                                .tint(Color.Aurora.primary)
                                 .onChange(of: configManager.browserUseHeadedMode) { _, _ in
                                     SkillManager.shared.reloadSkills()
                                     appState.restartAgent()
                                 }
                         }
                         
-                        // Agent Mode Section Header
-                        HStack {
-                            Text(L10n.Settings.browserAgentMode)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color.Aurora.textMuted)
-                                .textCase(.uppercase)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
-                        
-                        // Agent Provider Selection
-                        SettingsRow(label: L10n.Settings.browserAgentProvider, description: L10n.Settings.browserAgentProviderDesc) {
+                        SettingRow(L10n.Settings.browserAgentProvider) {
                             Picker("", selection: Binding(
                                 get: { configManager.browserAgentProvider },
                                 set: { newValue in
@@ -218,37 +165,96 @@ struct AdvancedSettingsView: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(width: 200)
+                            .frame(width: 160)
                         }
                         
-                        // API Key Input
-                        browserAgentAPIKeyRow
+                        SettingRow(configManager.browserAgentProvider.envKeyName) {
+                            // API Key field with eye toggle inside
+                            ZStack(alignment: .trailing) {
+                                Group {
+                                    if showBrowserAgentAPIKey {
+                                        TextField("sk-...", text: $browserAgentAPIKeyInput)
+                                    } else {
+                                        SecureField("sk-...", text: $browserAgentAPIKeyInput)
+                                    }
+                                }
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12, design: .monospaced))
+                                .padding(.leading, 10)
+                                .padding(.trailing, 32)
+                                .padding(.vertical, 6)
+                                .onChange(of: browserAgentAPIKeyInput) { _, newValue in
+                                    configManager.browserAgentAPIKey = newValue
+                                    syncBrowserAgentConfig()
+                                    appState.restartAgent()
+                                }
+
+                                Button {
+                                    showBrowserAgentAPIKey.toggle()
+                                    if showBrowserAgentAPIKey {
+                                        browserAgentAPIKeyInput = configManager.browserAgentAPIKey
+                                    }
+                                } label: {
+                                    Image(systemName: showBrowserAgentAPIKey ? "eye.slash" : "eye")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color.Aurora.textMuted)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, 8)
+                            }
+                            .frame(width: 180)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.Aurora.border, lineWidth: 1)
+                            )
+                        }
                         
-                        // Base URL Input (only for providers that support it)
                         if configManager.browserAgentProvider.supportsBaseUrl {
-                            browserAgentBaseUrlRow
+                            SettingRow(L10n.Settings.browserBaseUrl) {
+                                TextField("https://api.example.com", text: $browserAgentBaseUrlInput)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .frame(width: 160)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.Aurora.border, lineWidth: 1)
+                                    )
+                                    .onChange(of: browserAgentBaseUrlInput) { _, newValue in
+                                        configManager.browserAgentBaseUrl = newValue
+                                        syncBrowserAgentConfig()
+                                        appState.restartAgent()
+                                    }
+                            }
                         }
                         
-                        // Status row
-                        browserUseStatusRow
+                        SettingRow(L10n.Settings.browserStatus, showDivider: false) {
+                            HStack(spacing: 8) {
+                                browserUseStatusIcon(configManager.browserUseStatus)
+                                Text(browserUseStatusDescription(configManager.browserUseStatus))
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color.Aurora.textSecondary)
+                            }
+                        }
                     }
                 }
-            }
-            
-            // Debug Section
-            SettingsCard(title: L10n.Settings.diagnostics, icon: "ant") {
-                SettingsRow(label: L10n.Settings.debugMode, description: L10n.Settings.debugModeDesc, showDivider: false) {
-                    Toggle("", isOn: $configManager.debugMode)
-                        .toggleStyle(.switch)
-                        .tint(Color.Aurora.accent)
-                }
-            }
-            
-            // About Section
-            SettingsCard(title: L10n.Settings.about, icon: "info.circle") {
-                VStack(spacing: 0) {
-                    aboutRow(L10n.Settings.version, value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
-                    aboutRow(L10n.Settings.build, value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1", showDivider: false)
+                
+                // Debug Section
+                CollapsibleSection(L10n.Settings.diagnostics, icon: "ladybug.fill") {
+                    SettingRow(L10n.Settings.debugMode, showDivider: false) {
+                        Toggle("", isOn: $configManager.debugMode)
+                            .toggleStyle(.switch)
+                            .tint(Color.Aurora.primary)
+                    }
                 }
             }
         }
@@ -276,17 +282,17 @@ struct AdvancedSettingsView: View {
             switch configManager.binaryStatus {
             case .notConfigured:
                 Text(L10n.Settings.notConfigured)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundColor(Color.Aurora.warning)
             case .ready(let path):
                 Text(path)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(Color.Aurora.textMuted)
                     .lineLimit(1)
                     .truncationMode(.middle)
             case .error(let error):
                 Text(error)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundColor(Color.Aurora.error)
             }
         }
@@ -297,163 +303,21 @@ struct AdvancedSettingsView: View {
             switch configManager.binaryStatus {
             case .notConfigured:
                 Image(systemName: "questionmark.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 14))
                     .foregroundColor(Color.Aurora.warning)
             case .ready:
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 14))
                     .foregroundColor(Color.Aurora.success)
             case .error:
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 14))
                     .foregroundColor(Color.Aurora.error)
             }
         }
     }
     
-    // MARK: - About Row
-    
-    private func aboutRow(_ label: String, value: String, showDivider: Bool = true) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.Aurora.textSecondary)
-                Spacer()
-                Text(value)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundColor(Color.Aurora.textMuted)
-            }
-            .padding(16)
-            
-            if showDivider {
-                Divider()
-                    .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
-                    .padding(.leading, 16)
-            }
-        }
-    }
-    
     // MARK: - Browser Automation Status
-    
-    @ViewBuilder
-    private var browserAgentAPIKeyRow: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(configManager.browserAgentProvider.envKeyName)")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.Aurora.textPrimary)
-                    
-                    Text(L10n.Settings.browserApiKeyDesc)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.Aurora.textMuted)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 8) {
-                    Group {
-                        if showBrowserAgentAPIKey {
-                            TextField("sk-...", text: $browserAgentAPIKeyInput)
-                        } else {
-                            SecureField("sk-...", text: $browserAgentAPIKeyInput)
-                        }
-                    }
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundColor(Color.Aurora.textPrimary)
-                    .frame(width: 180)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(Color.Aurora.border, lineWidth: 1)
-                    )
-                    .onChange(of: browserAgentAPIKeyInput) { _, newValue in
-                        configManager.browserAgentAPIKey = newValue
-                        syncBrowserAgentConfig()
-                        appState.restartAgent()
-                    }
-
-                    Button {
-                        showBrowserAgentAPIKey.toggle()
-                        if showBrowserAgentAPIKey {
-                            browserAgentAPIKeyInput = configManager.browserAgentAPIKey
-                        }
-                    } label: {
-                        Image(systemName: showBrowserAgentAPIKey ? "eye.slash" : "eye")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.Aurora.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(16)
-            
-            Divider()
-                .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
-                .padding(.leading, 16)
-        }
-    }
-    
-    @ViewBuilder
-    private var browserAgentBaseUrlRow: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.Settings.browserBaseUrl)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.Aurora.textPrimary)
-                    
-                    Text(L10n.Settings.browserBaseUrlDesc)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.Aurora.textMuted)
-                }
-                
-                Spacer()
-                
-                TextField("https://api.example.com", text: $browserAgentBaseUrlInput)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundColor(Color.Aurora.textPrimary)
-                    .frame(width: 200)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(Color.Aurora.border, lineWidth: 1)
-                    )
-                    .onChange(of: browserAgentBaseUrlInput) { _, newValue in
-                        configManager.browserAgentBaseUrl = newValue
-                        syncBrowserAgentConfig()
-                        appState.restartAgent()
-                    }
-            }
-            .padding(16)
-            
-            Divider()
-                .background(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.06))
-                .padding(.leading, 16)
-        }
-    }
-    
-    @ViewBuilder
-    private var browserUseStatusRow: some View {
-        let status = configManager.browserUseStatus
-        
-        SettingsRow(label: L10n.Settings.browserStatus, description: browserUseStatusDescription(status), showDivider: false) {
-            browserUseStatusIcon(status)
-        }
-    }
     
     private func browserUseStatusDescription(_ status: ConfigManager.BrowserUseStatus) -> String {
         switch status {
@@ -471,15 +335,15 @@ struct AdvancedSettingsView: View {
         switch status {
         case .ready:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16))
+                .font(.system(size: 12))
                 .foregroundColor(Color.Aurora.success)
         case .binaryNotFound:
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16))
+                .font(.system(size: 12))
                 .foregroundColor(Color.Aurora.warning)
         case .disabled:
             Image(systemName: "minus.circle.fill")
-                .font(.system(size: 16))
+                .font(.system(size: 12))
                 .foregroundColor(Color.Aurora.textMuted)
         }
     }

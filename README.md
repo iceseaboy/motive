@@ -8,7 +8,7 @@
 <p align="center">A personal AI agent for macOS. Turns intent into completed work, running from your menu bar.</p>
 
 <p align="center">
-  <a href="https://github.com/geezerrrr/motive/releases"><img src="https://img.shields.io/badge/release-v0.5.2-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/geezerrrr/motive/releases"><img src="https://img.shields.io/badge/release-v0.6.0-blue?style=flat-square" alt="Release"></a>
   <a href="https://github.com/geezerrrr/motive/stargazers"><img src="https://img.shields.io/github/stars/geezerrrr/motive?style=flat-square" alt="Stars"></a>
   <img src="https://img.shields.io/badge/platform-macOS%2015+-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/swift-6.0-orange?style=flat-square" alt="Swift">
@@ -141,13 +141,14 @@ Anything an AI coding agent can do: refactor code, generate files, run scripts, 
 ### Completed
 - [x] **Multi-language UI** — English, 简体中文, 日本語
 - [x] **Browser automation** — Full support for web scraping, form filling, and browser-based workflows
+- [x] **Skills System** — 50+ bundled skills (weather, GitHub, Slack, Notion, etc.) with easy enable/disable in Settings
+- [x] **Custom Skills** — User-defined skills via `~/.motive/skills/` directory, no code required
 
 ### In Progress
 - [ ] **Multi-task queue** — Task queuing with parallel execution for independent tasks and sequential processing for dependent ones
 - [ ] **Task resume** — Interrupt and resume long-running tasks, preserving state across app restarts
 
 ### Planned
-- [ ] **Custom Skills** — User-defined skills via `~/.motive/skills/` directory, no code required
 - [ ] **Personal Profile** — Store personal context (name, preferences, work style) for more relevant AI responses
 - [ ] **Memory & RAG** — Long-term memory with retrieval-augmented generation for context-aware assistance
 - [ ] **Task templates** — Save and reuse common task patterns with customizable parameters

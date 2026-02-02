@@ -1,0 +1,8 @@
+{
+  "type": "local",
+  "command": ["/usr/bin/env", "node", "{baseDir}/file-permission.js"],
+  "environment": {
+    "PERMISSION_API_PORT": "9226"
+  },
+  "timeoutMs": 10000
+}

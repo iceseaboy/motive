@@ -55,9 +55,12 @@ extension AppState {
             currentToolName = event.toolName ?? "Processing"
 
             // Intercept AskUserQuestion tool calls
-            if event.toolName == "AskUserQuestion", let inputDict = event.toolInputDict {
-                handleAskUserQuestion(input: inputDict)
-                return  // Don't add to message list
+            if isAskUserQuestionTool(event.toolName) {
+                if let inputDict = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson) {
+                    handleAskUserQuestion(input: inputDict)
+                    return  // Don't add to message list
+                }
+                Log.debug("AskUserQuestion: matched tool name but no input payload")
             }
             // Update CloudKit for remote commands
             updateRemoteCommandStatus(toolName: event.toolName)
@@ -110,6 +113,62 @@ extension AppState {
         processEventContent(event)
     }
 
+    private func isAskUserQuestionTool(_ toolName: String?) -> Bool {
+        guard let toolName else { return false }
+        let normalized = normalizeToolName(toolName)
+        if normalized == "askuserquestion" { return true }
+        return normalized.hasSuffix("askuserquestion")
+    }
+
+    private func normalizeToolName(_ toolName: String) -> String {
+        let base = toolName
+            .components(separatedBy: ["/", ":", "."])
+            .last ?? toolName
+        let lowered = base.lowercased()
+        let stripped = lowered.filter { $0.isLetter || $0.isNumber }
+        return stripped
+    }
+
+    private func extractAskUserQuestionInput(from rawJson: String) -> [String: Any]? {
+        guard let data = rawJson.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let part = object["part"] as? [String: Any] else {
+            return nil
+        }
+
+        if let input = extractInputDict(from: part) {
+            return input
+        }
+        if let state = part["state"] as? [String: Any],
+           let input = extractInputDict(from: state) {
+            return input
+        }
+        return nil
+    }
+
+    private func extractInputDict(from container: [String: Any]) -> [String: Any]? {
+        if let dict = container["input"] as? [String: Any] {
+            return dict
+        }
+        if let dict = container["arguments"] as? [String: Any] {
+            return dict
+        }
+        if let dict = container["args"] as? [String: Any] {
+            return dict
+        }
+        if let inputStr = container["input"] as? String,
+           let data = inputStr.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        if let inputStr = container["arguments"] as? String,
+           let data = inputStr.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        return nil
+    }
+
     /// Update remote command status in CloudKit
     private func updateRemoteCommandStatus(toolName: String?) {
         guard let commandId = currentRemoteCommandId else { return }
@@ -120,10 +179,30 @@ extension AppState {
     private func handleAskUserQuestion(input: [String: Any]) {
         Log.debug("Intercepted AskUserQuestion tool call")
 
-        // Parse questions from input
-        guard let questions = input["questions"] as? [[String: Any]],
-              let firstQuestion = questions.first else {
+        // Parse questions from input (supports both "questions" and single "question" shapes)
+        let questions: [[String: Any]]
+        if let rawQuestions = input["questions"] as? [[String: Any]] {
+            questions = rawQuestions
+        } else if let question = input["question"] as? String {
+            var single: [String: Any] = [
+                "question": question
+            ]
+            if let header = input["header"] as? String {
+                single["header"] = header
+            }
+            if let options = input["options"] {
+                single["options"] = options
+            }
+            if let multiSelect = input["multiSelect"] {
+                single["multiSelect"] = multiSelect
+            }
+            questions = [single]
+        } else {
             Log.debug("AskUserQuestion: no questions found in input")
+            return
+        }
+        guard let firstQuestion = questions.first else {
+            Log.debug("AskUserQuestion: empty questions array")
             return
         }
 
@@ -142,6 +221,11 @@ extension AppState {
                     label: label,
                     description: opt["description"] as? String
                 )
+            }
+        } else if let rawOptions = firstQuestion["options"] as? [String] {
+            options = rawOptions.map { label in
+                optionLabels.append(label)
+                return PermissionRequest.QuestionOption(label: label)
             }
         }
 
@@ -308,6 +392,43 @@ extension AppState {
                 content: mergedContent,
                 timestamp: lastMessage.timestamp
             )
+        } else if message.type == .tool {
+            if let toolCallId = message.toolCallId,
+               let existingIndex = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == toolCallId }) {
+                let existing = messages[existingIndex]
+                let mergedContent = existing.content.isEmpty ? message.content : existing.content
+                messages[existingIndex] = ConversationMessage(
+                    id: existing.id,
+                    type: .tool,
+                    content: mergedContent,
+                    timestamp: existing.timestamp,
+                    toolName: existing.toolName ?? message.toolName,
+                    toolInput: existing.toolInput ?? message.toolInput,
+                    toolOutput: existing.toolOutput ?? message.toolOutput,
+                    toolCallId: existing.toolCallId ?? message.toolCallId,
+                    isStreaming: existing.isStreaming
+                )
+            } else if let lastIndex = messages.lastIndex(where: { $0.type == .tool }),
+                      lastIndex == messages.count - 1,
+                      messages[lastIndex].toolOutput == nil,
+                      message.toolOutput != nil,
+                      (message.toolName == "Result" || message.toolName == messages[lastIndex].toolName) {
+                let lastMessage = messages[lastIndex]
+                let mergedContent = lastMessage.content.isEmpty ? message.content : lastMessage.content
+                messages[lastIndex] = ConversationMessage(
+                    id: lastMessage.id,
+                    type: .tool,
+                    content: mergedContent,
+                    timestamp: lastMessage.timestamp,
+                    toolName: lastMessage.toolName,
+                    toolInput: lastMessage.toolInput,
+                    toolOutput: message.toolOutput,
+                    toolCallId: lastMessage.toolCallId ?? message.toolCallId,
+                    isStreaming: lastMessage.isStreaming
+                )
+            } else {
+                messages.append(message)
+            }
         } else {
             messages.append(message)
         }

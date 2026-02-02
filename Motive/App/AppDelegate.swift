@@ -154,7 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Skip during onboarding
         guard onboardingController == nil else { return true }
         
-        appState?.showCommandBar()
+        // Show Settings when clicking dock icon (Command Bar is triggered by hotkey only)
+        SettingsWindowController.shared.show()
         return true
     }
     

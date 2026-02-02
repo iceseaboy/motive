@@ -30,6 +30,7 @@ extension AppState {
 
         // Initialize SkillManager with ConfigManager to enable browser automation skill
         SkillManager.shared.setConfigManager(configManager)
+        SkillRegistry.shared.setConfigManager(configManager)
 
         PermissionManager.shared.startServers()
         observePermissionRequests()

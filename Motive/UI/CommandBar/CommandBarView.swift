@@ -120,6 +120,10 @@ struct CommandBarView: View {
     @State var historySessions: [Session] = []
     @State var selectedProjectIndex: Int = 0
     @State var showDeleteConfirmation: Bool = false
+    @State var deleteCandidateIndex: Int? = nil
+    @State var selectedHistoryId: UUID? = nil
+    @State var deleteCandidateId: UUID? = nil
+    @State var lastHeightApplied: CGFloat = 0
     @FocusState var isInputFocused: Bool
 
     // @ file completion state
@@ -145,11 +149,8 @@ struct CommandBarView: View {
             }
         }
             .onChange(of: appState.sessionListRefreshTrigger) { _, _ in
-                // Refresh session list after deletion
-                historySessions = appState.getAllSessions()
-                if selectedHistoryIndex >= filteredHistorySessions.count {
-                    selectedHistoryIndex = max(0, filteredHistorySessions.count - 1)
-                }
+            // Refresh list without jumping selection
+            refreshHistorySessions(preferredIndex: selectedHistoryIndex)
             }
             .onChange(of: showFileCompletion) { _, isShowing in
                 // File completion doesn't change height, just shows/hides list

@@ -73,16 +73,19 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             .environmentObject(appState)
         
         // Create window with unified titlebar appearance
+        // Use dynamic size based on initial tab
+        let initialSize = tab.windowSize
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: initialSize.width, height: initialSize.height),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         
-        newWindow.title = ""
+        newWindow.title = "Motive Settings"
         newWindow.titlebarAppearsTransparent = true
-        newWindow.titleVisibility = .hidden
+        newWindow.titleVisibility = .visible
+        newWindow.toolbarStyle = .unified
         newWindow.isMovableByWindowBackground = true
         
         // Match Aurora.backgroundDeep (#191919 dark / #FAFAFA light) for sidebar area
