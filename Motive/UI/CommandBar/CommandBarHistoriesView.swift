@@ -42,15 +42,16 @@ struct CommandBarHistoriesView: View {
                             onSelect: { onSelect(session) },
                             onRequestDelete: { onRequestDelete(index) }
                         )
-                        .id(index)
+                        .id(session.id)
                     }
                 }
                 .padding(.vertical, AuroraSpacing.space2)
                 .padding(.horizontal, AuroraSpacing.space3)
             }
             .onChange(of: selectedIndex) { _, newIndex in
+                guard newIndex < sessions.count else { return }
                 withAnimation(.auroraFast) {
-                    proxy.scrollTo(newIndex, anchor: .center)
+                    proxy.scrollTo(sessions[newIndex].id, anchor: .center)
                 }
             }
         }

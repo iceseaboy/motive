@@ -53,6 +53,8 @@
 "settings.tab.general.subtitle" = "起動、外観、キーボードショートカット";
 "settings.tab.ai_provider" = "AIプロバイダー";
 "settings.tab.ai_provider.subtitle" = "AIプロバイダーとAPI認証情報の設定";
+"settings.tab.skills" = "スキル";
+"settings.tab.skills.subtitle" = "スキルとツール連携の管理";
 "settings.tab.permissions" = "権限";
 "settings.tab.permissions.subtitle" = "ファイル操作ポリシーと安全ルール";
 "settings.tab.advanced" = "詳細";
@@ -146,6 +148,17 @@
 "settings.browser.status.not_found" = "ビルドが必要 - Scripts/browser-use-sidecar/build.sh を実行";
 "settings.browser.status.disabled" = "ブラウザ自動化は無効です";
 "settings.browser.not_set" = "未設定";
+
+// Skills
+"settings.skills.system" = "スキルシステム";
+"settings.skills.enable" = "スキルを有効化";
+"settings.skills.enable.desc" = "バンドル、管理、ワークスペースのスキルを読み込み";
+"settings.skills.list" = "インストール済みスキル";
+"settings.skills.eligible" = "利用可能";
+"settings.skills.ineligible" = "利用不可";
+"settings.skills.refresh" = "スキルを更新";
+"settings.skills.no_skills" = "スキルがインストールされていません";
+"settings.skills.no_skills.desc" = "スキルが利用可能になるとここに表示されます";
 
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCodeバイナリ";

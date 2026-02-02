@@ -106,6 +106,10 @@ actor OpenCodeBridge {
         
         if configuration.debugMode {
             args.append(contentsOf: ["--print-logs", "--log-level", "DEBUG"])
+        } else {
+            #if DEBUG
+            args.append(contentsOf: ["--print-logs", "--log-level", "DEBUG"])
+            #endif
         }
         
         // Add model if specified
@@ -194,19 +198,36 @@ actor OpenCodeBridge {
                 let cleaned = stripAnsiCodes(line)
                 let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                // Skip empty lines and terminal decorations
+                // Skip empty lines
                 guard !trimmed.isEmpty else { continue }
-                guard !isTerminalDecoration(trimmed) else { continue }
                 
-                // Only process JSON lines
-                guard trimmed.hasPrefix("{") else {
+                // Only process JSON lines (allow prefixed JSON)
+                var jsonLine: String? = nil
+                if trimmed.hasPrefix("{") {
+                    if isValidJson(trimmed) {
+                        jsonLine = trimmed
+                    } else {
+                        Log.bridge("[pty] Invalid JSON: \(trimmed.prefix(500))")
+                        continue
+                    }
+                } else if let extracted = extractJsonObject(from: trimmed) {
+                    jsonLine = extracted
+                }
+                
+                // If not JSON, skip terminal decorations
+                if jsonLine == nil, isTerminalDecoration(trimmed) {
+                    Log.bridge("[pty] Skipped decoration: \(trimmed.prefix(200))")
+                    continue
+                }
+                
+                guard let jsonLine else {
                     Log.bridge("[pty] Non-JSON: \(trimmed)")
                     continue
                 }
                 
-                Log.bridge("[pty] JSON: \(trimmed)")
+                Log.bridge("[pty] JSON: \(jsonLine)")
                 
-                let event = OpenCodeEvent(rawJson: trimmed)
+                let event = OpenCodeEvent(rawJson: jsonLine)
                 
                 // Capture session ID for follow-ups
                 if let sessionId = event.sessionId, currentSessionId == nil {
@@ -233,6 +254,21 @@ actor OpenCodeBridge {
         }
         let range = NSRange(string.startIndex..., in: string)
         return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: "")
+    }
+
+    /// Extract a JSON object from a line that has a prefix/suffix.
+    private func extractJsonObject(from line: String) -> String? {
+        guard let start = line.firstIndex(of: "{") else { return nil }
+        let candidate = String(line[start...])
+        if isValidJson(candidate) {
+            return candidate
+        }
+        return nil
+    }
+
+    private func isValidJson(_ text: String) -> Bool {
+        guard let data = text.data(using: .utf8) else { return false }
+        return (try? JSONSerialization.jsonObject(with: data)) != nil
     }
 
     private func handleTermination(exitCode: Int32) async {

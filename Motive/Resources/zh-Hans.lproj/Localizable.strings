@@ -53,6 +53,8 @@
 "settings.tab.general.subtitle" = "启动、外观和快捷键";
 "settings.tab.ai_provider" = "AI 服务商";
 "settings.tab.ai_provider.subtitle" = "配置 AI 服务商和 API 凭据";
+"settings.tab.skills" = "技能";
+"settings.tab.skills.subtitle" = "管理已安装的技能与工具连接";
 "settings.tab.permissions" = "权限";
 "settings.tab.permissions.subtitle" = "文件操作策略和安全规则";
 "settings.tab.advanced" = "高级";
@@ -146,6 +148,17 @@
 "settings.browser.status.not_found" = "需要构建 - 运行 Scripts/browser-use-sidecar/build.sh";
 "settings.browser.status.disabled" = "浏览器自动化已禁用";
 "settings.browser.not_set" = "未设置";
+
+// Skills
+"settings.skills.system" = "技能系统";
+"settings.skills.enable" = "启用技能";
+"settings.skills.enable.desc" = "从内置、托管与工作区加载技能";
+"settings.skills.list" = "已安装的技能";
+"settings.skills.eligible" = "可用";
+"settings.skills.ineligible" = "不可用";
+"settings.skills.refresh" = "刷新技能";
+"settings.skills.no_skills" = "没有已安装的技能";
+"settings.skills.no_skills.desc" = "技能可用时将显示在此处";
 
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCode 程序";

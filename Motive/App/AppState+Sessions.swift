@@ -170,7 +170,31 @@ extension AppState {
 
         modelContext.delete(session)
         try? modelContext.save()
+        
+        // Trigger list refresh so CommandBarView updates
+        sessionListRefreshTrigger += 1
         objectWillChange.send()
+    }
+
+    /// Delete a session by id (robust against stale references)
+    func deleteSession(id: UUID) {
+        guard let modelContext else { return }
+
+        if currentSession?.id == id {
+            clearCurrentSession()
+        }
+
+        let descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let session = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(session)
+            try? modelContext.save()
+            
+            // Trigger list refresh so CommandBarView updates
+            sessionListRefreshTrigger += 1
+            objectWillChange.send()
+        }
     }
 
     /// Switch to a different project directory

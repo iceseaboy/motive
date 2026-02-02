@@ -111,16 +111,39 @@ final class SkillManager {
     
     /// Generate SKILL.md content in OpenCode's expected format
     private func generateSkillMd(for skill: Skill) -> String {
-        """
+        let disableModelInvocation = shouldDisableModelInvocation(for: skill)
+        let userInvocable = !disableModelInvocation
+        return """
 ---
 name: \(skill.id)
 description: \(skill.description)
+disable-model-invocation: \(disableModelInvocation ? "true" : "false")
+user-invocable: \(userInvocable ? "true" : "false")
 ---
 
 # \(skill.name)
 
 \(skill.content)
 """
+    }
+
+    private func shouldDisableModelInvocation(for skill: Skill) -> Bool {
+        if shouldAllowModelInvocation(skillId: skill.id) {
+            return false
+        }
+        switch skill.type {
+        case .mcpTool, .capability, .rule, .instruction:
+            return true
+        }
+    }
+
+    private func shouldAllowModelInvocation(skillId: String) -> Bool {
+        switch skillId {
+        case "ask-user-question", "file-permission":
+            return true
+        default:
+            return false
+        }
     }
     
     /// Generate combined system prompt from all skills
@@ -515,6 +538,18 @@ description: \(skill.description)
             # Step 4: When completed
             browser-use-sidecar close
             ```
+            
+            ## Progressive Clarification (Required)
+            
+            Minimize user questions. Only ask when necessary.
+            
+            If the task is ambiguous:
+            - Phase 1 (coarse): ask for high-level constraints that narrow the search space.
+              Examples: goal, priority, budget/time range, scope, preference direction.
+            - Phase 2 (concrete): AFTER you have real candidates (from the web page or results),
+              ask the user to choose among those concrete options via AskUserQuestion.
+            
+            Do NOT ask for concrete choices before real candidates exist.
             
             ## Key Commands
             

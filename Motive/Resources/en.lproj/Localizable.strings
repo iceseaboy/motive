@@ -53,6 +53,8 @@
 "settings.tab.general.subtitle" = "Startup, appearance, and keyboard shortcuts";
 "settings.tab.ai_provider" = "AI Provider";
 "settings.tab.ai_provider.subtitle" = "Configure your AI provider and API credentials";
+"settings.tab.skills" = "Skills";
+"settings.tab.skills.subtitle" = "Manage installed skills and tool wiring";
 "settings.tab.permissions" = "Permissions";
 "settings.tab.permissions.subtitle" = "File operation policies and safety rules";
 "settings.tab.advanced" = "Advanced";
@@ -146,6 +148,17 @@
 "settings.browser.status.not_found" = "Build required - run Scripts/browser-use-sidecar/build.sh";
 "settings.browser.status.disabled" = "Browser automation is disabled";
 "settings.browser.not_set" = "Not set";
+
+// Skills
+"settings.skills.system" = "Skills System";
+"settings.skills.enable" = "Enable Skills";
+"settings.skills.enable.desc" = "Load skills from bundled, managed, and workspace sources";
+"settings.skills.list" = "Installed Skills";
+"settings.skills.eligible" = "Eligible";
+"settings.skills.ineligible" = "Ineligible";
+"settings.skills.refresh" = "Refresh Skills";
+"settings.skills.no_skills" = "No skills installed";
+"settings.skills.no_skills.desc" = "Skills will appear here when available";
 
 // Advanced Settings
 "settings.advanced.opencode_binary" = "OpenCode Binary";
