@@ -304,26 +304,38 @@ sign_app() {
         fi
         
         # Sign browser-use-sidecar (Python bundle)
+        # CRITICAL: Must include entitlements with disable-library-validation
+        # because PyInstaller extracts libpython3.12.dylib (signed by Python.org)
+        # at runtime, and Hardened Runtime would reject the different Team ID.
         local sidecar_path="$resources_path/browser-use-sidecar"
+        local sidecar_entitlements="$PROJECT_DIR/$APP_NAME/Entitlements/Sidecar.entitlements"
         if [ -d "$sidecar_path" ]; then
-            log "Signing browser-use-sidecar..."
+            log "Signing browser-use-sidecar (directory)..."
             # Sign all binaries inside the sidecar directory
             find "$sidecar_path" -type f -perm +111 | while read binary; do
                 codesign --force --options runtime --timestamp \
+                    --entitlements "$sidecar_entitlements" \
                     --sign "$signing_identity" "$binary" 2>/dev/null || true
             done
             # Sign .so and .dylib files
             find "$sidecar_path" -type f \( -name "*.so" -o -name "*.dylib" \) | while read lib; do
                 codesign --force --options runtime --timestamp \
+                    --entitlements "$sidecar_entitlements" \
                     --sign "$signing_identity" "$lib" 2>/dev/null || true
             done
             # Sign the main sidecar binary/directory
             codesign --force --options runtime --timestamp \
+                --entitlements "$sidecar_entitlements" \
                 --sign "$signing_identity" "$sidecar_path" 2>/dev/null || true
+        elif [ -f "$sidecar_path" ]; then
+            log "Signing browser-use-sidecar (single file)..."
+            codesign --force --options runtime --timestamp \
+                --entitlements "$sidecar_entitlements" \
+                --sign "$signing_identity" "$sidecar_path"
         fi
         
         # Sign any other binaries in Resources
-        find "$resources_path" -maxdepth 1 -type f -perm +111 ! -name "opencode" | while read binary; do
+        find "$resources_path" -maxdepth 1 -type f -perm +111 ! -name "opencode" ! -name "browser-use-sidecar" | while read binary; do
             log "Signing $(basename "$binary")..."
             codesign --force --options runtime --timestamp \
                 --sign "$signing_identity" "$binary" 2>/dev/null || true
