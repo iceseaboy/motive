@@ -19,7 +19,7 @@ enum SkillGating {
         let skillConfig = config.entries[skillKey] ?? config.entries[entry.name]
 
         // Check enabled/disabled state
-        // Priority: 1. User explicit config > 2. metadata.defaultEnabled (defaults to false)
+        // Priority: 1. User explicit config > 2. metadata.defaultEnabled > 3. system skill check
         if let explicitEnabled = skillConfig?.enabled {
             // User has explicitly set enabled state
             if !explicitEnabled {
@@ -27,8 +27,10 @@ enum SkillGating {
                 return SkillEligibility(isEligible: false, reasons: reasons)
             }
         } else {
-            // Use metadata.defaultEnabled, defaulting to false if not specified
-            let defaultEnabled = entry.metadata?.defaultEnabled ?? false
+            // Use metadata.defaultEnabled if present
+            // Otherwise, system skills (ask-user-question, file-permission, etc.) are enabled by default
+            let isSystemSkill = SkillManager.systemSkillIds.contains(entry.name)
+            let defaultEnabled = entry.metadata?.defaultEnabled ?? isSystemSkill
             if !defaultEnabled {
                 reasons.append("disabled_by_default")
                 return SkillEligibility(isEligible: false, reasons: reasons)
@@ -144,13 +146,15 @@ enum SkillGating {
         let entryConfig = config.entries[skillKey] ?? config.entries[entry.name]
         
         // Determine disabled state using priority:
-        // 1. User explicit config > 2. metadata.defaultEnabled (defaults to false)
+        // 1. User explicit config > 2. metadata.defaultEnabled > 3. system skill check
         let disabled: Bool
         if let explicitEnabled = entryConfig?.enabled {
             disabled = !explicitEnabled
         } else {
-            // Use metadata.defaultEnabled, defaulting to false if not specified
-            let defaultEnabled = entry.metadata?.defaultEnabled ?? false
+            // Use metadata.defaultEnabled if present
+            // Otherwise, system skills are enabled by default
+            let isSystemSkill = SkillManager.systemSkillIds.contains(entry.name)
+            let defaultEnabled = entry.metadata?.defaultEnabled ?? isSystemSkill
             disabled = !defaultEnabled
         }
         

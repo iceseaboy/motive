@@ -52,6 +52,14 @@ final class SkillManager {
     /// Filename for user-editable rules within a skill directory
     static let userRulesFilename = "RULES.md"
     
+    /// System skill IDs that must be enabled by default.
+    /// These are critical for Motive's operation — without them, the UI can't communicate with the user.
+    static let systemSkillIds: Set<String> = [
+        "ask-user-question",
+        "file-permission",
+        "safe-file-deletion",
+    ]
+    
     private init() {
         loadBuiltInSkills()
     }
@@ -153,10 +161,14 @@ final class SkillManager {
     
     /// Generate SKILL.md content following official AgentSkills spec
     private func generateSkillMd(for skill: Skill) -> String {
+        let isSystem = Self.systemSkillIds.contains(skill.id)
+        let metadataLine = isSystem
+            ? "\nmetadata: { \"defaultEnabled\": true }"
+            : ""
         return """
 ---
 name: \(skill.id)
-description: \(skill.description)
+description: \(skill.description)\(metadataLine)
 ---
 
 # \(skill.name)
@@ -167,10 +179,14 @@ description: \(skill.description)
     
     /// Generate SKILL.md for capability skills: hardcoded technical content + user rules section
     private func generateCapabilitySkillMd(for skill: Skill, userRules: String?) -> String {
+        let isSystem = Self.systemSkillIds.contains(skill.id)
+        let metadataLine = isSystem
+            ? "\nmetadata: { \"defaultEnabled\": true }"
+            : ""
         var md = """
 ---
 name: \(skill.id)
-description: \(skill.description)
+description: \(skill.description)\(metadataLine)
 ---
 
 # \(skill.name)

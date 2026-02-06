@@ -19,9 +19,14 @@ actor OpenCodeBridge {
     private var ptyProcess: PTYProcess?
     private var currentSessionId: String?
     private var readerTask: Task<Void, Never>?
+    private var watchdogTask: Task<Void, Never>?
     private let eventHandler: @Sendable (OpenCodeEvent) async -> Void
     /// Tracks whether a primary finish (step_finish) was already received for the current task
     private var hasReceivedPrimaryFinish = false
+    /// Timestamp of the last PTY output line (for stall detection)
+    private var lastActivityTime: Date = Date()
+    /// Maximum seconds with no output before killing the process
+    private static let stallTimeoutSeconds: TimeInterval = 180  // 3 minutes
 
     init(eventHandler: @escaping @Sendable (OpenCodeEvent) async -> Void) {
         self.eventHandler = eventHandler
@@ -40,6 +45,8 @@ actor OpenCodeBridge {
     }
 
     func stop() async {
+        watchdogTask?.cancel()
+        watchdogTask = nil
         readerTask?.cancel()
         readerTask = nil
 
@@ -183,6 +190,7 @@ actor OpenCodeBridge {
         }
         
         self.ptyProcess = pty
+        self.lastActivityTime = Date()
         
         // Read PTY output for JSON messages
         readerTask = Task {
@@ -194,11 +202,19 @@ actor OpenCodeBridge {
             let exitCode = pty.waitForExit()
             await handleTermination(exitCode: exitCode)
         }
+        
+        // Start watchdog to detect stalled processes
+        watchdogTask = Task {
+            await runWatchdog(pty: pty)
+        }
     }
     
     private func readPTYLines(pty: PTYProcess) async {
         do {
             for try await line in pty.lines {
+                // Update activity timestamp for watchdog
+                lastActivityTime = Date()
+                
                 // Strip ANSI escape sequences first
                 let cleaned = stripAnsiCodes(line)
                 let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -294,9 +310,60 @@ actor OpenCodeBridge {
         return (try? JSONSerialization.jsonObject(with: data)) != nil
     }
 
+    /// Watchdog: periodically checks if the process has stalled (no output for too long).
+    /// If stalled, kills the process and emits a timeout error event so the UI isn't stuck.
+    private func runWatchdog(pty: PTYProcess) async {
+        let checkInterval: TimeInterval = 15  // Check every 15 seconds
+        
+        while !Task.isCancelled && pty.isRunning {
+            try? await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
+            
+            guard !Task.isCancelled else { break }
+            guard pty.isRunning else { break }
+            
+            let elapsed = Date().timeIntervalSince(lastActivityTime)
+            
+            if elapsed >= Self.stallTimeoutSeconds {
+                Log.bridge("⚠️ Watchdog: Process stalled for \(Int(elapsed))s (limit: \(Int(Self.stallTimeoutSeconds))s). Killing process.")
+                
+                // Kill the stalled process
+                pty.terminate()
+                
+                // Emit a user-visible error event
+                await eventHandler(
+                    OpenCodeEvent(
+                        kind: .error,
+                        rawJson: "",
+                        text: "OpenCode process timed out after \(Int(Self.stallTimeoutSeconds)) seconds with no response. The process has been terminated."
+                    )
+                )
+                
+                // Emit a finish event so the UI transitions out of "thinking"
+                if !hasReceivedPrimaryFinish {
+                    await eventHandler(
+                        OpenCodeEvent(
+                            kind: .finish,
+                            rawJson: "",
+                            text: "Timed out",
+                            isSecondaryFinish: true
+                        )
+                    )
+                }
+                break
+            } else if elapsed >= Self.stallTimeoutSeconds * 0.5 {
+                // At 50% of timeout, log a warning (but don't kill yet)
+                Log.bridge("⚠️ Watchdog: No output for \(Int(elapsed))s, will timeout at \(Int(Self.stallTimeoutSeconds))s")
+            }
+        }
+        
+        Log.bridge("Watchdog task finished")
+    }
+
     private func handleTermination(exitCode: Int32) async {
         Log.bridge("OpenCode process terminated with code: \(exitCode)")
         
+        watchdogTask?.cancel()
+        watchdogTask = nil
         readerTask?.cancel()
         readerTask = nil
         ptyProcess?.cleanup()

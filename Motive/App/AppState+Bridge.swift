@@ -42,7 +42,29 @@ extension AppState {
         )
     }
 
+    /// Reset the UI-level session timeout whenever we receive an event
+    func resetSessionTimeout() {
+        sessionTimeoutTask?.cancel()
+        
+        guard sessionStatus == .running else { return }
+        
+        sessionTimeoutTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(Self.sessionTimeoutSeconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            
+            // Still running after timeout — warn the user
+            if sessionStatus == .running {
+                Log.debug("⚠️ Session timeout: no events for \(Int(Self.sessionTimeoutSeconds))s while still running")
+                lastErrorMessage = "No response from OpenCode for \(Int(Self.sessionTimeoutSeconds)) seconds. The process may be stalled. You can interrupt or wait."
+                statusBarController?.showError()
+            }
+        }
+    }
+
     func handle(event: OpenCodeEvent) {
+        // Reset session timeout on every event
+        resetSessionTimeout()
+        
         // Update UI state based on event kind
         switch event.kind {
         case .thought:
@@ -74,6 +96,10 @@ extension AppState {
             updateRemoteCommandStatus(toolName: "Editing file")
 
         case .finish:
+            // Cancel session timeout on finish
+            sessionTimeoutTask?.cancel()
+            sessionTimeoutTask = nil
+            
             // --- Finish deduplication ---
             // Secondary finish events (session.idle, process exit) are silently absorbed
             // when a primary finish (step_finish) has already been processed.
@@ -112,6 +138,25 @@ extension AppState {
         case .user:
             // User messages are added directly in submitIntent
             return
+
+        case .error:
+            // Explicit error from OpenCode — always surface to user
+            sessionTimeoutTask?.cancel()
+            sessionTimeoutTask = nil
+            lastErrorMessage = event.text
+            sessionStatus = .failed
+            menuBarState = .idle
+            currentToolName = nil
+            currentToolInput = nil
+            finalizeRunningMessages()
+            if let session = currentSession {
+                session.status = "failed"
+            }
+            statusBarController?.showError()
+            if let commandId = currentRemoteCommandId {
+                cloudKitManager.failCommand(commandId: commandId, error: event.text)
+                currentRemoteCommandId = nil
+            }
 
         case .unknown:
             // Check for various error patterns

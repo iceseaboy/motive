@@ -35,6 +35,8 @@ extension AppState {
         menuBarState = .executing
         sessionStatus = .running
         updateStatusBar()
+        // Start UI-level session timeout
+        resetSessionTimeout()
         // Don't hide CommandBar - it will switch to running mode
         // Only ESC or focus loss should hide it
         startNewSession(intent: trimmed)
@@ -64,6 +66,8 @@ extension AppState {
             await bridge.interrupt()
         }
 
+        sessionTimeoutTask?.cancel()
+        sessionTimeoutTask = nil
         sessionStatus = .interrupted
         menuBarState = .idle
         currentToolName = nil

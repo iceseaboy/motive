@@ -53,6 +53,11 @@ final class AppState: ObservableObject {
     lazy var cloudKitManager: CloudKitManager = CloudKitManager()
     var currentRemoteCommandId: String?
     
+    /// UI-level session activity timeout
+    /// If sessionStatus stays .running with no events for this duration, show a warning
+    var sessionTimeoutTask: Task<Void, Never>?
+    static let sessionTimeoutSeconds: TimeInterval = 120  // 2 minutes
+    
     var cancellables = Set<AnyCancellable>()
 
     var configManagerRef: ConfigManager { configManager }

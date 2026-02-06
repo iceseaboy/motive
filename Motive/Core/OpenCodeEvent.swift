@@ -129,6 +129,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case call
         case diff
         case finish
+        case error      // Explicit error from OpenCode
         case unknown
         case user
         case assistant  // text message from AI
@@ -238,23 +239,34 @@ struct OpenCodeEvent: Sendable, Identifiable {
             self.init(kind: .thought, rawJson: rawJson, text: "Processing...", sessionId: sessionId)
             
         case "step_finish":
-            // Step finished
+            // Step finished — treat ALL reasons as a finish event.
+            // Previously only "stop" and "end_turn" were recognized, causing
+            // other reasons (e.g., "done", "max_tokens") to be silently dropped,
+            // leaving the UI stuck in "thinking" forever.
             let reason = part?["reason"] as? String ?? "done"
-            if reason == "stop" || reason == "end_turn" {
+            let isTerminal = (reason == "stop" || reason == "end_turn" || reason == "done")
+            if isTerminal {
                 self.init(kind: .finish, rawJson: rawJson, text: "Completed", sessionId: sessionId)
             } else {
+                // Non-terminal step_finish (e.g., "tool_use") — intermediate step, not final
+                // Still parse as thought so it doesn't prematurely end the session
                 self.init(kind: .thought, rawJson: rawJson, text: "", sessionId: sessionId)
             }
             
         case "error":
-            // Error message
-            let errorText = object["error"] as? String ?? "Unknown error"
-            self.init(kind: .unknown, rawJson: rawJson, text: errorText, sessionId: sessionId)
+            // Error message — surface to user, not silently drop
+            let errorText = object["error"] as? String
+                ?? part?["message"] as? String
+                ?? part?["text"] as? String
+                ?? "Unknown error"
+            Log.bridge("⚠️ OpenCode error event: \(errorText)")
+            self.init(kind: .error, rawJson: rawJson, text: errorText, sessionId: sessionId)
             
         default:
-            // Unknown message type - try to extract any useful text
+            // Unknown message type — log it for debugging instead of silently dropping
             let message = OpenCodeEvent.extractString(from: object, keys: ["message", "text", "content", "summary", "detail"])
-            self.init(kind: .unknown, rawJson: rawJson, text: message ?? "", sessionId: sessionId)
+            Log.bridge("⚠️ Unrecognized event type: '\(messageType)' — raw: \(rawJson.prefix(500))")
+            self.init(kind: .unknown, rawJson: rawJson, text: message ?? "Unrecognized event: \(messageType)", sessionId: sessionId)
         }
     }
 
@@ -323,15 +335,15 @@ struct OpenCodeEvent: Sendable, Identifiable {
     
     /// Convert to ConversationMessage for UI display
     func toMessage() -> ConversationMessage? {
-        // Skip empty messages and step events
-        if text.isEmpty && kind != .finish {
+        // Skip empty messages and step events (but never skip errors or finish)
+        if text.isEmpty && kind != .finish && kind != .error {
             if case .tool = kind, toolName != nil {
                 // Allow tool messages with empty input so we can show "tool started"
             } else {
                 return nil
             }
         }
-        if text.isEmpty && kind != .finish && kind != .tool {
+        if text.isEmpty && kind != .finish && kind != .tool && kind != .error {
             return nil
         }
         
@@ -355,6 +367,10 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case .diff:
             messageType = .tool
             messageStatus = .completed
+        case .error:
+            // Error events are ALWAYS shown to the user
+            messageType = .system
+            messageStatus = .failed
         case .finish:
             messageType = .system
             messageStatus = .completed
