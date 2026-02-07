@@ -31,23 +31,10 @@ final class DrawerWindowController {
             backing: .buffered,
             defer: false
         )
-        window.isFloatingPanel = true
-        window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = true  // Use native window shadow (like CommandBar)
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.standardWindowButton(.closeButton)?.isHidden = true
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
-        window.isMovableByWindowBackground = true
         window.contentView = hostingView
-        window.contentView?.wantsLayer = true
-        window.contentView?.layer?.cornerRadius = AuroraRadius.xl
-        window.contentView?.layer?.masksToBounds = true
-        window.hidesOnDeactivate = false
+        window.applyFloatingPanelStyle()
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isMovableByWindowBackground = true
         
         // Hide when window loses key status (clicks outside, unless suppressed)
         resignKeyObserver = NotificationCenter.default.addObserver(
@@ -63,9 +50,7 @@ final class DrawerWindowController {
     }
     
     deinit {
-        if let observer = resignKeyObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+        resignKeyObserver.map { NotificationCenter.default.removeObserver($0) }
     }
     
     /// Update the position reference for the status bar button

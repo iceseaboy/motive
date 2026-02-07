@@ -31,6 +31,14 @@ extension CommandBarView {
         Log.config("🔍 checkForAtCompletion: loading query '\(query)'")
         fileCompletion.loadItems(query: query, baseDir: baseDir)
 
+        // Only show file completion if there are matching results
+        // (loadItems is synchronous, so items are available immediately)
+        guard !fileCompletion.items.isEmpty else {
+            Log.config("🔍 checkForAtCompletion: no results, hiding")
+            hideFileCompletion()
+            return
+        }
+
         showFileCompletion = true
         selectedFileIndex = 0
 

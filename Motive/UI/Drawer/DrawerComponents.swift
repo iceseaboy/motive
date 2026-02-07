@@ -237,17 +237,16 @@ struct MessageBubble: View {
             
             if isOutputExpanded, let output = message.toolOutput, !output.isEmpty {
                 ScrollView {
-                    Text(output)
-                        .font(.Aurora.monoSmall)
-                        .foregroundColor(Color.Aurora.textPrimary)
+                    formattedOutput(output)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
-                .frame(maxHeight: 180)
+                .frame(maxHeight: 300)
                 .padding(.top, AuroraSpacing.space1)
+                .padding(AuroraSpacing.space2)
                 .background(
                     RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                        .fill(Color.Aurora.surface.opacity(0.7))
+                        .fill(Color.Aurora.backgroundDeep.opacity(0.6))
                 )
             }
         }
@@ -444,6 +443,84 @@ struct MessageBubble: View {
                 y: -8
             )
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
+    }
+    
+    // MARK: - Formatted Tool Output
+    
+    /// Detect content type and render with syntax highlighting via Markdown code blocks
+    @ViewBuilder
+    private func formattedOutput(_ output: String) -> some View {
+        let lang = detectOutputLanguage(output)
+        if let lang {
+            // Pretty-print JSON for readability; other languages use raw output
+            let displayText = (lang == "json") ? Self.prettyPrintJSON(output) : output
+            let markdown = "```\(lang)\n\(displayText)\n```"
+            Markdown(markdown)
+                .markdownTextStyle {
+                    FontSize(11)
+                    ForegroundColor(Color.Aurora.textPrimary)
+                }
+                .markdownBlockStyle(\.codeBlock) { configuration in
+                    configuration.label
+                        .padding(6)
+                        .background(Color.Aurora.backgroundDeep.opacity(0.4))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+        } else {
+            // Plain text fallback
+            Text(output)
+                .font(.Aurora.monoSmall)
+                .foregroundColor(Color.Aurora.textPrimary)
+        }
+    }
+    
+    /// Pretty-print a JSON string with indentation. Returns original on failure.
+    private static func prettyPrintJSON(_ raw: String) -> String {
+        guard let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let pretty = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let result = String(data: pretty, encoding: .utf8) else {
+            return raw
+        }
+        return result
+    }
+
+    /// Detect the language/format of tool output for syntax highlighting
+    private func detectOutputLanguage(_ output: String) -> String? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // JSON: starts with { or [
+        if (trimmed.hasPrefix("{") && trimmed.hasSuffix("}"))
+            || (trimmed.hasPrefix("[") && trimmed.hasSuffix("]")) {
+            // Validate it's actual JSON (not just text in braces)
+            if trimmed.data(using: .utf8).flatMap({ try? JSONSerialization.jsonObject(with: $0) }) != nil {
+                return "json"
+            }
+        }
+        
+        // Diff/patch: contains diff markers
+        if trimmed.hasPrefix("---") || trimmed.hasPrefix("diff ") || trimmed.hasPrefix("@@") {
+            return "diff"
+        }
+        // Also detect inline diff markers in multiline output
+        let lines = trimmed.split(separator: "\n", maxSplits: 10)
+        let diffMarkers = lines.filter { $0.hasPrefix("+") || $0.hasPrefix("-") || $0.hasPrefix("@@") }
+        if diffMarkers.count > 2 && Double(diffMarkers.count) / Double(lines.count) > 0.3 {
+            return "diff"
+        }
+        
+        // Shell output: if the tool is Shell/Bash, hint as shell
+        if let toolName = message.toolName?.lowercased(),
+           toolName == "shell" || toolName == "bash" || toolName == "command" {
+            return "bash"
+        }
+        
+        // XML/HTML: starts with < and contains >
+        if trimmed.hasPrefix("<") && trimmed.contains(">") {
+            return "html"
+        }
+        
+        return nil  // Plain text — no syntax highlighting
     }
     
     // MARK: - Tool Icon (legacy fallback)

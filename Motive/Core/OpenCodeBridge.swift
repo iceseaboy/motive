@@ -116,12 +116,13 @@ actor OpenCodeBridge {
         let binaryPath = configuration.binaryURL.path
         var args = ["run", text, "--format", "json"]
         
-        if configuration.debugMode {
+        #if DEBUG
+        let enableDebugLogs = true
+        #else
+        let enableDebugLogs = configuration.debugMode
+        #endif
+        if enableDebugLogs {
             args.append(contentsOf: ["--print-logs", "--log-level", "DEBUG"])
-        } else {
-            #if DEBUG
-            args.append(contentsOf: ["--print-logs", "--log-level", "DEBUG"])
-            #endif
         }
         
         // Add model if specified

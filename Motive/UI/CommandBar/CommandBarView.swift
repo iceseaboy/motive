@@ -148,15 +148,7 @@ struct CommandBarView: View {
             }
         }
             .onChange(of: appState.sessionListRefreshTrigger) { _, _ in
-            // Refresh list without jumping selection
             refreshHistorySessions(preferredIndex: selectedHistoryIndex)
-            }
-            .onChange(of: showFileCompletion) { _, isShowing in
-                // File completion doesn't change height, just shows/hides list
-                // Height is controlled by mode, not file completion state
-            }
-            .onChange(of: fileCompletion.items) { _, newItems in
-                // Items change doesn't affect height either
             }
     }
 }

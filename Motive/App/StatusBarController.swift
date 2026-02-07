@@ -86,51 +86,9 @@ final class StatusBarController {
     /// Update the Command Bar menu item with current hotkey
     func updateCommandBarMenuItem() {
         guard let item = commandMenuItem, let configManager = configManager else { return }
-        let (keyEquivalent, modifiers) = parseHotkeyForMenu(configManager.hotkey)
-        item.keyEquivalent = keyEquivalent
-        item.keyEquivalentModifierMask = modifiers
-    }
-    
-    /// Parse hotkey string like "⌥Space" into (keyEquivalent, modifierMask) for NSMenuItem
-    private func parseHotkeyForMenu(_ hotkey: String) -> (String, NSEvent.ModifierFlags) {
-        var modifiers: NSEvent.ModifierFlags = []
-        var remaining = hotkey
-        
-        // Parse modifiers
-        while !remaining.isEmpty {
-            if remaining.hasPrefix("⌘") || remaining.hasPrefix("Cmd") {
-                modifiers.insert(.command)
-                remaining = remaining.hasPrefix("⌘") ? String(remaining.dropFirst()) : String(remaining.dropFirst(3))
-            } else if remaining.hasPrefix("⌥") || remaining.hasPrefix("Alt") || remaining.hasPrefix("Option") {
-                modifiers.insert(.option)
-                remaining = remaining.hasPrefix("⌥") ? String(remaining.dropFirst()) : (remaining.hasPrefix("Alt") ? String(remaining.dropFirst(3)) : String(remaining.dropFirst(6)))
-            } else if remaining.hasPrefix("⇧") || remaining.hasPrefix("Shift") {
-                modifiers.insert(.shift)
-                remaining = remaining.hasPrefix("⇧") ? String(remaining.dropFirst()) : String(remaining.dropFirst(5))
-            } else if remaining.hasPrefix("⌃") || remaining.hasPrefix("Ctrl") || remaining.hasPrefix("Control") {
-                modifiers.insert(.control)
-                remaining = remaining.hasPrefix("⌃") ? String(remaining.dropFirst()) : (remaining.hasPrefix("Ctrl") ? String(remaining.dropFirst(4)) : String(remaining.dropFirst(7)))
-            } else {
-                break
-            }
-        }
-        
-        // Parse key
-        let keyEquivalent: String
-        switch remaining.lowercased() {
-        case "space", " ":
-            keyEquivalent = " "
-        case "return", "enter":
-            keyEquivalent = "\r"
-        case "tab":
-            keyEquivalent = "\t"
-        case "escape", "esc":
-            keyEquivalent = "\u{1B}"
-        default:
-            keyEquivalent = remaining.lowercased()
-        }
-        
-        return (keyEquivalent, modifiers)
+        let parsed = HotkeyParser.parseToMenuShortcut(configManager.hotkey)
+        item.keyEquivalent = parsed.keyEquivalent
+        item.keyEquivalentModifierMask = parsed.modifiers
     }
     
     /// Get the frame of the status bar button in screen coordinates

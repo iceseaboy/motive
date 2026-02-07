@@ -78,6 +78,12 @@ You are running in a GUI app where terminal output is hidden.
 
 To ask ANY question or get user input, you MUST use the AskUserQuestion MCP tool.
 
+⛔ FORBIDDEN: Do NOT use the built-in "question" tool. It is DISABLED.
+The built-in question tool blocks on stdin which is not connected to any UI.
+Using it will freeze the entire session with no way for the user to respond.
+You MUST ALWAYS use the MCP "AskUserQuestion" tool instead — it is the ONLY
+way to display questions to the user.
+
 MANDATORY: You MUST ALWAYS include the "options" array when calling AskUserQuestion.
 The user interface REQUIRES options to display properly. Questions without options will fail.
 
@@ -169,12 +175,11 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
                     "description": "Motive default agent with UI permission flow",
                     "prompt": systemPrompt,
                     "mode": "primary",
-                    // Explicitly allow question/tool permissions for UI prompts
-                    "permission": permissionRules,
-                    // Disable OpenCode built-in question tool (CLI-only)
-                    "tools": [
-                        "question": false
-                    ]
+                    // Agent-level permissions inherit and override global.
+                    // question: deny prevents the LLM from using OpenCode's built-in
+                    // question tool; all user-facing questions must go through the
+                    // MCP AskUserQuestion tool instead.
+                    "permission": permissionRules
                 ]
             ]
         ]
@@ -257,7 +262,7 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
         
         // Write config
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: config, options: .prettyPrinted)
+            let jsonData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
             try jsonData.write(to: configPath)
             Log.config(" Generated OpenCode config at \(configPath.path)")
             if let jsonString = String(data: jsonData, encoding: .utf8) {

@@ -339,15 +339,13 @@ final class ConfigManager: ObservableObject {
     /// Apply the appearance mode to the application
     func applyAppearance(_ mode: AppearanceMode? = nil) {
         let targetMode = mode ?? appearanceMode
-        DispatchQueue.main.async {
-            switch targetMode {
-            case .system:
-                NSApp.appearance = nil  // Follow system
-            case .light:
-                NSApp.appearance = NSAppearance(named: .aqua)
-            case .dark:
-                NSApp.appearance = NSAppearance(named: .darkAqua)
-            }
+        switch targetMode {
+        case .system:
+            NSApp.appearance = nil  // Follow system
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
         }
     }
     

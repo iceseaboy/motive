@@ -58,6 +58,9 @@ final class AppState: ObservableObject {
     var sessionTimeoutTask: Task<Void, Never>?
     static let sessionTimeoutSeconds: TimeInterval = 120  // 2 minutes
     
+    /// Tracks the message ID for the current AskUserQuestion so we can update it with the user's response
+    var pendingQuestionMessageId: UUID?
+    
     var cancellables = Set<AnyCancellable>()
 
     var configManagerRef: ConfigManager { configManager }

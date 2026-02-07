@@ -107,78 +107,42 @@ final class CommandRunner: CommandRunnerProtocol, @unchecked Sendable {
     }
     
     func hasBinary(_ name: String) -> Bool {
-        // Check cache first
         cacheLock.lock()
-        if let cached = binaryCache[name] {
-            cacheLock.unlock()
-            return cached
+        defer { cacheLock.unlock() }
+
+        if let cached = binaryCache[name] { return cached }
+
+        let result = Self.effectivePaths().contains { path in
+            FileManager.default.isExecutableFile(atPath: (path as NSString).appendingPathComponent(name))
         }
-        cacheLock.unlock()
-        
-        // Build comprehensive PATH list
-        // GUI apps don't inherit shell PATH, so we add common locations
-        let paths = Self.effectivePaths()
-        
-        var result = false
-        for path in paths {
-            let fullPath = (path as NSString).appendingPathComponent(name)
-            if FileManager.default.isExecutableFile(atPath: fullPath) {
-                result = true
-                break
-            }
-        }
-        
-        // Cache the result
-        cacheLock.lock()
         binaryCache[name] = result
-        cacheLock.unlock()
-        
         return result
     }
     
-    /// Build effective PATH including common tool locations
-    /// GUI apps don't inherit shell config, so we manually add known paths
+    /// Build effective PATH including common tool locations.
+    /// GUI apps don't inherit shell config, so we manually add known paths.
     static func effectivePaths() -> [String] {
-        var paths: [String] = []
-        
-        // Start with system PATH
         let systemPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        paths.append(contentsOf: systemPath.split(separator: ":").map(String.init))
-        
-        // Add common macOS tool locations (order matters - first match wins)
-        let commonPaths = [
-            // Homebrew (Apple Silicon)
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            // Homebrew (Intel)
-            "/usr/local/bin",
-            "/usr/local/sbin",
-            // System
-            "/usr/bin",
-            "/bin",
-            "/usr/sbin",
-            "/sbin",
-            // Go
-            "\(NSHomeDirectory())/go/bin",
-            "/usr/local/go/bin",
-            // Rust/Cargo
-            "\(NSHomeDirectory())/.cargo/bin",
-            // Python/pip
-            "\(NSHomeDirectory())/.local/bin",
-            "/opt/homebrew/opt/python/libexec/bin",
-            // Node/npm global
-            "/opt/homebrew/lib/node_modules/.bin",
-            "/usr/local/lib/node_modules/.bin",
-            // pnpm
-            "\(NSHomeDirectory())/Library/pnpm",
-            // uv
-            "\(NSHomeDirectory())/.local/bin",
+        var paths = systemPath.split(separator: ":").map(String.init)
+        let home = NSHomeDirectory()
+
+        // Common macOS tool locations (order matters — first match wins)
+        let extraPaths = [
+            "/opt/homebrew/bin", "/opt/homebrew/sbin",          // Homebrew (Apple Silicon)
+            "/usr/local/bin", "/usr/local/sbin",                // Homebrew (Intel)
+            "/usr/bin", "/bin", "/usr/sbin", "/sbin",           // System
+            "\(home)/go/bin", "/usr/local/go/bin",              // Go
+            "\(home)/.cargo/bin",                               // Rust/Cargo
+            "\(home)/.local/bin",                               // Python/pip/uv
+            "/opt/homebrew/opt/python/libexec/bin",             // Homebrew Python
+            "/opt/homebrew/lib/node_modules/.bin",              // Node (Homebrew)
+            "/usr/local/lib/node_modules/.bin",                 // Node (Intel)
+            "\(home)/Library/pnpm",                             // pnpm
         ]
-        
-        for path in commonPaths where !paths.contains(path) {
+
+        for path in extraPaths where !paths.contains(path) {
             paths.append(path)
         }
-        
         return paths
     }
 }

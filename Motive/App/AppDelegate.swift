@@ -112,7 +112,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Supports both --onedir and --onefile builds
         if let dirURL = Bundle.main.url(forResource: "browser-use-sidecar", withExtension: nil) {
             var sidecarPath = dirURL.appendingPathComponent("browser-use-sidecar").path
-            // Fallback to --onefile structure
             if !FileManager.default.isExecutableFile(atPath: sidecarPath) {
                 sidecarPath = dirURL.path
             }
@@ -122,8 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 process.arguments = ["close"]
                 process.standardOutput = nil
                 process.standardError = nil
-                try? process.run()
-                // Don't wait - just fire and forget
+                do { try process.run() } catch { Log.debug("Sidecar close command failed: \(error)") }
             }
         }
         
@@ -134,11 +132,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             kill(pid, SIGTERM)
         }
         
-        // Clean up files
+        // Clean up temp files — ignore errors (files may not exist)
         let tempDir = FileManager.default.temporaryDirectory
-        try? FileManager.default.removeItem(at: tempDir.appendingPathComponent("browser-use-sidecar.sock"))
-        try? FileManager.default.removeItem(at: tempDir.appendingPathComponent("browser-use-sidecar.pid"))
-        try? FileManager.default.removeItem(at: tempDir.appendingPathComponent("browser-use-sidecar.lock"))
+        for file in ["browser-use-sidecar.sock", "browser-use-sidecar.pid", "browser-use-sidecar.lock"] {
+            try? FileManager.default.removeItem(at: tempDir.appendingPathComponent(file))
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -241,7 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let newHotkey = configManager.hotkey
         
         // Parse and update
-        let (modifiers, keyCode) = parseHotkey(newHotkey)
+        let (modifiers, keyCode) = HotkeyParser.parseToKeyCode(newHotkey)
         if modifiers != expectedModifiers || keyCode != expectedKeyCode {
             expectedModifiers = modifiers
             expectedKeyCode = keyCode
@@ -254,9 +252,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Parse the hotkey from settings
         if let configManager = appState?.configManagerRef {
-            let (modifiers, keyCode) = parseHotkey(configManager.hotkey)
-            expectedModifiers = modifiers
-            expectedKeyCode = keyCode
+            let parsed = HotkeyParser.parseToKeyCode(configManager.hotkey)
+            expectedModifiers = parsed.modifiers
+            expectedKeyCode = parsed.keyCode
         }
         
         // Global monitor for when app is not active
@@ -277,130 +275,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func unregisterHotkey() {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
-        }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
+        removeMonitor(&globalMonitor)
+        removeMonitor(&localMonitor)
+    }
+    
+    private func removeMonitor(_ monitor: inout Any?) {
+        if let m = monitor {
+            NSEvent.removeMonitor(m)
+            monitor = nil
         }
     }
     
-    /// Parse hotkey string like "⌥Space", "⌘⇧K" into modifiers and key code
-    private func parseHotkey(_ hotkey: String) -> (NSEvent.ModifierFlags, UInt16) {
-        var modifiers: NSEvent.ModifierFlags = []
-        var remaining = hotkey
-        
-        // Parse modifier symbols
-        if remaining.contains("⌃") {
-            modifiers.insert(.control)
-            remaining = remaining.replacingOccurrences(of: "⌃", with: "")
-        }
-        if remaining.contains("⌥") {
-            modifiers.insert(.option)
-            remaining = remaining.replacingOccurrences(of: "⌥", with: "")
-        }
-        if remaining.contains("⇧") {
-            modifiers.insert(.shift)
-            remaining = remaining.replacingOccurrences(of: "⇧", with: "")
-        }
-        if remaining.contains("⌘") {
-            modifiers.insert(.command)
-            remaining = remaining.replacingOccurrences(of: "⌘", with: "")
-        }
-        
-        // Parse key name
-        let keyName = remaining.trimmingCharacters(in: .whitespaces)
-        let keyCode = keyCodeForName(keyName)
-        
-        return (modifiers, keyCode)
-    }
-    
-    /// Convert key name to key code
-    private func keyCodeForName(_ name: String) -> UInt16 {
-        switch name.lowercased() {
-        case "space": return 49
-        case "return", "enter", "↵": return 36
-        case "tab": return 48
-        case "delete", "backspace": return 51
-        case "escape", "esc": return 53
-        case "←", "left": return 123
-        case "→", "right": return 124
-        case "↓", "down": return 125
-        case "↑", "up": return 126
-        case "f1": return 122
-        case "f2": return 120
-        case "f3": return 99
-        case "f4": return 118
-        case "f5": return 96
-        case "f6": return 97
-        case "f7": return 98
-        case "f8": return 100
-        case "f9": return 101
-        case "f10": return 109
-        case "f11": return 103
-        case "f12": return 111
-        // Letters
-        case "a": return 0
-        case "b": return 11
-        case "c": return 8
-        case "d": return 2
-        case "e": return 14
-        case "f": return 3
-        case "g": return 5
-        case "h": return 4
-        case "i": return 34
-        case "j": return 38
-        case "k": return 40
-        case "l": return 37
-        case "m": return 46
-        case "n": return 45
-        case "o": return 31
-        case "p": return 35
-        case "q": return 12
-        case "r": return 15
-        case "s": return 1
-        case "t": return 17
-        case "u": return 32
-        case "v": return 9
-        case "w": return 13
-        case "x": return 7
-        case "y": return 16
-        case "z": return 6
-        // Numbers
-        case "0": return 29
-        case "1": return 18
-        case "2": return 19
-        case "3": return 20
-        case "4": return 21
-        case "5": return 23
-        case "6": return 22
-        case "7": return 26
-        case "8": return 28
-        case "9": return 25
-        default:
-            // For single character, try to get keyCode from character
-            if name.count == 1 {
-                return keyCodeForCharacter(name.uppercased())
-            }
-            return 49  // Default to Space
-        }
-    }
-    
-    private func keyCodeForCharacter(_ char: String) -> UInt16 {
-        // Map single characters to key codes
-        guard let scalar = char.unicodeScalars.first else { return 49 }
-        let code = scalar.value
-        
-        // A-Z
-        if code >= 65 && code <= 90 {
-            let letterKeyCodes: [UInt16] = [0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6]
-            return letterKeyCodes[Int(code - 65)]
-        }
-        
-        return 49  // Default to Space
-    }
     
     @discardableResult
     private func handleKeyEvent(_ event: NSEvent) -> Bool {

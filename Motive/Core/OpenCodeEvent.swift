@@ -48,14 +48,15 @@ struct TodoItem: Identifiable, Sendable, Equatable {
         case cancelled
     }
 
-    /// Parse from dictionary (agent tool input format)
+    /// Parse from dictionary (agent tool input format).
+    /// Only `id` is required. `content` defaults to empty (preserved during merge).
+    /// `status` defaults to `.pending` if missing or unrecognized.
     init?(from dict: [String: Any]) {
-        guard let id = dict["id"] as? String,
-              let content = dict["content"] as? String else {
+        guard let id = dict["id"] as? String else {
             return nil
         }
         self.id = id
-        self.content = content
+        self.content = dict["content"] as? String ?? ""
         let statusStr = dict["status"] as? String ?? "pending"
         self.status = Status(rawValue: statusStr) ?? .pending
     }
@@ -190,42 +191,20 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case "tool_call":
             // Tool call: { type: "tool_call", part: { tool: "Read", input: {...} } }
             let toolName = part?["tool"] as? String ?? "Tool"
-            var inputStr: String? = nil
             let inputDict = OpenCodeEvent.extractToolInputDict(from: part)
             let toolCallId = OpenCodeEvent.extractToolCallId(from: part)
-            if let inputDict {
-                // Extract meaningful info from tool input
-                if let path = inputDict["filePath"] as? String {
-                    inputStr = path
-                } else if let path = inputDict["path"] as? String {
-                    inputStr = path
-                } else if let command = inputDict["command"] as? String {
-                    inputStr = command
-                } else if let description = inputDict["description"] as? String {
-                    inputStr = description
-                }
-            }
+            let inputStr = OpenCodeEvent.extractPrimaryInput(from: inputDict)
             self.init(kind: .tool, rawJson: rawJson, text: inputStr ?? "", toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolCallId: toolCallId, sessionId: sessionId)
             
         case "tool_use":
             // Tool use (combined): { type: "tool_use", part: { tool: "Read", state: { status, input, output } } }
             let toolName = part?["tool"] as? String ?? "Tool"
-            var inputStr: String? = nil
             let state = part?["state"] as? [String: Any]
             let inputDict = OpenCodeEvent.extractToolInputDict(from: state)
             let outputStr = state?["output"] as? String
             let toolCallId = OpenCodeEvent.extractToolCallId(from: state) ?? OpenCodeEvent.extractToolCallId(from: part)
-            if let inputDict {
-                if let path = inputDict["filePath"] as? String {
-                    inputStr = path
-                } else if let path = inputDict["path"] as? String {
-                    inputStr = path
-                } else if let command = inputDict["command"] as? String {
-                    inputStr = command
-                }
-            }
-            let label = OpenCodeEvent.toolDisplayLabel(toolInput: inputStr)
-            self.init(kind: .tool, rawJson: rawJson, text: label, toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolOutput: outputStr, toolCallId: toolCallId, sessionId: sessionId)
+            let inputStr = OpenCodeEvent.extractPrimaryInput(from: inputDict)
+            self.init(kind: .tool, rawJson: rawJson, text: inputStr ?? "", toolName: toolName, toolInput: inputStr, toolInputDict: inputDict, toolOutput: outputStr, toolCallId: toolCallId, sessionId: sessionId)
             
         case "tool_result":
             // Tool result: { type: "tool_result", part: { output: "..." } }
@@ -286,65 +265,40 @@ struct OpenCodeEvent: Sendable, Identifiable {
 
     private static func extractToolInputDict(from container: [String: Any]?) -> [String: Any]? {
         guard let container else { return nil }
-        if let dict = container["input"] as? [String: Any] {
-            return dict
+        let keys = ["input", "arguments", "args"]
+        // Try dict value first, then JSON-string value
+        for key in keys {
+            if let dict = container[key] as? [String: Any] { return dict }
         }
-        if let dict = container["arguments"] as? [String: Any] {
-            return dict
-        }
-        if let dict = container["args"] as? [String: Any] {
-            return dict
-        }
-        if let inputStr = container["input"] as? String,
-           let data = inputStr.data(using: .utf8),
-           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return object
-        }
-        if let inputStr = container["arguments"] as? String,
-           let data = inputStr.data(using: .utf8),
-           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return object
+        for key in keys {
+            if let str = container[key] as? String,
+               let data = str.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return dict
+            }
         }
         return nil
     }
 
     private static func extractToolCallId(from container: [String: Any]?) -> String? {
         guard let container else { return nil }
-        if let id = container["id"] as? String, !id.isEmpty {
-            return id
-        }
-        if let id = container["toolCallId"] as? String, !id.isEmpty {
-            return id
-        }
-        if let id = container["toolCallID"] as? String, !id.isEmpty {
-            return id
-        }
-        if let id = container["callId"] as? String, !id.isEmpty {
-            return id
-        }
-        return nil
+        let keys = ["id", "toolCallId", "toolCallID", "callId"]
+        return keys.lazy.compactMap { container[$0] as? String }.first { !$0.isEmpty }
     }
 
-    /// Extract a display label for the tool message `text` field.
-    /// This ONLY returns the tool input (path, command, etc.) — never raw output content.
-    /// Output summarization is handled separately by `toolOutputSummary`.
-    private static func toolDisplayLabel(toolInput: String?) -> String {
-        guard let toolInput = toolInput, !toolInput.isEmpty else { return "" }
-        return toolInput
+    /// Extract the primary display-worthy input value from a tool input dictionary.
+    /// Checks `filePath`, `path`, `command`, and `description` in priority order.
+    private static func extractPrimaryInput(from dict: [String: Any]?) -> String? {
+        guard let dict else { return nil }
+        let keys = ["filePath", "path", "command", "description"]
+        return keys.lazy.compactMap { dict[$0] as? String }.first
     }
-    
+
     /// Convert to ConversationMessage for UI display
     func toMessage() -> ConversationMessage? {
-        // Skip empty messages and step events (but never skip errors or finish)
+        // Skip empty messages — but always keep finish, error, and tool-with-name events
         if text.isEmpty && kind != .finish && kind != .error {
-            if case .tool = kind, toolName != nil {
-                // Allow tool messages with empty input so we can show "tool started"
-            } else {
-                return nil
-            }
-        }
-        if text.isEmpty && kind != .finish && kind != .tool && kind != .error {
-            return nil
+            guard kind == .tool, toolName != nil else { return nil }
         }
         
         let messageType: ConversationMessage.MessageType
@@ -394,6 +348,55 @@ struct OpenCodeEvent: Sendable, Identifiable {
 }
 
 extension ConversationMessage {
+    // MARK: - Convenience Builders
+
+    /// Return a copy with a different status.
+    func withStatus(_ newStatus: Status) -> ConversationMessage {
+        ConversationMessage(
+            id: id, type: type, content: content, timestamp: timestamp,
+            toolName: toolName, toolInput: toolInput,
+            toolOutput: toolOutput, toolCallId: toolCallId,
+            status: newStatus, todoItems: todoItems
+        )
+    }
+
+    /// Return a copy with updated content.
+    func withContent(_ newContent: String) -> ConversationMessage {
+        ConversationMessage(
+            id: id, type: type, content: newContent, timestamp: timestamp,
+            toolName: toolName, toolInput: toolInput,
+            toolOutput: toolOutput, toolCallId: toolCallId,
+            status: status, todoItems: todoItems
+        )
+    }
+
+    /// Return a copy with updated todo items and content.
+    func withTodos(_ items: [TodoItem], summary: String) -> ConversationMessage {
+        ConversationMessage(
+            id: id, type: type, content: summary, timestamp: timestamp,
+            toolName: toolName, toolInput: toolInput,
+            toolOutput: toolOutput, toolCallId: toolCallId,
+            status: status, todoItems: items
+        )
+    }
+
+    /// Merge tool data from an incoming message into this (existing) message.
+    /// Keeps the existing value for each field when the incoming value is nil/empty.
+    func mergingToolData(from incoming: ConversationMessage) -> ConversationMessage {
+        ConversationMessage(
+            id: id,
+            type: type,
+            content: content.isEmpty ? incoming.content : content,
+            timestamp: timestamp,
+            toolName: toolName ?? incoming.toolName,
+            toolInput: toolInput ?? incoming.toolInput,
+            toolOutput: toolOutput ?? incoming.toolOutput,
+            toolCallId: toolCallId ?? incoming.toolCallId,
+            status: incoming.toolOutput != nil ? .completed : status,
+            todoItems: todoItems
+        )
+    }
+
     /// Uniform output summary — always "Output · N lines", never raw content.
     /// Clicking "Show" in the UI reveals the actual output.
     var toolOutputSummary: String? {

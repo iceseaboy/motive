@@ -72,21 +72,9 @@ extension AppState {
         menuBarState = .idle
         currentToolName = nil
 
-        // Mark all running tool messages as completed (interrupted)
-        for i in messages.indices {
-            if messages[i].type == .tool && messages[i].status == .running {
-                messages[i] = ConversationMessage(
-                    id: messages[i].id,
-                    type: .tool,
-                    content: messages[i].content,
-                    timestamp: messages[i].timestamp,
-                    toolName: messages[i].toolName,
-                    toolInput: messages[i].toolInput,
-                    toolOutput: messages[i].toolOutput,
-                    toolCallId: messages[i].toolCallId,
-                    status: .failed
-                )
-            }
+        // Mark all running tool messages as failed (interrupted)
+        for i in messages.indices where messages[i].type == .tool && messages[i].status == .running {
+            messages[i] = messages[i].withStatus(.failed)
         }
 
         // Add system message
@@ -122,109 +110,78 @@ extension AppState {
         // Sync OpenCodeBridge session ID
         Task { await bridge.setSessionId(session.openCodeSessionId) }
 
-        // Ensure project directory matches the session's original cwd
-        if !session.projectPath.isEmpty {
-            let defaultPath = ConfigManager.defaultProjectDirectory.path
-            if session.projectPath == defaultPath {
-                _ = configManager.setProjectDirectory(nil)
-            } else {
-                _ = configManager.setProjectDirectory(session.projectPath)
-            }
-        }
+        // Restore project directory for this session
+        restoreProjectDirectory(for: session)
 
         // Rebuild messages from logs
-        messages = []
+        messages = [ConversationMessage(type: .user, content: session.intent, timestamp: session.createdAt)]
+        replaySessionLogs(session.logs)
+    }
 
-        // Add the initial user intent
-        let userMessage = ConversationMessage(
-            type: .user,
-            content: session.intent,
-            timestamp: session.createdAt
-        )
-        messages.append(userMessage)
+    /// Restore the project directory to match the session's original cwd.
+    private func restoreProjectDirectory(for session: Session) {
+        guard !session.projectPath.isEmpty else { return }
+        let defaultPath = ConfigManager.defaultProjectDirectory.path
+        if session.projectPath == defaultPath {
+            _ = configManager.setProjectDirectory(nil)
+        } else {
+            _ = configManager.setProjectDirectory(session.projectPath)
+        }
+    }
 
-        // Replay messages from logs with proper lifecycle handling
-        for log in session.logs {
+    /// Replay historical logs into the messages array with proper merging.
+    private func replaySessionLogs(_ logs: [LogEntry]) {
+        for log in logs {
             let event = OpenCodeEvent(rawJson: log.rawJson)
 
             // Handle TodoWrite during replay
             if event.kind == .tool, let toolName = event.toolName, toolName.isTodoWriteTool {
-                let todoItems = parseTodoItemsForReplay(from: event)
-                if !todoItems.isEmpty {
-                    let summary = "\(todoItems.filter { $0.status == .completed }.count)/\(todoItems.count) tasks completed"
-                    if let existingIndex = messages.lastIndex(where: { $0.type == .todo }) {
-                        messages[existingIndex] = ConversationMessage(
-                            id: messages[existingIndex].id,
-                            type: .todo,
-                            content: summary,
-                            timestamp: messages[existingIndex].timestamp,
-                            status: .completed,
-                            todoItems: todoItems
-                        )
-                    } else {
-                        messages.append(ConversationMessage(
-                            type: .todo,
-                            content: summary,
-                            status: .completed,
-                            todoItems: todoItems
-                        ))
-                    }
-                    continue
-                }
+                replayTodoEvent(event)
+                continue
+            }
+
+            // Handle AskUserQuestion during replay — show as "Question" with response
+            if event.kind == .tool, isAskUserQuestionTool(event.toolName) {
+                replayAskUserQuestionEvent(event)
+                continue
             }
 
             guard let message = event.toMessage() else { continue }
 
-            // Skip redundant completion messages during replay
-            if message.type == .system {
-                let content = message.content.lowercased()
-                let isCompletion = content == "completed" || content == "session idle"
-                    || content == "task completed" || content.hasPrefix("task completed with exit code")
-                if isCompletion {
-                    let alreadyHas = messages.contains { $0.type == .system && $0.content.lowercased() == "completed" }
-                    if alreadyHas { continue }
-                    // Keep only "Completed", skip the rest
-                    if content != "completed" { continue }
-                }
+            // Skip redundant completion messages
+            if message.type == .system && isCompletionText(message.content) {
+                let alreadyHas = messages.contains { $0.type == .system && $0.content.lowercased() == "completed" }
+                if alreadyHas || message.content.lowercased() != "completed" { continue }
             }
 
-            // During replay, all tool messages are completed (historical)
-            // Merge by toolCallId to avoid duplicates from separate tool_call + tool_result events
+            // All historical tool messages are completed; merge by toolCallId
             if message.type == .tool {
-                let replayMessage = ConversationMessage(
-                    id: message.id,
-                    type: .tool,
-                    content: message.content,
-                    timestamp: message.timestamp,
-                    toolName: message.toolName,
-                    toolInput: message.toolInput,
-                    toolOutput: message.toolOutput,
-                    toolCallId: message.toolCallId,
-                    status: .completed
-                )
-                // Merge with existing tool message by toolCallId
-                if let callId = replayMessage.toolCallId,
-                   let existingIndex = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
-                    let existing = messages[existingIndex]
-                    messages[existingIndex] = ConversationMessage(
-                        id: existing.id,
-                        type: .tool,
-                        content: existing.content.isEmpty ? replayMessage.content : existing.content,
-                        timestamp: existing.timestamp,
-                        toolName: existing.toolName ?? replayMessage.toolName,
-                        toolInput: existing.toolInput ?? replayMessage.toolInput,
-                        toolOutput: existing.toolOutput ?? replayMessage.toolOutput,
-                        toolCallId: callId,
-                        status: .completed
-                    )
+                let completed = message.withStatus(.completed)
+                if let callId = completed.toolCallId,
+                   let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
+                    messages[idx] = messages[idx].mergingToolData(from: completed)
                 } else {
-                    messages.append(replayMessage)
+                    messages.append(completed)
                 }
             } else {
                 messages.append(message)
             }
         }
-        // @Observable handles change tracking automatically
+    }
+
+    /// Replay a single TodoWrite event into the messages array.
+    private func replayTodoEvent(_ event: OpenCodeEvent) {
+        let todoItems = parseTodoItemsForReplay(from: event)
+        guard !todoItems.isEmpty else { return }
+        let summary = todoSummary(todoItems)
+        if let idx = messages.lastIndex(where: { $0.type == .todo }) {
+            messages[idx] = messages[idx].withTodos(todoItems, summary: summary)
+        } else {
+            messages.append(ConversationMessage(
+                type: .todo, content: summary,
+                status: .completed, todoItems: todoItems
+            ))
+        }
     }
 
     /// Start a new empty session (for "New Chat" button)
@@ -360,6 +317,44 @@ extension AppState {
         // Use the project directory that this session was created with
         let cwd = session.projectPath.isEmpty ? configManager.currentProjectURL.path : session.projectPath
         Task { await bridge.resumeSession(sessionId: openCodeSessionId, text: trimmed, cwd: cwd) }
+    }
+
+    /// Replay a single AskUserQuestion event into the messages array.
+    private func replayAskUserQuestionEvent(_ event: OpenCodeEvent) {
+        let inputDict: [String: Any]? = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson)
+        let questionText: String
+        if let q = inputDict?["question"] as? String {
+            questionText = q
+        } else if let questions = inputDict?["questions"] as? [[String: Any]],
+                  let firstQ = questions.first?["question"] as? String {
+            questionText = firstQ
+        } else {
+            questionText = "Question"
+        }
+
+        // Merge by toolCallId if a question message already exists
+        if let callId = event.toolCallId,
+           let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
+            let existing = messages[idx]
+            messages[idx] = ConversationMessage(
+                id: existing.id, type: .tool,
+                content: existing.content, timestamp: existing.timestamp,
+                toolName: "Question", toolInput: existing.toolInput,
+                toolOutput: event.toolOutput ?? existing.toolOutput,
+                toolCallId: existing.toolCallId,
+                status: .completed
+            )
+        } else {
+            messages.append(ConversationMessage(
+                type: .tool,
+                content: questionText,
+                toolName: "Question",
+                toolInput: questionText,
+                toolOutput: event.toolOutput,
+                toolCallId: event.toolCallId,
+                status: .completed
+            ))
+        }
     }
 
     /// Parse todo items during session replay (simplified version for historical data)

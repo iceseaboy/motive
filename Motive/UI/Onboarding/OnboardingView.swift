@@ -13,6 +13,12 @@ private enum AuroraInputFieldStyle {
     static let height: CGFloat = 36
     static let horizontalPadding: CGFloat = AuroraSpacing.space3
     static let cornerRadius: CGFloat = AuroraRadius.sm
+
+    /// Shared input background color matching the onboarding card surface.
+    static func backgroundColor(isDark: Bool) -> Color {
+        isDark ? Color(red: 0x19 / 255.0, green: 0x19 / 255.0, blue: 0x19 / 255.0)
+               : Color(red: 0xFA / 255.0, green: 0xFA / 255.0, blue: 0xFA / 255.0)
+    }
 }
 
 // MARK: - Aurora Styled Text Field
@@ -21,15 +27,7 @@ struct StyledTextField: View {
     let placeholder: String
     @Binding var text: String
     @Environment(\.colorScheme) private var colorScheme
-    
-    private var isDark: Bool { colorScheme == .dark }
-    
-    // Use explicit color values to ensure correct background
-    private var backgroundColor: Color {
-        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
-               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
-    }
-    
+
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
@@ -39,7 +37,7 @@ struct StyledTextField: View {
             .frame(height: AuroraInputFieldStyle.height)
             .background(
                 RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
-                    .fill(backgroundColor)
+                    .fill(AuroraInputFieldStyle.backgroundColor(isDark: colorScheme == .dark))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
@@ -55,15 +53,7 @@ struct SecureInputField: View {
     @Binding var text: String
     @State private var showingText: Bool = false
     @Environment(\.colorScheme) private var colorScheme
-    
-    private var isDark: Bool { colorScheme == .dark }
-    
-    // Use explicit color values to ensure correct background
-    private var backgroundColor: Color {
-        isDark ? Color(red: 0x19/255.0, green: 0x19/255.0, blue: 0x19/255.0) 
-               : Color(red: 0xFA/255.0, green: 0xFA/255.0, blue: 0xFA/255.0)
-    }
-    
+
     var body: some View {
         HStack(spacing: 0) {
             Group {
@@ -89,7 +79,7 @@ struct SecureInputField: View {
         .frame(height: AuroraInputFieldStyle.height)
         .background(
             RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)
-                .fill(backgroundColor)
+                .fill(AuroraInputFieldStyle.backgroundColor(isDark: colorScheme == .dark))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraInputFieldStyle.cornerRadius, style: .continuous)

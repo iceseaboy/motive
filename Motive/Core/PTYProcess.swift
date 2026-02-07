@@ -111,16 +111,20 @@ final class PTYProcess: @unchecked Sendable {
         write(string + "\n")
     }
     
-    /// Send interrupt signal (Ctrl+C)
+    /// Send interrupt signal (Ctrl+C) to the entire process group.
+    /// forkpty creates a new session, so the child's PID equals its PGID.
+    /// Using killpg ensures all child processes (MCP servers, browser automation, etc.)
+    /// are also interrupted, not just the top-level OpenCode process.
     func interrupt() {
         guard pid > 0 else { return }
-        kill(pid, SIGINT)
+        // Kill entire process group (includes child processes like browser-use, MCP servers)
+        killpg(pid, SIGINT)
     }
     
-    /// Terminate process
+    /// Terminate the entire process group
     func terminate() {
         guard pid > 0 else { return }
-        kill(pid, SIGTERM)
+        killpg(pid, SIGTERM)
     }
     
     /// Wait for process to exit and return status

@@ -81,9 +81,57 @@ extension AppState {
 
             // Intercept AskUserQuestion tool calls
             if isAskUserQuestionTool(event.toolName) {
+                Log.debug("AskUserQuestion event: kind=\(event.kind.rawValue) hasOutput=\(event.toolOutput != nil) callId=\(event.toolCallId ?? "nil") pendingQ=\(pendingQuestionMessageId?.uuidString.prefix(8) ?? "nil")")
+
+                // tool_use with output AND an existing pending question = already answered
+                if event.toolOutput != nil, pendingQuestionMessageId != nil {
+                    updateQuestionMessage(response: event.toolOutput ?? "")
+                    Log.debug("AskUserQuestion: merged tool_use output with existing question")
+                    logEvent(event)
+                    return
+                }
+
+                // tool_use with output but NO pending question = combined event,
+                // create a completed question message directly so it appears in conversation
+                if event.toolOutput != nil, pendingQuestionMessageId == nil {
+                    if let callId = event.toolCallId,
+                       let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
+                        // Merge by callId with existing message
+                        let existing = messages[idx]
+                        messages[idx] = ConversationMessage(
+                            id: existing.id, type: .tool,
+                            content: existing.content, timestamp: existing.timestamp,
+                            toolName: existing.toolName, toolInput: existing.toolInput,
+                            toolOutput: event.toolOutput, toolCallId: existing.toolCallId,
+                            status: .completed
+                        )
+                        Log.debug("AskUserQuestion: merged by callId (no pending question)")
+                    } else {
+                        // No existing message at all — create a completed question record
+                        let inputDict = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson)
+                        let questionText = inputDict?["question"] as? String
+                            ?? (inputDict?["questions"] as? [[String: Any]])?.first?["question"] as? String
+                            ?? "Question"
+                        messages.append(ConversationMessage(
+                            type: .tool,
+                            content: questionText,
+                            toolName: "Question",
+                            toolInput: questionText,
+                            toolOutput: event.toolOutput,
+                            toolCallId: event.toolCallId,
+                            status: .completed
+                        ))
+                        Log.debug("AskUserQuestion: created completed question message from tool_use (no prior tool_call)")
+                    }
+                    logEvent(event)
+                    return
+                }
+
+                // tool_call without output = new question, show modal
                 if let inputDict = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson) {
-                    handleAskUserQuestion(input: inputDict)
-                    return  // Don't add to message list
+                    handleAskUserQuestion(input: inputDict, event: event)
+                    logEvent(event)
+                    return
                 }
                 Log.debug("AskUserQuestion: matched tool name but no input payload")
             }
@@ -187,26 +235,14 @@ extension AppState {
 
     /// When a step/task finishes, mark any still-running tool messages as completed.
     private func finalizeRunningMessages() {
-        for i in messages.indices {
-            if messages[i].type == .tool && messages[i].status == .running {
-                messages[i] = ConversationMessage(
-                    id: messages[i].id,
-                    type: .tool,
-                    content: messages[i].content,
-                    timestamp: messages[i].timestamp,
-                    toolName: messages[i].toolName,
-                    toolInput: messages[i].toolInput,
-                    toolOutput: messages[i].toolOutput,
-                    toolCallId: messages[i].toolCallId,
-                    status: .completed
-                )
-            }
+        for i in messages.indices where messages[i].type == .tool && messages[i].status == .running {
+            messages[i] = messages[i].withStatus(.completed)
         }
     }
 
     // MARK: - AskUserQuestion
 
-    private func isAskUserQuestionTool(_ toolName: String?) -> Bool {
+    func isAskUserQuestionTool(_ toolName: String?) -> Bool {
         guard let toolName else { return false }
         let normalized = normalizeToolName(toolName)
         if normalized == "askuserquestion" { return true }
@@ -222,7 +258,7 @@ extension AppState {
         return stripped
     }
 
-    private func extractAskUserQuestionInput(from rawJson: String) -> [String: Any]? {
+    func extractAskUserQuestionInput(from rawJson: String) -> [String: Any]? {
         guard let data = rawJson.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let part = object["part"] as? [String: Any] else {
@@ -240,24 +276,16 @@ extension AppState {
     }
 
     private func extractInputDict(from container: [String: Any]) -> [String: Any]? {
-        if let dict = container["input"] as? [String: Any] {
-            return dict
+        let keys = ["input", "arguments", "args"]
+        for key in keys {
+            if let dict = container[key] as? [String: Any] { return dict }
         }
-        if let dict = container["arguments"] as? [String: Any] {
-            return dict
-        }
-        if let dict = container["args"] as? [String: Any] {
-            return dict
-        }
-        if let inputStr = container["input"] as? String,
-           let data = inputStr.data(using: .utf8),
-           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return object
-        }
-        if let inputStr = container["arguments"] as? String,
-           let data = inputStr.data(using: .utf8),
-           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return object
+        for key in keys {
+            if let str = container[key] as? String,
+               let data = str.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return dict
+            }
         }
         return nil
     }
@@ -268,177 +296,205 @@ extension AppState {
         cloudKitManager.updateProgress(commandId: commandId, toolName: toolName)
     }
 
-    /// Handle AskUserQuestion tool call - show popup and send response via PTY
-    private func handleAskUserQuestion(input: [String: Any]) {
+    /// Handle AskUserQuestion tool call - show popup, add to conversation, and send response via PTY
+    private func handleAskUserQuestion(input: [String: Any], event: OpenCodeEvent) {
         Log.debug("Intercepted AskUserQuestion tool call")
 
-        // Parse questions from input (supports both "questions" and single "question" shapes)
-        let questions: [[String: Any]]
-        if let rawQuestions = input["questions"] as? [[String: Any]] {
-            questions = rawQuestions
-        } else if let question = input["question"] as? String {
-            var single: [String: Any] = [
-                "question": question
-            ]
-            if let header = input["header"] as? String {
-                single["header"] = header
-            }
-            if let options = input["options"] {
-                single["options"] = options
-            }
-            if let multiSelect = input["multiSelect"] {
-                single["multiSelect"] = multiSelect
-            }
-            questions = [single]
-        } else {
-            Log.debug("AskUserQuestion: no questions found in input")
-            return
-        }
-        guard let firstQuestion = questions.first else {
-            Log.debug("AskUserQuestion: empty questions array")
-            return
-        }
+        guard let firstQuestion = parseAskUserQuestions(from: input) else { return }
 
         let questionText = firstQuestion["question"] as? String ?? "Question from AI"
         let header = firstQuestion["header"] as? String ?? "Question"
         let multiSelect = firstQuestion["multiSelect"] as? Bool ?? false
+        let (options, optionLabels) = parseQuestionOptions(from: firstQuestion)
 
-        // Parse options
+        // Add question to conversation as a tool message (waiting for user response)
+        let questionMessageId = UUID()
+        pendingQuestionMessageId = questionMessageId
+        let optionsSummary = optionLabels.isEmpty ? "" : " [\(optionLabels.joined(separator: " / "))]"
+        messages.append(ConversationMessage(
+            id: questionMessageId,
+            type: .tool,
+            content: questionText,
+            toolName: "Question",
+            toolInput: questionText + optionsSummary,
+            toolCallId: event.toolCallId,
+            status: .running  // Waiting for user response
+        ))
+
+        // If this is a remote command, send question to iOS via CloudKit
+        if let commandId = currentRemoteCommandId {
+            sendQuestionToRemote(commandId: commandId, header: header, question: questionText, options: optionLabels)
+            return
+        }
+
+        // For local commands, show QuickConfirm
+        showLocalQuestionPrompt(
+            question: questionText, header: header,
+            options: options, multiSelect: multiSelect
+        )
+    }
+
+    /// Parse the questions array from AskUserQuestion input.
+    /// Supports both `"questions": [...]` and single `"question": "..."` shapes.
+    private func parseAskUserQuestions(from input: [String: Any]) -> [String: Any]? {
+        let questions: [[String: Any]]
+        if let rawQuestions = input["questions"] as? [[String: Any]] {
+            questions = rawQuestions
+        } else if let question = input["question"] as? String {
+            var single: [String: Any] = ["question": question]
+            if let h = input["header"] as? String { single["header"] = h }
+            if let o = input["options"] { single["options"] = o }
+            if let m = input["multiSelect"] { single["multiSelect"] = m }
+            questions = [single]
+        } else {
+            Log.debug("AskUserQuestion: no questions found in input")
+            return nil
+        }
+        guard let first = questions.first else {
+            Log.debug("AskUserQuestion: empty questions array")
+            return nil
+        }
+        return first
+    }
+
+    /// Parse question options into structured options and label strings.
+    private func parseQuestionOptions(from question: [String: Any]) -> ([PermissionRequest.QuestionOption], [String]) {
         var options: [PermissionRequest.QuestionOption] = []
-        var optionLabels: [String] = []
-        if let rawOptions = firstQuestion["options"] as? [[String: Any]] {
-            options = rawOptions.map { opt in
+        var labels: [String] = []
+
+        if let rawOptions = question["options"] as? [[String: Any]] {
+            for opt in rawOptions {
                 let label = opt["label"] as? String ?? ""
-                optionLabels.append(label)
-                return PermissionRequest.QuestionOption(
-                    label: label,
-                    description: opt["description"] as? String
-                )
+                labels.append(label)
+                options.append(PermissionRequest.QuestionOption(label: label, description: opt["description"] as? String))
             }
-        } else if let rawOptions = firstQuestion["options"] as? [String] {
-            options = rawOptions.map { label in
-                optionLabels.append(label)
-                return PermissionRequest.QuestionOption(label: label)
+        } else if let rawOptions = question["options"] as? [String] {
+            for label in rawOptions {
+                labels.append(label)
+                options.append(PermissionRequest.QuestionOption(label: label))
             }
         }
 
-        // If no options provided, add default Yes/No/Other
+        // Default Yes/No/Other when no options provided
         if options.isEmpty {
             options = [
                 PermissionRequest.QuestionOption(label: "Yes"),
                 PermissionRequest.QuestionOption(label: "No"),
-                PermissionRequest.QuestionOption(label: "Other", description: "Custom response")
+                PermissionRequest.QuestionOption(label: "Other", description: "Custom response"),
             ]
-            optionLabels = ["Yes", "No", "Other"]
+            labels = ["Yes", "No", "Other"]
         }
 
-        // If this is a remote command, send question to iOS via CloudKit
-        if let commandId = currentRemoteCommandId {
-            Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
-            Task {
-                let response = await cloudKitManager.sendPermissionRequest(
-                    commandId: commandId,
-                    question: "\(header): \(questionText)",
-                    options: optionLabels
-                )
-                
-                if let response = response {
-                    Log.debug("Got response from iOS: \(response)")
-                    await bridge.sendResponse(response)
-                } else {
-                    Log.debug("No response from iOS, sending empty response")
-                    await bridge.sendResponse("")
-                }
-                updateStatusBar()
-            }
-            return  // Don't show local QuickConfirm for remote commands
-        }
+        return (options, labels)
+    }
 
-        // For local commands, show QuickConfirm as usual
+    /// Forward a question to iOS via CloudKit (for remote commands).
+    private func sendQuestionToRemote(commandId: String, header: String, question: String, options: [String]) {
+        Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
+        Task {
+            let response = await cloudKitManager.sendPermissionRequest(
+                commandId: commandId,
+                question: "\(header): \(question)",
+                options: options
+            )
+            Log.debug(response != nil ? "Got response from iOS: \(response!)" : "No response from iOS, sending empty response")
+            updateQuestionMessage(response: response ?? "User declined to answer.")
+            await bridge.sendResponse(response ?? "")
+            updateStatusBar()
+        }
+    }
+
+    /// Show a local QuickConfirm prompt for AskUserQuestion.
+    private func showLocalQuestionPrompt(
+        question: String, header: String,
+        options: [PermissionRequest.QuestionOption], multiSelect: Bool
+    ) {
         let requestId = "askuser_\(UUID().uuidString)"
         let request = PermissionRequest(
-            id: requestId,
-            taskId: requestId,
-            type: .question,
-            question: questionText,
-            header: header,
-            options: options,
-            multiSelect: multiSelect
+            id: requestId, taskId: requestId, type: .question,
+            question: question, header: header,
+            options: options, multiSelect: multiSelect
         )
 
-        // Show quick confirm with custom handlers for AskUserQuestion
         if quickConfirmController == nil {
             quickConfirmController = QuickConfirmWindowController()
         }
 
-        let anchorFrame = statusBarController?.buttonFrame
-
         quickConfirmController?.show(
             request: request,
-            anchorFrame: anchorFrame,
+            anchorFrame: statusBarController?.buttonFrame,
             onResponse: { [weak self] (response: String) in
-                // Send response to OpenCode via PTY stdin
                 Log.debug("AskUserQuestion response: \(response)")
-                Task { [weak self] in
-                    await self?.bridge.sendResponse(response)
-                }
+                self?.updateQuestionMessage(response: response)
+                Task { [weak self] in await self?.bridge.sendResponse(response) }
                 self?.updateStatusBar()
             },
             onCancel: { [weak self] in
-                // User cancelled - send empty response
                 Log.debug("AskUserQuestion cancelled")
-                Task { [weak self] in
-                    await self?.bridge.sendResponse("")
-                }
+                self?.updateQuestionMessage(response: "User declined to answer.")
+                Task { [weak self] in await self?.bridge.sendResponse("") }
                 self?.updateStatusBar()
             }
         )
     }
 
-    /// Detect errors from OpenCode output
+    /// Update the pending AskUserQuestion message with the user's response
+    private func updateQuestionMessage(response: String) {
+        guard let messageId = pendingQuestionMessageId,
+              let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        let existing = messages[index]
+        let displayResponse = response.isEmpty ? "User declined to answer." : response
+        messages[index] = ConversationMessage(
+            id: existing.id,
+            type: .tool,
+            content: existing.content,
+            timestamp: existing.timestamp,
+            toolName: existing.toolName,
+            toolInput: existing.toolInput,
+            toolOutput: displayResponse,
+            toolCallId: existing.toolCallId,
+            status: .completed
+        )
+        pendingQuestionMessageId = nil
+    }
+
+    /// Detect errors from OpenCode output using a table-driven approach.
     private func detectError(in text: String, rawJson: String) -> String? {
         let lowerText = text.lowercased()
-        let lowerJson = rawJson.lowercased()
 
-        // Check for OpenCode not configured (binary not found or bridge not initialized)
-        if lowerText.contains("opencode not configured") || lowerText.contains("not configured") {
-            return text
+        // Ordered list: (keywords-to-match, user-facing message or nil for raw text)
+        // Each entry is ([keywords], message). ALL keywords must be present.
+        typealias Rule = (keywords: [String], message: String?)
+        let rules: [Rule] = [
+            (["opencode not configured"],                                nil),
+            (["not configured"],                                         nil),
+            (["authentication"],                                         "API authentication failed. Check your API key in Settings."),
+            (["unauthorized"],                                           "API authentication failed. Check your API key in Settings."),
+            (["invalid api key"],                                        "API authentication failed. Check your API key in Settings."),
+            (["401"],                                                    "API authentication failed. Check your API key in Settings."),
+            (["rate limit"],                                             "Rate limit exceeded. Please wait and try again."),
+            (["429"],                                                    "Rate limit exceeded. Please wait and try again."),
+            (["too many requests"],                                      "Rate limit exceeded. Please wait and try again."),
+            (["model not found"],                                        "Model not found. Check your model name in Settings."),
+            (["does not exist"],                                         "Model not found. Check your model name in Settings."),
+            (["invalid model"],                                          "Model not found. Check your model name in Settings."),
+            (["connection", "refused"],                                   "Connection failed. Check your Base URL or network."),
+            (["connection", "failed"],                                    "Connection failed. Check your Base URL or network."),
+            (["econnrefused"],                                           "Network error. Check your internet connection."),
+            (["network error"],                                          "Network error. Check your internet connection."),
+            (["ollama", "not running"],                                   "Ollama is not running. Start Ollama and try again."),
+            (["ollama", "not found"],                                    "Ollama is not running. Start Ollama and try again."),
+        ]
+
+        for rule in rules {
+            if rule.keywords.allSatisfy({ lowerText.contains($0) }) {
+                return rule.message ?? text
+            }
         }
 
-        // Check for API authentication errors
-        if lowerText.contains("authentication") || lowerText.contains("unauthorized") ||
-            lowerText.contains("invalid api key") || lowerText.contains("401") {
-            return "API authentication failed. Check your API key in Settings."
-        }
-
-        // Check for rate limiting
-        if lowerText.contains("rate limit") || lowerText.contains("429") || lowerText.contains("too many requests") {
-            return "Rate limit exceeded. Please wait and try again."
-        }
-
-        // Check for model not found
-        if lowerText.contains("model not found") || lowerText.contains("does not exist") ||
-            lowerText.contains("invalid model") {
-            return "Model not found. Check your model name in Settings."
-        }
-
-        // Check for connection errors
-        if lowerText.contains("connection") && (lowerText.contains("refused") || lowerText.contains("failed")) {
-            return "Connection failed. Check your Base URL or network."
-        }
-
-        if lowerText.contains("econnrefused") || lowerText.contains("network error") {
-            return "Network error. Check your internet connection."
-        }
-
-        // Check for Ollama specific errors
-        if lowerText.contains("ollama") && (lowerText.contains("not running") || lowerText.contains("not found")) {
-            return "Ollama is not running. Start Ollama and try again."
-        }
-
-        // Check for encrypted content verification errors (session/project mismatch)
-        if lowerText.contains("encrypted content") && (lowerText.contains("could not be verified") || lowerText.contains("invalid_encrypted_content")) {
-            // Clear session ID and retry as new session
+        // Encrypted content verification → clear session and suggest retry
+        if lowerText.contains("encrypted content")
+            && (lowerText.contains("could not be verified") || lowerText.contains("invalid_encrypted_content")) {
             if let session = currentSession {
                 Log.debug("Encrypted content verification failed - clearing session ID (likely project mismatch)")
                 session.openCodeSessionId = nil
@@ -448,12 +504,9 @@ extension AppState {
         }
 
         // Generic error detection
+        let lowerJson = rawJson.lowercased()
         if lowerText.contains("error") || lowerJson.contains("\"error\"") {
-            // Extract a meaningful error message if possible
-            if text.count < 200 {
-                return text
-            }
-            return "An error occurred. Check the console for details."
+            return text.count < 200 ? text : "An error occurred. Check the console for details."
         }
 
         return nil
@@ -518,15 +571,7 @@ extension AppState {
         if message.type == .assistant,
            let lastIndex = messages.lastIndex(where: { $0.type == .assistant }),
            lastIndex == messages.count - 1 {
-            // Append to last assistant message
-            let lastMessage = messages[lastIndex]
-            let mergedContent = lastMessage.content + message.content
-            messages[lastIndex] = ConversationMessage(
-                id: lastMessage.id,
-                type: .assistant,
-                content: mergedContent,
-                timestamp: lastMessage.timestamp
-            )
+            messages[lastIndex] = messages[lastIndex].withContent(messages[lastIndex].content + message.content)
         }
         // --- Tool message lifecycle merge ---
         else if message.type == .tool {
@@ -541,49 +586,22 @@ extension AppState {
         logEvent(event)
     }
 
-    /// Process tool messages with proper lifecycle: running → completed
+    /// Process tool messages with proper lifecycle: running -> completed
     private func processToolMessage(_ message: ConversationMessage) {
         // Strategy 1: Merge by toolCallId (most reliable)
         if let toolCallId = message.toolCallId,
-           let existingIndex = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == toolCallId }) {
-            let existing = messages[existingIndex]
-            let mergedContent = existing.content.isEmpty ? message.content : existing.content
-            // When result arrives, transition from .running → .completed
-            let mergedStatus: ConversationMessage.Status =
-                (message.toolOutput != nil) ? .completed : existing.status
-            Log.debug("Tool merge [callId]: \(existing.toolName ?? "?") \(existing.status.rawValue) → \(mergedStatus.rawValue)")
-            messages[existingIndex] = ConversationMessage(
-                id: existing.id,
-                type: .tool,
-                content: mergedContent,
-                timestamp: existing.timestamp,
-                toolName: existing.toolName ?? message.toolName,
-                toolInput: existing.toolInput ?? message.toolInput,
-                toolOutput: existing.toolOutput ?? message.toolOutput,
-                toolCallId: existing.toolCallId ?? message.toolCallId,
-                status: mergedStatus
-            )
+           let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == toolCallId }) {
+            Log.debug("Tool merge [callId]: \(messages[idx].toolName ?? "?") \(messages[idx].status.rawValue) → \(message.toolOutput != nil ? "completed" : messages[idx].status.rawValue)")
+            messages[idx] = messages[idx].mergingToolData(from: message)
         }
         // Strategy 2: Merge consecutive tool messages (fallback for missing toolCallId)
-        else if let lastIndex = messages.lastIndex(where: { $0.type == .tool }),
-                lastIndex == messages.count - 1,
-                messages[lastIndex].toolOutput == nil,
+        else if let lastIdx = messages.lastIndex(where: { $0.type == .tool }),
+                lastIdx == messages.count - 1,
+                messages[lastIdx].toolOutput == nil,
                 message.toolOutput != nil,
-                (message.toolName == "Result" || message.toolName == messages[lastIndex].toolName) {
-            let lastMessage = messages[lastIndex]
-            let mergedContent = lastMessage.content.isEmpty ? message.content : lastMessage.content
-            Log.debug("Tool merge [consecutive]: \(lastMessage.toolName ?? "?") → completed")
-            messages[lastIndex] = ConversationMessage(
-                id: lastMessage.id,
-                type: .tool,
-                content: mergedContent,
-                timestamp: lastMessage.timestamp,
-                toolName: lastMessage.toolName,
-                toolInput: lastMessage.toolInput,
-                toolOutput: message.toolOutput,
-                toolCallId: lastMessage.toolCallId ?? message.toolCallId,
-                status: .completed  // Result arrived → completed
-            )
+                (message.toolName == "Result" || message.toolName == messages[lastIdx].toolName) {
+            Log.debug("Tool merge [consecutive]: \(messages[lastIdx].toolName ?? "?") → completed")
+            messages[lastIdx] = messages[lastIdx].mergingToolData(from: message)
         }
         // No merge target — append as new message
         else {
@@ -593,7 +611,7 @@ extension AppState {
     }
 
     /// Check if text represents a completion message
-    private func isCompletionText(_ text: String) -> Bool {
+    func isCompletionText(_ text: String) -> Bool {
         let lower = text.lowercased()
         return lower == "completed"
             || lower == "session idle"
@@ -608,6 +626,7 @@ extension AppState {
         // Parse todo items from the tool input
         let todoItems = parseTodoItems(from: event)
         guard !todoItems.isEmpty else {
+            Log.debug("TodoWrite: no items parsed from event")
             // If we can't parse todos, fall back to normal tool display
             if let message = event.toMessage() {
                 processToolMessage(message)
@@ -617,45 +636,36 @@ extension AppState {
 
         // Determine if we should merge with existing todo message
         let merge = parseTodoMerge(from: event)
+        Log.debug("TodoWrite: \(todoItems.count) items, merge=\(merge)")
+        for item in todoItems {
+            Log.debug("  todo[\(item.id)]: status=\(item.status.rawValue), content=\"\(item.content.prefix(40))\"")
+        }
 
         // Find existing todo message to update
         if let existingIndex = messages.lastIndex(where: { $0.type == .todo }) {
             let existing = messages[existingIndex]
             let finalItems: [TodoItem]
             if merge, let existingItems = existing.todoItems {
-                // Merge: update existing items by ID, add new ones
-                var itemMap: [String: TodoItem] = [:]
-                for item in existingItems {
-                    itemMap[item.id] = item
-                }
+                // Merge: update existing items by ID, preserve content when new item has none
+                var itemMap = Dictionary(uniqueKeysWithValues: existingItems.map { ($0.id, $0) })
                 for item in todoItems {
-                    itemMap[item.id] = item
+                    if let existingItem = itemMap[item.id], item.content.isEmpty {
+                        // Status-only update: keep existing content, apply new status
+                        itemMap[item.id] = TodoItem(id: item.id, content: existingItem.content, status: item.status)
+                    } else {
+                        itemMap[item.id] = item
+                    }
                 }
-                finalItems = Array(itemMap.values).sorted { $0.id < $1.id }
+                finalItems = itemMap.values.sorted { $0.id < $1.id }
             } else {
-                // Replace: new todo list
                 finalItems = todoItems
             }
-
-            let summary = todoSummary(finalItems)
-            messages[existingIndex] = ConversationMessage(
-                id: existing.id,
-                type: .todo,
-                content: summary,
-                timestamp: existing.timestamp,
-                status: .completed,
-                todoItems: finalItems
-            )
+            messages[existingIndex] = existing.withTodos(finalItems, summary: todoSummary(finalItems))
         } else {
-            // Create new todo message
-            let summary = todoSummary(todoItems)
-            let todoMessage = ConversationMessage(
-                type: .todo,
-                content: summary,
-                status: .completed,
-                todoItems: todoItems
-            )
-            messages.append(todoMessage)
+            messages.append(ConversationMessage(
+                type: .todo, content: todoSummary(todoItems),
+                status: .completed, todoItems: todoItems
+            ))
         }
     }
 
@@ -689,8 +699,24 @@ extension AppState {
 
     /// Parse the "merge" flag from a TodoWrite event
     private func parseTodoMerge(from event: OpenCodeEvent) -> Bool {
+        // Try toolInputDict first (set during event parsing)
         if let inputDict = event.toolInputDict {
             return inputDict["merge"] as? Bool ?? false
+        }
+        // Fallback: parse from rawJson
+        guard let data = event.rawJson.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let part = object["part"] as? [String: Any] else {
+            return false
+        }
+        // tool_call format
+        if let input = extractInputDict(from: part) {
+            return input["merge"] as? Bool ?? false
+        }
+        // tool_use format
+        if let state = part["state"] as? [String: Any],
+           let input = extractInputDict(from: state) {
+            return input["merge"] as? Bool ?? false
         }
         return false
     }
@@ -704,7 +730,7 @@ extension AppState {
     }
 
     /// Generate a summary string for todo items
-    private func todoSummary(_ items: [TodoItem]) -> String {
+    func todoSummary(_ items: [TodoItem]) -> String {
         let completed = items.filter { $0.status == .completed }.count
         let total = items.count
         return "\(completed)/\(total) tasks completed"

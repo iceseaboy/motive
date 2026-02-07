@@ -185,48 +185,26 @@ extension CommandBarView {
         // Always check for @ file completion
         checkForAtCompletion(newValue)
 
-        // If @ completion is showing, do not change mode/height here.
-        // Height is handled in checkForAtCompletion / hideFileCompletion.
-        if showFileCompletion {
-            return
-        }
+        // If file completion, history/projects, or running — don't alter mode
+        guard !showFileCompletion, !mode.isHistory, !mode.isProjects, mode != .running else { return }
 
-        // In history/projects mode, input is used for filtering, don't change mode
-        if mode.isHistory || mode.isProjects {
-            return
-        }
-
-        // In running mode, ignore input changes
-        if mode == .running {
-            return
-        }
-
-        // Track if we're coming from a session state
         let isInSession = mode == .completed || mode == .running || mode.isFromSession
 
-        // Allow "/" command trigger from any state (including completed/error)
         if newValue.hasPrefix("/") {
+            // Enter command mode
             if !mode.isCommand {
                 mode = .command(fromSession: isInSession || !appState.messages.isEmpty)
                 selectedCommandIndex = 0
             }
-        } else if mode.isCommand && !newValue.hasPrefix("/") {
-            // Exiting command mode - return to previous session state or idle
-            if mode.isFromSession || !appState.messages.isEmpty {
-                mode = .completed
-            } else {
-                mode = newValue.isEmpty ? .idle : .input
-            }
+        } else if mode.isCommand {
+            // Exiting command mode — return to previous state
+            mode = (mode.isFromSession || !appState.messages.isEmpty) ? .completed : (newValue.isEmpty ? .idle : .input)
         } else if case .completed = mode {
-            // In completed, typing non-command text stays in current mode (for follow-up)
-            return
+            return  // Stay in completed for follow-up
         } else if case .error = mode {
-            // In error, typing non-command text stays in current mode (for follow-up)
-            return
-        } else if !newValue.isEmpty {
-            mode = .input
+            return  // Stay in error for follow-up
         } else {
-            mode = .idle
+            mode = newValue.isEmpty ? .idle : .input
         }
     }
 
@@ -275,50 +253,50 @@ extension CommandBarView {
             return
         }
 
-        if mode.isCommand {
-            // Check if input has arguments (e.g., "/project /path/to/dir")
-            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.hasPrefix("/project ") || text.hasPrefix("/p ") {
-                // Extract path argument
-                let pathArg = text.replacingOccurrences(of: "^/p(roject)?\\s+", with: "", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !pathArg.isEmpty {
-                    if appState.switchProjectDirectory(pathArg) {
-                        inputText = ""
-                        mode = .idle
-                    } else {
-                        // Directory doesn't exist - show error briefly then stay in command mode
-                        inputText = ""
-                        mode = .error("Directory not found: \(pathArg)")
-                    }
-                    return
-                }
-            }
-            executeSelectedCommand()
-        } else if mode.isHistory {
-            // Select the highlighted session
+        switch mode {
+        case .command:
+            submitCommandMode()
+        case .history:
             if selectedHistoryIndex < filteredHistorySessions.count {
                 selectHistorySession(filteredHistorySessions[selectedHistoryIndex])
             }
-        } else if mode.isProjects {
-            // Select the highlighted project
-            if selectedProjectIndex == 0 {
-                // "Choose folder..." option
-                appState.showProjectPicker()
-            } else if selectedProjectIndex == 1 {
-                // Default ~/.motive
-                selectProject(nil)
-            } else {
-                // Recent project
-                let projectIndex = selectedProjectIndex - 2
-                if projectIndex < configManager.recentProjects.count {
-                    selectProject(configManager.recentProjects[projectIndex].path)
-                }
-            }
-        } else if case .completed = mode {
+        case .projects:
+            submitProjectSelection()
+        case .completed:
             sendFollowUp()
-        } else {
+        default:
             submitIntent()
+        }
+    }
+
+    /// Handle submit in command mode — check for inline path argument first.
+    private func submitCommandMode() {
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("/project ") || text.hasPrefix("/p ") {
+            let pathArg = text
+                .replacingOccurrences(of: "^/p(roject)?\\s+", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !pathArg.isEmpty {
+                inputText = ""
+                mode = appState.switchProjectDirectory(pathArg) ? .idle : .error("Directory not found: \(pathArg)")
+                return
+            }
+        }
+        executeSelectedCommand()
+    }
+
+    /// Handle submit in projects mode — Choose folder / Default / Recent.
+    private func submitProjectSelection() {
+        switch selectedProjectIndex {
+        case 0:
+            appState.showProjectPicker()
+        case 1:
+            selectProject(nil)
+        default:
+            let projectIndex = selectedProjectIndex - 2
+            if projectIndex < configManager.recentProjects.count {
+                selectProject(configManager.recentProjects[projectIndex].path)
+            }
         }
     }
 
@@ -402,6 +380,13 @@ extension CommandBarView {
     /// Re-center window and refocus input when CommandBar is shown
     /// Syncs mode with current session state
     func recenterAndFocus() {
+        // Reset stale file completion state from previous interaction
+        // (showFileCompletion persists across show/hide cycles because the
+        //  SwiftUI view is hosted in a long-lived NSHostingView)
+        if showFileCompletion {
+            hideFileCompletion()
+        }
+
         // Sync mode with current session status (unless user is mid-action)
         if !mode.isCommand && !mode.isHistory && !mode.isProjects {
             switch appState.sessionStatus {

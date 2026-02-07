@@ -159,10 +159,9 @@ final class SkillManager {
         return content
     }
     
-    /// Generate SKILL.md content following official AgentSkills spec
-    private func generateSkillMd(for skill: Skill) -> String {
-        let isSystem = Self.systemSkillIds.contains(skill.id)
-        let metadataLine = isSystem
+    /// Generate SKILL.md frontmatter header.
+    private func skillMdHeader(for skill: Skill) -> String {
+        let metadataLine = Self.systemSkillIds.contains(skill.id)
             ? "\nmetadata: { \"defaultEnabled\": true }"
             : ""
         return """
@@ -176,25 +175,16 @@ description: \(skill.description)\(metadataLine)
 \(skill.content)
 """
     }
-    
-    /// Generate SKILL.md for capability skills: hardcoded technical content + user rules section
+
+    /// Generate SKILL.md content following official AgentSkills spec.
+    private func generateSkillMd(for skill: Skill) -> String {
+        skillMdHeader(for: skill)
+    }
+
+    /// Generate SKILL.md for capability skills: hardcoded technical content + user rules section.
     private func generateCapabilitySkillMd(for skill: Skill, userRules: String?) -> String {
-        let isSystem = Self.systemSkillIds.contains(skill.id)
-        let metadataLine = isSystem
-            ? "\nmetadata: { \"defaultEnabled\": true }"
-            : ""
-        var md = """
----
-name: \(skill.id)
-description: \(skill.description)\(metadataLine)
----
+        var md = skillMdHeader(for: skill)
 
-# \(skill.name)
-
-\(skill.content)
-"""
-        
-        // Append user-defined rules if present
         if let userRules, !userRules.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             md += """
             
@@ -206,7 +196,7 @@ description: \(skill.description)\(metadataLine)
             \(userRules)
             """
         }
-        
+
         return md
     }
     
@@ -227,74 +217,48 @@ description: \(skill.description)\(metadataLine)
     
     /// Generate combined system prompt from all skills
     func generateSystemPrompt() -> String {
-        var sections: [String] = []
-        
-        // Identity
-        sections.append("""
-        <identity>
-        You are Motive, a personal AI assistant that executes tasks autonomously in the background.
-        You help users accomplish tasks while minimizing interruptions - only asking for input when truly necessary.
-        </identity>
-        """)
-        
-        // Environment
-        sections.append("""
-        <environment>
-        - Running in a native macOS GUI application (not a terminal)
-        - User CANNOT see your text output or CLI prompts
-        - All user communication MUST go through MCP tools
-        - File operations require explicit permission via MCP tools
-        </environment>
-        """)
-        
+        var sections: [String] = [
+            """
+            <identity>
+            You are Motive, a personal AI assistant that executes tasks autonomously in the background.
+            You help users accomplish tasks while minimizing interruptions - only asking for input when truly necessary.
+            </identity>
+            """,
+            """
+            <environment>
+            - Running in a native macOS GUI application (not a terminal)
+            - User CANNOT see your text output or CLI prompts
+            - All user communication MUST go through MCP tools
+            - File operations require explicit permission via MCP tools
+            </environment>
+            """,
+        ]
+
         // MCP Tool skills
-        let mcpSkills = skills(ofType: .mcpTool)
-        if !mcpSkills.isEmpty {
-            for skill in mcpSkills {
-                sections.append("""
-                <tool name="\(skill.name)">
-                \(skill.content)
-                </tool>
-                """)
-            }
+        sections += skills(ofType: .mcpTool).map {
+            "<tool name=\"\($0.name)\">\n\($0.content)\n</tool>"
         }
-        
+
         // Capability skills (external tools like browser automation)
-        let capabilitySkills = skills(ofType: .capability).filter { $0.enabled }
-        if !capabilitySkills.isEmpty {
-            for skill in capabilitySkills {
-                sections.append("""
-                <capability name="\(skill.name)">
-                \(skill.content)
-                </capability>
-                """)
-            }
+        sections += skills(ofType: .capability).filter(\.enabled).map {
+            "<capability name=\"\($0.name)\">\n\($0.content)\n</capability>"
         }
-        
+
         // Instruction skills
-        let instructionSkills = skills(ofType: .instruction)
-        for skill in instructionSkills {
-            sections.append("""
-            <skill name="\(skill.name)">
-            \(skill.content)
-            </skill>
-            """)
+        sections += skills(ofType: .instruction).map {
+            "<skill name=\"\($0.name)\">\n\($0.content)\n</skill>"
         }
-        
-        // Rule skills (wrapped in <important>)
-        let ruleSkills = skills(ofType: .rule)
-        if !ruleSkills.isEmpty {
-            var ruleContent: [String] = []
-            for skill in ruleSkills {
-                ruleContent.append(skill.content)
-            }
+
+        // Rule skills (grouped in a single <important> block)
+        let ruleContent = skills(ofType: .rule).map(\.content)
+        if !ruleContent.isEmpty {
             sections.append("""
             <important name="mandatory-rules">
             \(ruleContent.joined(separator: "\n\n"))
             </important>
             """)
         }
-        
+
         return sections.joined(separator: "\n\n")
     }
     

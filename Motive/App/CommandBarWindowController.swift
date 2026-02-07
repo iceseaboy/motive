@@ -56,31 +56,14 @@ final class CommandBarWindowController {
             contentRect: NSRect(x: -10000, y: -10000, width: Self.panelWidth, height: 100),
             styleMask: [.titled, .fullSizeContentView],
             backing: .buffered,
-            defer: true  // Defer creation until needed
+            defer: true
         )
-        panel.isFloatingPanel = true
-        panel.level = .floating
+        panel.contentView = containerView
+        panel.applyFloatingPanelStyle()
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true  // Native window shadow - follows contentView's rounded corners
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        // Hide standard window buttons (we use .titled for shadow but don't show the chrome)
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.worksWhenModal = true
-        panel.contentView = containerView
-        panel.contentView?.wantsLayer = true
-        // Round the contentView layer - macOS native shadow will follow this shape
-        panel.contentView?.layer?.cornerRadius = AuroraRadius.xl
-        panel.contentView?.layer?.masksToBounds = true
-        
-        // Start hidden with 0 alpha
         panel.alphaValue = 0
         
         window = panel
@@ -123,12 +106,9 @@ final class CommandBarWindowController {
     }
     
     deinit {
-        if let observer = resignKeyObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if let observer = resignActiveObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+        [resignKeyObserver, resignActiveObserver]
+            .compactMap { $0 }
+            .forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     func show() {
@@ -241,19 +221,42 @@ final class CommandBarWindowController {
     }
 
     private func screenForMouse() -> NSScreen? {
-        let mouseLocation = NSEvent.mouseLocation
-        var displayID: CGDirectDisplayID = 0
-        var count: UInt32 = 0
-        if CGGetDisplaysWithPoint(mouseLocation, 1, &displayID, &count) == .success, count > 0 {
-            return NSScreen.screens.first(where: { screen in
-                (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == displayID
-            })
-        }
-        return NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+        KeyablePanel.screenForMouse()
     }
 }
 
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    /// Apply shared floating-panel style used by CommandBar and Drawer.
+    func applyFloatingPanelStyle() {
+        isFloatingPanel = true
+        level = .floating
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        titleVisibility = .hidden
+        titlebarAppearsTransparent = true
+        standardWindowButton(.closeButton)?.isHidden = true
+        standardWindowButton(.miniaturizeButton)?.isHidden = true
+        standardWindowButton(.zoomButton)?.isHidden = true
+        hidesOnDeactivate = false
+        contentView?.wantsLayer = true
+        contentView?.layer?.cornerRadius = AuroraRadius.xl
+        contentView?.layer?.masksToBounds = true
+    }
+
+    /// Find the screen that currently contains the mouse pointer.
+    static func screenForMouse() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+        var displayID: CGDirectDisplayID = 0
+        var count: UInt32 = 0
+        if CGGetDisplaysWithPoint(mouseLocation, 1, &displayID, &count) == .success, count > 0 {
+            return NSScreen.screens.first { screen in
+                (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == displayID
+            }
+        }
+        return NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+    }
 }

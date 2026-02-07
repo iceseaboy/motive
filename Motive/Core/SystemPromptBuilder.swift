@@ -155,6 +155,9 @@ final class SystemPromptBuilder {
         Shows a modal popup with options.
         Use this ONLY when: you need user to CHOOSE between options to proceed.
         
+        ⛔ NEVER use the built-in "question" tool — it is DISABLED and will freeze the session.
+        ALWAYS use the MCP "AskUserQuestion" tool for any user-facing question.
+        
         ## Examples
         
         User: "Hi there!"
