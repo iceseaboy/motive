@@ -398,12 +398,35 @@ struct SSEClientTests {
         #expect(event == nil)
     }
 
-    @Test func returnsNilForMessageUpdatedType() async throws {
+    @Test func parsesMessageUpdatedUsage() async throws {
         let client = SSEClient()
         let json = """
-        {"type": "message.updated", "properties": {}}
+        {
+            "type": "message.updated",
+            "properties": {
+                "info": {
+                    "id": "msg-1",
+                    "sessionID": "session-1",
+                    "model": "openai/gpt-4o",
+                    "cost": 0.02,
+                    "tokens": {
+                        "input": 1200,
+                        "output": 300,
+                        "reasoning": 50,
+                        "cache": {"read": 10, "write": 5}
+                    }
+                }
+            }
+        }
         """
-        let result = await client.parseSSEData(json)
-        #expect(result == nil)
+        let event = await client.parseSSEData(json)
+        guard case .usageUpdated(let info) = event else {
+            Issue.record("Expected usageUpdated event")
+            return
+        }
+        #expect(info.sessionID == "session-1")
+        #expect(info.model == "openai/gpt-4o")
+        #expect(info.usage.input == 1200)
+        #expect(info.usage.cacheRead == 10)
     }
 }

@@ -16,6 +16,18 @@
 "common.warning" = "警告";
 "common.ok" = "OK";
 "common.unsaved_changes" = "未保存の変更";
+"common.show" = "表示";
+"common.hide" = "非表示";
+"common.expand" = "展開";
+"common.collapse" = "折りたたむ";
+"common.show_less" = "折りたたむ";
+"common.show_more_lines" = "さらに%d行を表示";
+"common.loading" = "読み込み中...";
+"common.install" = "インストール";
+"common.edit" = "編集";
+"common.reject" = "拒否";
+"common.allow_once" = "一度だけ許可";
+"common.always_allow" = "常に許可";
 
 // MARK: - Command Bar
 "commandbar.placeholder" = "何をしましょうか？";
@@ -44,6 +56,18 @@
 "commandbar.dismiss" = "閉じる";
 "commandbar.ready" = "準備完了";
 "commandbar.type_request" = "以下にリクエストを入力";
+"commandbar.starting" = "起動中…";
+"commandbar.current" = "現在";
+"commandbar.no_sessions" = "セッションはまだありません";
+"commandbar.no_sessions.desc" = "会話履歴がここに表示されます";
+"commandbar.modified_files" = "変更されたファイル：";
+"commandbar.follow_up" = "フォローアップ…";
+"commandbar.tools_executed" = "%d個のツールを実行";
+"commandbar.task_finished" = "タスク完了";
+"commandbar.more_files" = "+%dファイル";
+"commandbar.tab" = "Tab";
+"commandbar.search_sessions" = "セッションを検索...";
+"commandbar.type_command" = "コマンドを入力...";
 
 // MARK: - Settings
 "settings.title" = "設定";
@@ -54,6 +78,8 @@
 "settings.tab.general.subtitle" = "起動、外観、キーボードショートカット";
 "settings.tab.ai_provider" = "AIプロバイダー";
 "settings.tab.ai_provider.subtitle" = "AIプロバイダーとAPI認証情報の設定";
+"settings.tab.usage" = "使用量";
+"settings.tab.usage.subtitle" = "トークン使用量と料金の概要";
 "settings.tab.skills" = "スキル";
 "settings.tab.skills.subtitle" = "スキルとツール連携の管理";
 "settings.tab.about.subtitle" = "アプリ情報とコンポーネントのステータス";
@@ -221,6 +247,43 @@
 "settings.hotkey.press_keys" = "キーを押してください...";
 "settings.hotkey.click_to_record" = "クリックして録音";
 
+// Trust Level
+"settings.permissions.trust.careful" = "慎重";
+"settings.permissions.trust.careful.desc" = "ファイル編集とシェルコマンドの前に確認";
+"settings.permissions.trust.balanced" = "バランス";
+"settings.permissions.trust.balanced.desc" = "編集は自動承認、未知のコマンドは確認";
+"settings.permissions.trust.yolo" = "YOLO";
+"settings.permissions.trust.yolo.desc" = "すべての操作を許可（危険な操作を除く）";
+
+// Permission Policy
+"settings.permissions.trust_level" = "信頼レベル";
+"settings.permissions.trust_all_ops" = "すべての操作が承認なしで実行されます。ご注意ください。";
+"settings.permissions.add_rule" = "ルールを追加...";
+"settings.permissions.add_rule_for" = "%@ のルールを追加";
+"settings.permissions.pattern" = "パターン";
+"settings.permissions.action" = "アクション";
+"settings.permissions.description_optional" = "説明（任意）";
+"settings.permissions.what_rule_does" = "このルールの説明";
+
+// Skills Detail
+"settings.skills.search" = "検索...";
+"settings.skills.refresh_a11y" = "スキルを更新";
+"settings.skills.loading" = "読み込み中...";
+"settings.skills.no_match" = "一致なし";
+"settings.skills.select" = "スキルを選択";
+"settings.skills.unable_to_load" = "SKILL.mdを読み込めません";
+"settings.skills.missing_reqs" = "不足している要件";
+"settings.skills.enter_api_key" = "APIキーを入力...";
+"settings.skills.guide" = "スキルガイド";
+"settings.skills.blocked" = "ブロック済み";
+"settings.skills.disabled" = "無効";
+"settings.skills.enabled" = "有効";
+
+// About
+"settings.about.powered_by" = "技術提供";
+"settings.about.all_rights_reserved" = "© 2024-2026 Velvet. All rights reserved.";
+"settings.advanced.actions" = "アクション";
+
 // MARK: - Drawer
 "drawer.new_session" = "新規セッション";
 "drawer.new_chat" = "新しいチャット";
@@ -241,16 +304,41 @@
 "drawer.no_history" = "履歴はまだありません";
 "drawer.assistant" = "アシスタント";
 "drawer.tool" = "ツール";
+"drawer.tip" = "ヒント：上のタイトルをクリックしてセッションを切り替え";
+"drawer.tasks" = "タスク";
+"drawer.changes" = "変更";
+"drawer.context_help" = "現在のコンテキストサイズ";
+"drawer.show_output" = "出力を表示";
+"drawer.hide_output" = "出力を非表示";
 
 // MARK: - Permission Request
 "permission.file" = "ファイル権限";
 "permission.question" = "質問";
 "permission.allow_once" = "許可";
 "permission.deny_once" = "拒否";
+"permission.required" = "権限が必要です";
+"permission.label" = "権限：";
+"permission.path" = "パス：";
+"permission.paths" = "パス：";
+"permission.type_response" = "回答を入力...";
+"permission.type_answer" = "回答を入力...";
+"permission.preview_changes" = "変更をプレビュー";
 
 // MARK: - Alerts
 "alert.delete_session_title" = "このセッションを削除しますか？";
 "alert.delete_session_message" = "「%@」を完全に削除します";
+
+// MARK: - Usage
+"usage.token_usage" = "トークン使用量";
+"usage.no_data" = "使用データはまだありません。";
+"usage.cumulative" = "全セッションの累計です。";
+"usage.cost_reported" = "コストはOpenCodeから報告されます。";
+"usage.reset" = "使用量をリセット";
+"usage.input" = "入力";
+"usage.output" = "出力";
+"usage.reasoning" = "推論";
+"usage.cache_read" = "キャッシュ読取";
+"usage.cache_write" = "キャッシュ書込";
 
 // MARK: - Time
 "time.just_now" = "たった今";
@@ -302,6 +390,16 @@
 "onboarding.complete.hotkey_label" = "ホットキー";
 "onboarding.complete.hotkey_hint" = "どこでもこのキーを押してコマンドバーを開く";
 "onboarding.complete.start_using" = "Motiveを使い始める";
+
+// Accessibility extra
+"onboarding.accessibility.hotkey_ready" = "ホットキーは使用可能です";
+"onboarding.accessibility.hotkey_required" = "グローバルホットキーに必要です";
+
+// Permission
+"onboarding.permission.mode" = "権限モード";
+"onboarding.permission.mode_desc" = "AIにどの程度の自律性を与えるか選択";
+"onboarding.permission.yolo_warning" = "すべての操作が承認なしで実行されます";
+"onboarding.permission.change_hint" = "設定 → 権限 でいつでも変更できます";
 
 // Common
 "onboarding.skip" = "スキップ";

@@ -26,6 +26,9 @@ actor SSEClient {
         // Reasoning streaming
         case reasoningDelta(ReasoningDeltaInfo)
 
+        // Token usage
+        case usageUpdated(UsageInfo)
+
         // Tool lifecycle
         case toolRunning(ToolInfo)
         case toolCompleted(ToolCompletedInfo)
@@ -64,6 +67,14 @@ actor SSEClient {
         let delta: String
     }
 
+    struct UsageInfo: Sendable {
+        let sessionID: String
+        let messageID: String?
+        let model: String?
+        let usage: TokenUsage
+        let cost: Double?
+    }
+
     struct ToolInfo: Sendable {
         let sessionID: String
         let toolName: String
@@ -97,15 +108,18 @@ actor SSEClient {
         let toolCallID: String?
         let output: String?
         let inputSummary: String?
+        /// Unified diff from OpenCode protocol (`state.metadata.diff`).
+        let diff: String?
         /// Serialized JSON of the full tool input dict (Sendable workaround for [String: Any]).
         let inputJSON: String?
 
-        init(sessionID: String, toolName: String, toolCallID: String?, output: String?, input: [String: Any]?, inputSummary: String?) {
+        init(sessionID: String, toolName: String, toolCallID: String?, output: String?, input: [String: Any]?, inputSummary: String?, diff: String?) {
             self.sessionID = sessionID
             self.toolName = toolName
             self.toolCallID = toolCallID
             self.output = output
             self.inputSummary = inputSummary
+            self.diff = diff
             if let input, let data = try? JSONSerialization.data(withJSONObject: input) {
                 self.inputJSON = String(data: data, encoding: .utf8)
             } else {
@@ -165,7 +179,6 @@ actor SSEClient {
     private var streamTask: Task<Void, Never>?
     private var isConnected = false
     private static let reconnectMaxDelay: TimeInterval = 30
-    private static let throttleIntervalNanos: UInt64 = 33_000_000 // ~30Hz
 
     private let logger = Logger(subsystem: "com.velvet.motive", category: "SSEClient")
 
@@ -238,6 +251,9 @@ actor SSEClient {
 
     // MARK: - Stream Consumption
 
+    /// Consume SSE using a delegate-based URLSession for real-time data delivery.
+    /// Unlike `URLSession.bytes(for:)` which may buffer, this approach processes
+    /// each TCP data chunk as it arrives via `urlSession(_:dataTask:didReceive:)`.
     private func consumeEventStream(
         baseURL: URL,
         directory: String?,
@@ -246,6 +262,7 @@ actor SSEClient {
         let eventURL = baseURL.appendingPathComponent("event")
         var request = URLRequest(url: eventURL)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.timeoutInterval = .infinity
 
         // Must match the directory used by OpenCodeAPIClient so that
@@ -254,65 +271,62 @@ actor SSEClient {
             request.setValue(directory, forHTTPHeaderField: "x-opencode-directory")
         }
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        // Use a delegate-based session for immediate data delivery (no buffering)
+        let delegate = SSESessionDelegate()
+        let session = URLSession(
+            configuration: .default,
+            delegate: delegate,
+            delegateQueue: nil  // use system-managed concurrent queue
+        )
+        defer { session.invalidateAndCancel() }
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw SSEError.badStatus(status)
+        let task = session.dataTask(with: request)
+        task.resume()
+
+        // Wait for initial response
+        let httpResponse = try await delegate.waitForResponse()
+        guard httpResponse.statusCode == 200 else {
+            throw SSEError.badStatus(httpResponse.statusCode)
         }
 
         isConnected = true
-        logger.info("Connected to SSE endpoint: \(eventURL.absoluteString)")
+        logger.info("Connected to SSE endpoint (delegate): \(eventURL.absoluteString)")
 
-        // Text delta throttle state
-        var deltaBuffer: [String: String] = [:] // sessionID -> accumulated delta
-        var lastFlushTime = ContinuousClock.now
-
+        var lineBuffer = ""
         var dataBuffer = ""
+        var eventCounter = 0
 
-        for try await line in bytes.lines {
+        // Process data chunks as they arrive from the delegate
+        for await chunk in delegate.dataStream {
             guard !Task.isCancelled else { break }
 
-            if line.hasPrefix("data: ") {
-                // URLSession.AsyncBytes.lines may skip empty lines,
-                // so we flush the previous event whenever a new data: line arrives.
-                if !dataBuffer.isEmpty {
-                    flushEvent(
-                        dataBuffer, continuation: continuation,
-                        deltaBuffer: &deltaBuffer, lastFlushTime: &lastFlushTime
-                    )
+            // Append raw bytes and split into lines
+            lineBuffer += chunk
+            while let newlineRange = lineBuffer.range(of: "\n") {
+                let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
+                lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+
+                if line.hasPrefix("data: ") {
+                    // Flush previous event if any
+                    if !dataBuffer.isEmpty {
+                        flushEvent(dataBuffer, continuation: continuation)
+                        dataBuffer = ""
+                    }
+                    dataBuffer = String(line.dropFirst(6))
+                    eventCounter += 1
+                    logger.info("📡 SSE[\(eventCounter)] RAW: \(dataBuffer, privacy: .public)")
+                } else if line.isEmpty && !dataBuffer.isEmpty {
+                    // Standard SSE: empty line = end of event
+                    flushEvent(dataBuffer, continuation: continuation)
                     dataBuffer = ""
                 }
-                dataBuffer = String(line.dropFirst(6))
-            } else if line.isEmpty && !dataBuffer.isEmpty {
-                // Standard SSE: empty line = end of event
-                flushEvent(
-                    dataBuffer, continuation: continuation,
-                    deltaBuffer: &deltaBuffer, lastFlushTime: &lastFlushTime
-                )
-                dataBuffer = ""
+                // Ignore other lines (event:, id:, comments, etc.)
             }
-            // Ignore other lines (event:, id:, comments, etc.)
         }
 
         // Flush any remaining data in buffer
         if !dataBuffer.isEmpty {
-            flushEvent(
-                dataBuffer, continuation: continuation,
-                deltaBuffer: &deltaBuffer, lastFlushTime: &lastFlushTime
-            )
-        }
-
-        // Flush remaining deltas
-        if !deltaBuffer.isEmpty {
-            for (sid, text) in deltaBuffer {
-                continuation.yield(.textDelta(TextDeltaInfo(
-                    sessionID: sid,
-                    messageID: "",
-                    delta: text
-                )))
-            }
+            flushEvent(dataBuffer, continuation: continuation)
         }
 
         isConnected = false
@@ -321,49 +335,13 @@ actor SSEClient {
     // MARK: - Event Flushing
 
     /// Parse a buffered SSE data string and yield the result to the stream.
-    /// Handles text delta throttling internally.
+    /// Every event (including text deltas) is yielded immediately for real-time streaming.
     private func flushEvent(
         _ dataBuffer: String,
-        continuation: AsyncStream<SSEEvent>.Continuation,
-        deltaBuffer: inout [String: String],
-        lastFlushTime: inout ContinuousClock.Instant
+        continuation: AsyncStream<SSEEvent>.Continuation
     ) {
-        let event = parseSSEData(dataBuffer)
-
-        guard let event else { return }
-
-        // Handle text delta throttling
-        if case .textDelta(let info) = event {
-            deltaBuffer[info.sessionID, default: ""] += info.delta
-
-            let now = ContinuousClock.now
-            let elapsed = now - lastFlushTime
-            if elapsed >= .nanoseconds(Int64(Self.throttleIntervalNanos)) {
-                for (sid, text) in deltaBuffer {
-                    continuation.yield(.textDelta(TextDeltaInfo(
-                        sessionID: sid,
-                        messageID: info.messageID,
-                        delta: text
-                    )))
-                }
-                deltaBuffer.removeAll()
-                lastFlushTime = now
-            }
-        } else {
-            // Flush any pending deltas before non-delta events
-            if !deltaBuffer.isEmpty {
-                for (sid, text) in deltaBuffer {
-                    continuation.yield(.textDelta(TextDeltaInfo(
-                        sessionID: sid,
-                        messageID: "",
-                        delta: text
-                    )))
-                }
-                deltaBuffer.removeAll()
-                lastFlushTime = ContinuousClock.now
-            }
-            continuation.yield(event)
-        }
+        guard let event = parseSSEData(dataBuffer) else { return }
+        continuation.yield(event)
     }
 
     // MARK: - SSE Parsing
@@ -389,8 +367,7 @@ actor SSEClient {
             return parseMessagePartUpdated(properties)
 
         case "message.updated":
-            // Full message update — typically used for initial load, not streaming
-            return nil
+            return parseMessageUpdated(properties)
 
         case "message.removed":
             return nil
@@ -434,7 +411,26 @@ actor SSEClient {
         let messageID = part["messageID"] as? String ?? ""
         let partType = part["type"] as? String ?? ""
 
+        logger.debug("parseMessagePartUpdated: partType=\(partType) hasDelta=\(delta != nil) deltaLen=\(delta?.count ?? 0) sessionID=\(sessionID.prefix(8))")
+
         switch partType {
+        case "step-finish":
+            // step-finish carries the actual token counts and cost.
+            // Model info is absent here — the caller will fall back to the
+            // currently selected model from settings.
+            if let usage = parseTokenUsage(from: part), usage.total > 0 {
+                let model = parseModelName(from: part)
+                let cost = parseDouble(from: part["cost"])
+                return .usageUpdated(UsageInfo(
+                    sessionID: sessionID,
+                    messageID: messageID,
+                    model: model,
+                    usage: usage,
+                    cost: cost
+                ))
+            }
+            return nil
+
         case "text":
             if let delta, !delta.isEmpty {
                 return .textDelta(TextDeltaInfo(
@@ -471,6 +467,50 @@ actor SSEClient {
         }
     }
 
+    private func parseMessageUpdated(_ properties: [String: Any]) -> SSEEvent? {
+        // Token usage is sourced from step-finish (message.part.updated) which
+        // carries the definitive counts. message.updated shares the same messageID,
+        // so producing a usage event here would either record zeroes or cause the
+        // real step-finish data to be deduplicated. Skip usage from this event.
+        return nil
+    }
+
+    /// Extract model name from event info.
+    /// Handles both flat string (`"modelID": "gpt-5.1-codex"`) and
+    /// dict format (`"model": {"providerID": "openai", "modelID": "gpt-5.1-codex"}`).
+    private func parseModelName(from info: [String: Any]) -> String? {
+        // 1. Flat string at top level
+        if let s = parseString(from: info, keys: ["modelID", "modelId", "model"]) {
+            return s
+        }
+        // 2. model is a dict with providerID / modelID
+        if let modelDict = info["model"] as? [String: Any] {
+            let modelID = modelDict["modelID"] as? String ?? modelDict["modelId"] as? String
+            let providerID = modelDict["providerID"] as? String ?? modelDict["providerId"] as? String
+            if let mid = modelID {
+                if let pid = providerID, !pid.isEmpty {
+                    return "\(pid)/\(mid)"
+                }
+                return mid
+            }
+        }
+        // 3. Check nested metadata
+        if let metadata = info["metadata"] as? [String: Any] {
+            if let s = parseString(from: metadata, keys: ["modelID", "modelId", "model"]) {
+                return s
+            }
+            if let modelDict = metadata["model"] as? [String: Any],
+               let mid = modelDict["modelID"] as? String ?? modelDict["modelId"] as? String {
+                let pid = modelDict["providerID"] as? String ?? modelDict["providerId"] as? String
+                if let pid, !pid.isEmpty {
+                    return "\(pid)/\(mid)"
+                }
+                return mid
+            }
+        }
+        return nil
+    }
+
     private func parseToolPart(_ part: [String: Any], sessionID: String) -> SSEEvent? {
         let state = part["state"] as? [String: Any] ?? [:]
         let toolName = state["tool"] as? String ?? part["tool"] as? String ?? "Tool"
@@ -493,19 +533,6 @@ actor SSEClient {
             inputDict = nil
         }
 
-        // Diagnostic: log raw tool data for file-editing tools
-        let isEditTool = toolName.lowercased().contains("patch") || toolName.lowercased().contains("edit") || toolName.lowercased().contains("write")
-        if isEditTool {
-            let stateKeys = state.keys.sorted().joined(separator: ",")
-            let partKeys = part.keys.sorted().joined(separator: ",")
-            let inputType: String
-            if state["input"] is [String: Any] { inputType = "dict" }
-            else if state["input"] is String { inputType = "string(\((state["input"] as? String)?.count ?? 0))" }
-            else if state["input"] != nil { inputType = "other(\(type(of: state["input"]!)))" }
-            else { inputType = "nil" }
-            logger.info("🔍 Tool SSE: \(toolName) status=\(status) stateKeys=[\(stateKeys)] partKeys=[\(partKeys)] inputType=\(inputType) hasInputDict=\(inputDict != nil)")
-        }
-
         switch status {
         case "running", "pending":
             let inputSummary = extractPrimaryInput(from: inputDict)
@@ -520,13 +547,17 @@ actor SSEClient {
         case "completed":
             let output = state["output"] as? String
             let inputSummary = extractPrimaryInput(from: inputDict)
+            // Extract unified diff from OpenCode protocol: state.metadata.diff
+            let metadata = state["metadata"] as? [String: Any]
+            let diff = metadata?["diff"] as? String
             return .toolCompleted(ToolCompletedInfo(
                 sessionID: sessionID,
                 toolName: toolName,
                 toolCallID: toolCallID,
                 output: output,
                 input: inputDict,
-                inputSummary: inputSummary
+                inputSummary: inputSummary,
+                diff: diff
             ))
 
         case "error":
@@ -660,9 +691,143 @@ actor SSEClient {
         return keys.lazy.compactMap { dict[$0] as? String }.first
     }
 
+    private func parseTokenUsage(from container: [String: Any]) -> TokenUsage? {
+        guard let tokens = container["tokens"] as? [String: Any] else { return nil }
+        let input = parseInt(from: tokens["input"]) ?? 0
+        let output = parseInt(from: tokens["output"]) ?? 0
+        let reasoning = parseInt(from: tokens["reasoning"]) ?? 0
+        let cache = tokens["cache"] as? [String: Any] ?? [:]
+        let cacheRead = parseInt(from: cache["read"]) ?? 0
+        let cacheWrite = parseInt(from: cache["write"]) ?? 0
+        return TokenUsage(
+            input: input,
+            output: output,
+            reasoning: reasoning,
+            cacheRead: cacheRead,
+            cacheWrite: cacheWrite
+        )
+    }
+
+    private func parseInt(from value: Any?) -> Int? {
+        switch value {
+        case let int as Int:
+            return int
+        case let double as Double:
+            return Int(double)
+        case let number as NSNumber:
+            return number.intValue
+        case let string as String:
+            return Int(string)
+        default:
+            return nil
+        }
+    }
+
+    private func parseDouble(from value: Any?) -> Double? {
+        switch value {
+        case let double as Double:
+            return double
+        case let int as Int:
+            return Double(int)
+        case let number as NSNumber:
+            return number.doubleValue
+        case let string as String:
+            return Double(string)
+        default:
+            return nil
+        }
+    }
+
+    private func parseString(from dict: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            if let value = dict[key] as? String, !value.isEmpty {
+                return value
+            }
+        }
+        return nil
+    }
+
     // MARK: - Errors
 
     enum SSEError: Error {
         case badStatus(Int)
+        case noResponse
+    }
+}
+
+// MARK: - SSE URLSession Delegate
+
+/// A URLSession delegate that delivers SSE data chunks in real-time via an AsyncStream.
+/// This avoids the buffering that can occur with `URLSession.bytes(for:)`.
+private final class SSESessionDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let dataContinuation: AsyncStream<String>.Continuation
+    let dataStream: AsyncStream<String>
+
+    private var responseResolver: ((Result<HTTPURLResponse, Error>) -> Void)?
+    private let lock = NSLock()
+
+    override init() {
+        var cont: AsyncStream<String>.Continuation!
+        self.dataStream = AsyncStream { cont = $0 }
+        self.dataContinuation = cont
+        super.init()
+    }
+
+    /// Wait for the initial HTTP response.
+    func waitForResponse() async throws -> HTTPURLResponse {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            self.responseResolver = { result in
+                switch result {
+                case .success(let response):
+                    continuation.resume(returning: response)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            lock.unlock()
+        }
+    }
+
+    // Called when the initial response headers arrive
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        lock.lock()
+        let resolver = self.responseResolver
+        self.responseResolver = nil
+        lock.unlock()
+
+        if let httpResponse = response as? HTTPURLResponse {
+            resolver?(.success(httpResponse))
+        } else {
+            resolver?(.failure(SSEClient.SSEError.noResponse))
+        }
+        completionHandler(.allow)
+    }
+
+    // Called each time data arrives — no buffering, immediate delivery
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        if let text = String(data: data, encoding: .utf8) {
+            dataContinuation.yield(text)
+        }
+    }
+
+    // Called when the stream completes
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        dataContinuation.finish()
+
+        // If response never arrived, resolve with error
+        lock.lock()
+        let resolver = self.responseResolver
+        self.responseResolver = nil
+        lock.unlock()
+
+        if let resolver {
+            resolver(.failure(error ?? SSEClient.SSEError.noResponse))
+        }
     }
 }

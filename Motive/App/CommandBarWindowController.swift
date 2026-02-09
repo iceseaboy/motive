@@ -50,6 +50,7 @@ final class CommandBarWindowController {
     init<Content: View>(rootView: Content) {
         hostingView = NSHostingView(rootView: AnyView(rootView))
         hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.safeAreaRegions = []
         hostingView.wantsLayer = true
         hostingView.layer?.masksToBounds = false
         

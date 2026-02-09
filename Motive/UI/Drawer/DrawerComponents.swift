@@ -50,13 +50,13 @@ struct SessionListItem: View {
                     .fill(isHovering ? Color.Aurora.glassOverlay.opacity(0.06) : Color.clear)
             )
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.auroraFast) {
-                isHovering = hovering
+            .onHover { hovering in
+                withAnimation(.auroraFast) {
+                    isHovering = hovering
+                }
             }
         }
+        .buttonStyle(.plain)
     }
     
     private var statusGradient: AnyShapeStyle {
@@ -76,10 +76,10 @@ struct SessionListItem: View {
         let now = Date()
         let diff = now.timeIntervalSince(session.createdAt)
         
-        if diff < 60 { return "just now" }
-        if diff < 3600 { return "\(Int(diff / 60))m" }
-        if diff < 86400 { return "\(Int(diff / 3600))h" }
-        return "\(Int(diff / 86400))d"
+        if diff < 60 { return L10n.Time.justNow }
+        if diff < 3600 { return String(format: L10n.Time.minutesAgo, Int(diff / 60)) }
+        if diff < 86400 { return String(format: L10n.Time.hoursAgo, Int(diff / 3600)) }
+        return String(format: L10n.Time.daysAgo, Int(diff / 86400))
     }
 }
 
@@ -89,7 +89,8 @@ struct MessageBubble: View {
     let message: ConversationMessage
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
-    @State private var isOutputExpanded = false
+    /// Unified expand/collapse for tool output, diff details, and error details.
+    @State private var isDetailExpanded = false
     
     private var isDark: Bool { colorScheme == .dark }
     
@@ -114,6 +115,8 @@ struct MessageBubble: View {
                             systemBubble
                         case .todo:
                             todoBubble
+                        case .reasoning:
+                            EmptyView() // Reasoning is transient, handled by TransientReasoningBubble
                         }
                     }
                     
@@ -194,7 +197,9 @@ struct MessageBubble: View {
                 .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.06), lineWidth: 0.5)
         )
     }
-    
+
+    // MARK: - Reasoning Bubble
+
     // MARK: - Tool Bubble (with lifecycle status indicator)
     
     private var toolBubble: some View {
@@ -210,13 +215,13 @@ struct MessageBubble: View {
                 Spacer()
                 
                 if message.toolOutput != nil {
-                    Button(action: { withAnimation(.auroraFast) { isOutputExpanded.toggle() } }) {
-                        Text(isOutputExpanded ? "Hide" : "Show")
+                    Button(action: { withAnimation(.auroraFast) { isDetailExpanded.toggle() } }) {
+                        Text(isDetailExpanded ? L10n.hide : L10n.show)
                             .font(.Aurora.micro.weight(.medium))
                             .foregroundColor(Color.Aurora.textMuted)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isOutputExpanded ? "Hide output" : "Show output")
+                    .accessibilityLabel(isDetailExpanded ? L10n.Drawer.hideOutput : L10n.Drawer.showOutput)
                 }
             }
             
@@ -241,12 +246,12 @@ struct MessageBubble: View {
                     .foregroundColor(Color.Aurora.textMuted)
             } else if message.status == .running {
                 // Tool is still executing — show processing hint
-                Text("Processing…")
+                Text(L10n.Drawer.processing)
                     .font(.Aurora.micro)
                     .foregroundColor(Color.Aurora.textMuted)
             }
             
-            if isOutputExpanded, let output = message.toolOutput, !output.isEmpty {
+            if isDetailExpanded, let output = message.toolOutput, !output.isEmpty {
                 ScrollView {
                     formattedOutput(output)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,23 +311,30 @@ struct MessageBubble: View {
         let lines = diff.split(separator: "\n", omittingEmptySubsequences: false)
         // Show at most 12 lines inline; truncate longer diffs
         let maxPreviewLines = 12
-        let displayLines = Array(lines.prefix(maxPreviewLines))
+        let displayLines = isDetailExpanded ? Array(lines) : Array(lines.prefix(maxPreviewLines))
         let isTruncated = lines.count > maxPreviewLines
         
         return VStack(alignment: .leading, spacing: 0) {
+            diffTitle(diff)
+            
             ForEach(Array(displayLines.enumerated()), id: \.offset) { _, line in
                 let lineStr = String(line)
                 Text(lineStr)
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
-                    .foregroundColor(diffLineColor(lineStr))
+                    .foregroundColor(diffLineForeground(lineStr))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 0.5)
+                    .padding(.vertical, 1)
+                    .padding(.horizontal, 6)
+                    .background(diffLineBackground(lineStr))
             }
             if isTruncated {
-                Text("… \(lines.count - maxPreviewLines) more lines")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(Color.Aurora.textMuted)
-                    .padding(.top, 2)
+                Button(action: { withAnimation(.auroraFast) { isDetailExpanded.toggle() } }) {
+                    Text(isDetailExpanded ? L10n.showLess : String(format: L10n.showMoreLines, lines.count - maxPreviewLines))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(Color.Aurora.textMuted)
+                        .padding(.top, 4)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(AuroraSpacing.space2)
@@ -333,27 +345,89 @@ struct MessageBubble: View {
         .padding(.top, AuroraSpacing.space1)
     }
     
-    /// Color for a single diff line based on +/- prefix
-    private func diffLineColor(_ line: String) -> Color {
+    private func diffTitle(_ diff: String) -> some View {
+        let title = extractDiffTitle(diff)
+        return HStack(spacing: 6) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(Color.Aurora.textMuted)
+            Text(title)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundColor(Color.Aurora.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10))
+        .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
+        .padding(.bottom, 4)
+    }
+    
+    private func extractDiffTitle(_ diff: String) -> String {
+        let lines = diff.split(separator: "\n", omittingEmptySubsequences: false)
+        for line in lines {
+            if line.hasPrefix("diff --git ") {
+                let parts = line.split(separator: " ")
+                if parts.count >= 4 {
+                    let raw = parts[3]
+                    return String(raw.replacingOccurrences(of: "b/", with: ""))
+                }
+            }
+            if line.hasPrefix("+++ ") {
+                let raw = line.dropFirst(4)
+                return String(raw.replacingOccurrences(of: "b/", with: ""))
+            }
+        }
+        return L10n.Drawer.changes
+    }
+    
+    /// Foreground color for a single diff line based on +/- prefix
+    private func diffLineForeground(_ line: String) -> Color {
         if line.hasPrefix("+++") || line.hasPrefix("---") {
             return Color.Aurora.textMuted
         } else if line.hasPrefix("+") {
-            return Color.Aurora.success
+            return Color.Aurora.textPrimary
         } else if line.hasPrefix("-") {
-            return Color.Aurora.error
+            return Color.Aurora.textPrimary
         } else if line.hasPrefix("@@") {
             return Color.Aurora.primary.opacity(0.7)
         }
         return Color.Aurora.textSecondary
     }
     
+    /// Background color for a single diff line based on +/- prefix
+    private func diffLineBackground(_ line: String) -> Color {
+        if line.hasPrefix("+++ ") || line.hasPrefix("--- ") || line.hasPrefix("diff --git") {
+            return Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10)
+        }
+        if line.hasPrefix("+") {
+            return Color.Aurora.success.opacity(isDark ? 0.18 : 0.12)
+        }
+        if line.hasPrefix("-") {
+            return Color.Aurora.error.opacity(isDark ? 0.18 : 0.12)
+        }
+        return Color.clear
+    }
+    
     // MARK: - System Bubble
     
     private var systemBubble: some View {
+        Group {
+            if message.status == .failed {
+                errorBubble
+            } else {
+                completionBubble
+            }
+        }
+    }
+    
+    /// Compact completion / interruption indicator
+    private var completionBubble: some View {
         HStack(spacing: AuroraSpacing.space2) {
-            Image(systemName: systemIcon)
+            Image(systemName: completionIcon)
                 .font(.system(size: 11))
-                .foregroundColor(systemIconColor)
+                .foregroundColor(completionIconColor)
             
             Text(message.content)
                 .font(.Aurora.bodySmall)
@@ -363,12 +437,97 @@ struct MessageBubble: View {
         .padding(.vertical, AuroraSpacing.space2)
     }
     
-    /// Icon for system messages — distinguishes completion from interruption
-    private var systemIcon: String {
-        if message.status == .failed {
-            return "xmark.circle.fill"
+    /// Error bubble — shows a concise title with expandable details
+    @ViewBuilder
+    private var errorBubble: some View {
+        let (title, detail) = Self.parseErrorMessage(message.content)
+        
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row: icon + title + Show button
+            HStack(spacing: AuroraSpacing.space2) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.Aurora.error)
+                
+                Text(title)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(Color.Aurora.error)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                if detail != nil {
+                    Button {
+                        withAnimation(.auroraFast) { isDetailExpanded.toggle() }
+                    } label: {
+                        Text(isDetailExpanded ? L10n.hide : L10n.show)
+                            .font(.Aurora.micro.weight(.semibold))
+                            .foregroundColor(Color.Aurora.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, AuroraSpacing.space3)
+            .padding(.vertical, AuroraSpacing.space2)
+            
+            // Expandable detail
+            if isDetailExpanded, let detail {
+                Divider()
+                    .background(Color.Aurora.error.opacity(0.15))
+                
+                Text(detail)
+                    .font(.system(size: 10, weight: .regular, design: .monospaced))
+                    .foregroundColor(Color.Aurora.textSecondary)
+                    .textSelection(.enabled)
+                    .padding(AuroraSpacing.space2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        // Detect interruption from the localized content
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                .fill(Color.Aurora.error.opacity(isDark ? 0.08 : 0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                        .strokeBorder(Color.Aurora.error.opacity(0.15), lineWidth: 0.5)
+                )
+        )
+    }
+    
+    /// Parse a raw error string into a concise title and optional detail body.
+    /// Handles formats like "APIError: Bad Request: {...json...} (HTTP 400)"
+    static func parseErrorMessage(_ raw: String) -> (title: String, detail: String?) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Try to extract a human-readable message from JSON body
+        if let jsonStart = trimmed.range(of: "{"),
+           let data = String(trimmed[jsonStart.lowerBound...]).data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            // Extract just the first sentence / meaningful part
+            let shortMessage = message.components(separatedBy: "..").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? message
+            return (shortMessage, trimmed)
+        }
+        
+        // Try to extract "Name: short description" before any JSON
+        if let jsonStart = trimmed.range(of: "{") {
+            let prefix = String(trimmed[trimmed.startIndex..<jsonStart.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !prefix.isEmpty {
+                return (prefix, trimmed)
+            }
+        }
+        
+        // Short enough to show inline — no expansion needed
+        if trimmed.count <= 100 {
+            return (trimmed, nil)
+        }
+        
+        // Truncate for title, full text as detail
+        let titleEnd = trimmed.index(trimmed.startIndex, offsetBy: min(80, trimmed.count))
+        return (String(trimmed[trimmed.startIndex..<titleEnd]) + "…", trimmed)
+    }
+    
+    private var completionIcon: String {
         let lower = message.content.lowercased()
         if lower.contains("interrupt") || lower.contains("中断") || lower.contains("停止") {
             return "stop.circle.fill"
@@ -376,10 +535,7 @@ struct MessageBubble: View {
         return "checkmark.circle.fill"
     }
     
-    private var systemIconColor: Color {
-        if message.status == .failed {
-            return Color.Aurora.error
-        }
+    private var completionIconColor: Color {
         let lower = message.content.lowercased()
         if lower.contains("interrupt") || lower.contains("中断") || lower.contains("停止") {
             return Color.Aurora.textMuted
@@ -397,7 +553,7 @@ struct MessageBubble: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.Aurora.primary)
                 
-                Text("Tasks")
+                Text(L10n.Drawer.tasks)
                     .font(.Aurora.caption.weight(.semibold))
                     .foregroundColor(Color.Aurora.textSecondary)
                 
@@ -641,22 +797,21 @@ struct ToolRunningIndicator: View {
 
 struct ThinkingIndicator: View {
     @Environment(\.colorScheme) private var colorScheme
-    
+
     private var isDark: Bool { colorScheme == .dark }
-    
+
     var body: some View {
-        // Shimmer text only — matches menu bar animation style.
-        // No bouncing dots; the shimmer sweep is the sole loading indicator.
-        Text(L10n.Drawer.thinking)
-            .font(.Aurora.caption.weight(.medium))
-            .foregroundColor(Color.Aurora.textSecondary)
-            .auroraShimmer(isDark: isDark)
-            .padding(.horizontal, AuroraSpacing.space3)
-            .padding(.vertical, AuroraSpacing.space2)
-            .background(
-                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.08))
-            )
+        // Metallic shimmer text — matches menu bar animation style.
+        ShimmerText(
+            text: L10n.Drawer.thinking,
+            font: .Aurora.caption.weight(.medium)
+        )
+        .padding(.horizontal, AuroraSpacing.space3)
+        .padding(.vertical, AuroraSpacing.space2)
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.08))
+        )
     }
 }
 
@@ -698,14 +853,19 @@ struct AuroraLoadingDots: View {
 struct SessionStatusBadge: View {
     let status: AppState.SessionStatus
     let currentTool: String?
+    let isThinking: Bool
     
     var body: some View {
         HStack(spacing: AuroraSpacing.space1) {
             statusIcon
                 .font(.system(size: 10, weight: .bold))
-            
-            Text(statusText)
-                .font(.Aurora.micro.weight(.semibold))
+
+            if status == .running && isThinking {
+                ShimmerText(text: statusText)
+            } else {
+                Text(statusText)
+                    .font(.Aurora.micro.weight(.semibold))
+            }
         }
         .foregroundColor(foregroundColor)
         .padding(.horizontal, AuroraSpacing.space2)
@@ -762,46 +922,107 @@ struct SessionStatusBadge: View {
     }
 }
 
-// MARK: - Shimmer Text Effect
+// MARK: - Context Size Badge
+
+struct ContextSizeBadge: View {
+    let tokens: Int
+
+    var body: some View {
+        HStack(spacing: AuroraSpacing.space1) {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: 10, weight: .bold))
+
+            Text("CTX \(TokenUsageFormatter.formatTokens(tokens))")
+                .font(.Aurora.micro.weight(.semibold))
+        }
+        .foregroundColor(Color.Aurora.textSecondary)
+        .padding(.horizontal, AuroraSpacing.space2)
+        .padding(.vertical, AuroraSpacing.space1)
+        .background(
+            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                .fill(Color.Aurora.glassOverlay.opacity(0.08))
+        )
+    }
+}
+
+// MARK: - Shimmer Text (thin wrapper over AuroraShimmer)
 
 struct ShimmerText: View {
     let text: String
-    var isDark: Bool = true
-    @State private var offset: CGFloat = -1
-    
+    var font: Font = .Aurora.micro.weight(.semibold)
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Text(text)
-            .font(.Aurora.caption.weight(.medium))
-            .foregroundColor(Color.Aurora.textSecondary)
-            .overlay(
-                GeometryReader { geometry in
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: shimmerColor.opacity(0.5), location: 0.4),
-                            .init(color: shimmerColor.opacity(0.7), location: 0.5),
-                            .init(color: shimmerColor.opacity(0.5), location: 0.6),
-                            .init(color: .clear, location: 1)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geometry.size.width * 2)
-                    .offset(x: -geometry.size.width + offset * geometry.size.width * 2)
+            .font(font)
+            .auroraShimmer(isDark: colorScheme == .dark)
+    }
+}
+
+// MARK: - Transient Reasoning Bubble
+
+/// A standalone bubble that shows live reasoning text during the thinking phase.
+/// This is NOT a message — it appears transiently and disappears when thinking ends.
+struct TransientReasoningBubble: View {
+    let text: String
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isExpanded = false
+
+    private var isDark: Bool { colorScheme == .dark }
+
+    var body: some View {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let maxLines = 5
+        let isTruncated = lines.count > maxLines
+        let displayLines = isExpanded ? lines : Array(lines.suffix(maxLines))
+        let displayText = displayLines.joined(separator: "\n")
+
+        HStack {
+            VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
+                HStack(spacing: AuroraSpacing.space2) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.Aurora.textSecondary)
+                    Text(L10n.Drawer.thinking)
+                        .font(.Aurora.micro.weight(.semibold))
+                        .foregroundColor(Color.Aurora.textSecondary)
+                        .auroraShimmer(isDark: isDark)
+                    Spacer()
+                    if isTruncated {
+                        Button(action: { withAnimation(.auroraFast) { isExpanded.toggle() } }) {
+                            Text(isExpanded ? L10n.collapse : L10n.expand)
+                                .font(.Aurora.micro.weight(.medium))
+                                .foregroundColor(Color.Aurora.textMuted)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .mask(
-                    Text(text)
-                        .font(.Aurora.caption.weight(.medium))
-                )
-            )
-            .onAppear {
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    offset = 1
+
+                if !trimmed.isEmpty {
+                    Markdown(displayText)
+                        .markdownTextStyle {
+                            FontSize(12)
+                            ForegroundColor(Color.Aurora.textPrimary)
+                        }
+                        .markdownBlockStyle(\.codeBlock) { configuration in
+                            configuration.label
+                                .padding(6)
+                                .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.05 : 0.04))
+                                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs))
+                        }
+                        .textSelection(.enabled)
                 }
             }
-    }
-    
-    private var shimmerColor: Color {
-        isDark ? Color.Aurora.accentMid : Color.Aurora.accentStart
+            .padding(AuroraSpacing.space3)
+            .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.06))
+            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous)
+                    .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.06), lineWidth: 0.5)
+            )
+
+            Spacer(minLength: 40)
+        }
     }
 }

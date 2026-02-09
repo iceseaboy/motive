@@ -118,6 +118,8 @@ extension AppState {
     func switchToSession(_ session: Session) {
         currentSession = session
         sessionStatus = SessionStatus(rawValue: session.status) ?? .completed
+        currentContextTokens = session.contextTokens
+         resetUsageDeduplication()
 
         // Sync OpenCodeBridge session ID
         Task { await bridge.setSessionId(session.openCodeSessionId) }
@@ -153,6 +155,8 @@ extension AppState {
         sessionStatus = .idle
         menuBarState = .idle
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         // Clear OpenCodeBridge session ID for fresh start
         Task { await bridge.setSessionId(nil) }
@@ -166,6 +170,8 @@ extension AppState {
         sessionStatus = .idle
         menuBarState = .idle
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         Task { await bridge.setSessionId(nil) }
         // @Observable handles change tracking automatically
@@ -287,6 +293,8 @@ extension AppState {
         menuBarState = .executing
         sessionStatus = .running
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         // Clear OpenCodeBridge session ID for fresh start
         Task { await bridge.setSessionId(nil) }

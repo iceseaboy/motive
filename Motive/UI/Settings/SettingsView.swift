@@ -45,6 +45,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case persona
     case model
+    case usage
     case skills
     case permissions
     case advanced
@@ -57,6 +58,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return L10n.Settings.general
         case .persona: return L10n.Settings.persona
         case .model: return L10n.Settings.aiProvider
+        case .usage: return L10n.Settings.usage
         case .skills: return L10n.Settings.skills
         case .permissions: return L10n.Settings.permissions
         case .advanced: return L10n.Settings.advanced
@@ -69,6 +71,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return L10n.Settings.generalSubtitle
         case .persona: return L10n.Settings.personaSubtitle
         case .model: return L10n.Settings.aiProviderSubtitle
+        case .usage: return L10n.Settings.usageSubtitle
         case .skills: return L10n.Settings.skillsSubtitle
         case .permissions: return L10n.Settings.permissionsSubtitle
         case .advanced: return L10n.Settings.advancedSubtitle
@@ -81,6 +84,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "gearshape.fill"
         case .persona: return "person.fill"
         case .model: return "cpu.fill"
+        case .usage: return "chart.bar.fill"
         case .skills: return "sparkles"
         case .permissions: return "lock.shield.fill"
         case .advanced: return "wrench.and.screwdriver.fill"
@@ -102,6 +106,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             PersonaSettingsView()
         case .model:
             ModelConfigView()
+        case .usage:
+            UsageSettingsView()
         case .skills:
             SkillsSettingsView()
         case .permissions:

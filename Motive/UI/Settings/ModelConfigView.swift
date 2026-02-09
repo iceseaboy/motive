@@ -155,7 +155,7 @@ struct ModelConfigView: View {
                         )
                 }
             }
-            
+
             // Action Bar (no Spacer - keep content compact)
             HStack {
                 Spacer()
@@ -241,6 +241,7 @@ struct ModelConfigView: View {
             }
         }
     }
+
 }
 
 // MARK: - Compact Provider Card

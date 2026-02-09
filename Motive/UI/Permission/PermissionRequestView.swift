@@ -91,12 +91,12 @@ struct PermissionRequestView: View {
     private var headerTitle: String {
         switch request.type {
         case .question:
-            return request.header ?? "Question"
+            return request.header ?? L10n.Permission.question
         case .permission:
             if let permType = request.permissionType {
                 return "\(permType.capitalized) Permission"
             }
-            return "Permission Required"
+            return L10n.Permission.permissionRequired
         }
     }
     
@@ -127,7 +127,7 @@ struct PermissionRequestView: View {
             // Question: Cancel + Submit
             HStack(spacing: AuroraSpacing.space3) {
                 Button(action: { respond(allowed: false) }) {
-                    Text("Cancel")
+                    Text(L10n.cancel)
                         .font(.Aurora.bodySmall.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AuroraSpacing.space3)
@@ -135,7 +135,7 @@ struct PermissionRequestView: View {
                 .buttonStyle(AuroraPermissionButtonStyle(style: .secondary))
                 
                 Button(action: { respond(allowed: true) }) {
-                    Text("Submit")
+                    Text(L10n.submit)
                         .font(.Aurora.bodySmall.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AuroraSpacing.space3)
@@ -148,7 +148,7 @@ struct PermissionRequestView: View {
             // Permission: Reject / Allow Once / Always Allow
             HStack(spacing: AuroraSpacing.space2) {
                 Button(action: { respondPermission(reply: "Reject") }) {
-                    Text("Reject")
+                    Text(L10n.reject)
                         .font(.Aurora.bodySmall.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AuroraSpacing.space3)
@@ -156,7 +156,7 @@ struct PermissionRequestView: View {
                 .buttonStyle(AuroraPermissionButtonStyle(style: .danger))
                 
                 Button(action: { respondPermission(reply: "Allow Once") }) {
-                    Text("Allow Once")
+                    Text(L10n.allowOnce)
                         .font(.Aurora.bodySmall.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AuroraSpacing.space3)
@@ -164,7 +164,7 @@ struct PermissionRequestView: View {
                 .buttonStyle(AuroraPermissionButtonStyle(style: .secondary))
                 
                 Button(action: { respondPermission(reply: "Always Allow") }) {
-                    Text("Always Allow")
+                    Text(L10n.alwaysAllow)
                         .font(.Aurora.bodySmall.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AuroraSpacing.space3)
@@ -230,7 +230,7 @@ struct PermissionRequestView: View {
             
             // Diff preview
             if let diff = request.diff, !diff.isEmpty {
-                DisclosureGroup("Preview changes") {
+                DisclosureGroup(L10n.Permission.previewChanges) {
                     ScrollView {
                         Text(diff)
                             .font(.Aurora.monoSmall)
@@ -255,7 +255,7 @@ struct PermissionRequestView: View {
             
             if showCustomInput {
                 VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
-                    TextField("Type your response...", text: $customResponse)
+                    TextField(L10n.Permission.typeResponse, text: $customResponse)
                         .textFieldStyle(AuroraModernTextFieldStyle())
                         .onSubmit {
                             if !customResponse.trimmingCharacters(in: .whitespaces).isEmpty {

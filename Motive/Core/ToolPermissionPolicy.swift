@@ -22,20 +22,20 @@ enum TrustLevel: String, CaseIterable, Codable, Sendable {
 
     var displayName: String {
         switch self {
-        case .careful:  return "Careful"
-        case .balanced: return "Balanced"
-        case .yolo:     return "YOLO"
+        case .careful:  return L10n.Settings.trustCareful
+        case .balanced: return L10n.Settings.trustBalanced
+        case .yolo:     return L10n.Settings.trustYolo
         }
     }
 
     var description: String {
         switch self {
         case .careful:
-            return "Ask before file edits and shell commands"
+            return L10n.Settings.trustCarefulDesc
         case .balanced:
-            return "Auto-approve edits, ask for unknown commands"
+            return L10n.Settings.trustBalancedDesc
         case .yolo:
-            return "Allow all operations (except dangerous ones)"
+            return L10n.Settings.trustYoloDesc
         }
     }
 

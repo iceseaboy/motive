@@ -476,7 +476,7 @@ struct AuroraAccessibilityStep: View {
                             .font(.Aurora.body.weight(.medium))
                             .foregroundColor(Color.Aurora.textPrimary)
                         
-                        Text(hasPermission ? "Hotkey is ready to use" : "Required for global hotkey")
+                        Text(hasPermission ? L10n.Onboarding.hotkeyReady : L10n.Onboarding.hotkeyRequired)
                             .font(.Aurora.caption)
                             .foregroundColor(Color.Aurora.textSecondary)
                     }
@@ -764,11 +764,11 @@ struct AuroraTrustLevelStep: View {
                     .font(.system(size: 36))
                     .foregroundStyle(Color.Aurora.auroraGradient)
 
-                Text("Permission Mode")
+                Text(L10n.Onboarding.permissionMode)
                     .font(.Aurora.title2)
                     .foregroundColor(Color.Aurora.textPrimary)
 
-                Text("Choose how much autonomy the AI has")
+                Text(L10n.Onboarding.permissionModeDesc)
                     .font(.Aurora.bodySmall)
                     .foregroundColor(Color.Aurora.textSecondary)
                     .multilineTextAlignment(.center)
@@ -789,14 +789,14 @@ struct AuroraTrustLevelStep: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.warning)
-                    Text("All operations run without approval")
+                    Text(L10n.Onboarding.permissionYoloWarning)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.warning)
                 }
                 .padding(.horizontal, AuroraSpacing.space10)
             }
 
-            Text("You can change this anytime in Settings → Permissions")
+            Text(L10n.Onboarding.permissionChangeHint)
                 .font(.Aurora.caption)
                 .foregroundColor(Color.Aurora.textMuted)
                 .padding(.horizontal, AuroraSpacing.space10)

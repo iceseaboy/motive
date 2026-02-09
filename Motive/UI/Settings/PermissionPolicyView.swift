@@ -24,7 +24,7 @@ struct PermissionPolicyView: View {
             
             // Primary tools
             toolPermissionsSection(
-                title: "TOOL PERMISSIONS",
+                title: L10n.Settings.permissions,
                 tools: ToolPermission.allCases.filter(\.isPrimary)
             )
             
@@ -35,7 +35,7 @@ struct PermissionPolicyView: View {
                     tools: ToolPermission.allCases.filter { !$0.isPrimary }
                 )
             } label: {
-                Text("Advanced")
+                Text(L10n.Settings.advanced)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.Aurora.textMuted)
                     .textCase(.uppercase)
@@ -76,7 +76,7 @@ struct PermissionPolicyView: View {
     
     private var trustLevelSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("TRUST LEVEL")
+            Text(L10n.Settings.trustLevel)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color.Aurora.textMuted)
                 .textCase(.uppercase)
@@ -95,7 +95,7 @@ struct PermissionPolicyView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.warning)
-                    Text("All operations run without approval. Use with caution.")
+                    Text(L10n.Settings.trustAllOps)
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.warning)
                 }
@@ -287,7 +287,7 @@ struct PermissionPolicyView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "plus")
                         .font(.system(size: 10))
-                    Text("Add rule...")
+                    Text(L10n.Settings.addRule)
                         .font(.system(size: 11))
                 }
                 .foregroundColor(Color.Aurora.textMuted)
@@ -387,11 +387,11 @@ private struct AddRuleView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Add Rule for \(tool.displayName)")
+            Text(String(format: L10n.Settings.addRuleFor, tool.displayName))
                 .font(.headline)
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Pattern")
+                Text(L10n.Settings.pattern)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -400,11 +400,11 @@ private struct AddRuleView: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Action")
+                Text(L10n.Settings.action)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
-                Picker("Action", selection: $action) {
+                Picker(L10n.Settings.action, selection: $action) {
                     ForEach(PermissionAction.allCases, id: \.self) { action in
                         Text(action.displayName).tag(action)
                     }
@@ -413,20 +413,20 @@ private struct AddRuleView: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                Text("Description (optional)")
+                Text(L10n.Settings.descriptionOptional)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
-                TextField("What this rule does", text: $description)
+                TextField(L10n.Settings.whatRuleDoes, text: $description)
                     .textFieldStyle(.roundedBorder)
             }
             
             HStack {
                 Spacer()
-                Button("Cancel") {
+                Button(L10n.cancel) {
                     dismiss()
                 }
-                Button("Add") {
+                Button(L10n.submit) {
                     let rule = ToolPermissionRule(
                         pattern: pattern,
                         action: action,

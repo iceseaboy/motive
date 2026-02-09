@@ -541,6 +541,7 @@ struct AuroraStatusIndicator: View {
         case .idle: return Color.Aurora.textMuted
         case .reasoning: return Color.Aurora.primary
         case .executing: return Color.Aurora.primaryLight
+        case .responding: return Color.Aurora.primaryLight
         }
     }
 }
@@ -787,41 +788,73 @@ struct EmptyStateView: View {
     }
 }
 
-// MARK: - Aurora Shimmer Effect
+// MARK: - Aurora Shimmer Effect (Metallic)
+//
+// Replicates the menu bar's per-character alpha sweep:
+// Base text is dimmed; a bright "spotlight" sweeps across,
+// producing a metallic sheen.
 
 struct AuroraShimmer: ViewModifier {
-    @State private var phase: CGFloat = 0
     var isDark: Bool = true
-    
+
+    /// Frame-driven phase (0..<cycleFrames)
+    @State private var phase: Int = 0
+    @State private var animationTask: Task<Void, Never>?
+
+    /// Total frames in one sweep cycle (~1.2 s at 30 fps)
+    private static let cycleFrames: Int = 40
+    /// Milliseconds between frames
+    private static let frameInterval: UInt64 = 30
+
     func body(content: Content) -> some View {
+        let progress = CGFloat(phase) / CGFloat(Self.cycleFrames)
+        // Sweep from slightly off-screen left to off-screen right
+        let center = progress * 1.4 - 0.2
+
         content
+            // Hide base content; gradient provides all visual appearance
+            .opacity(0)
             .overlay(
-                GeometryReader { geometry in
-                    LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: shimmerColor.opacity(0.4), location: 0.4),
-                            .init(color: shimmerColor.opacity(0.6), location: 0.5),
-                            .init(color: shimmerColor.opacity(0.4), location: 0.6),
-                            .init(color: .clear, location: 1)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geometry.size.width * 2)
-                    .offset(x: -geometry.size.width + phase * geometry.size.width * 2)
-                }
+                LinearGradient(
+                    stops: metallicStops(center: center),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
                 .mask(content)
             )
             .onAppear {
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1
+                animationTask = Task { @MainActor in
+                    while !Task.isCancelled {
+                        phase = (phase + 1) % Self.cycleFrames
+                        try? await Task.sleep(nanoseconds: Self.frameInterval * 1_000_000)
+                    }
                 }
             }
+            .onDisappear {
+                animationTask?.cancel()
+                animationTask = nil
+            }
     }
-    
-    private var shimmerColor: Color {
-        isDark ? Color.Aurora.accentMid : Color.Aurora.accentStart
+
+    /// Build gradient stops that mirror the StatusBarController algorithm:
+    /// base alpha 0.35, highlight alpha 1.0, falloff 2.5×distance.
+    private func metallicStops(center: CGFloat) -> [Gradient.Stop] {
+        let baseAlpha: CGFloat = 0.35
+        let highlightAlpha: CGFloat = 1.0
+        let falloff: CGFloat = 2.5
+        let stepCount = 20
+
+        let textColor: Color = isDark ? .white : .black
+
+        return (0...stepCount).map { i in
+            let location = CGFloat(i) / CGFloat(stepCount)
+            let distance = abs(location - center)
+            let alpha = max(baseAlpha, highlightAlpha - distance * falloff)
+            return Gradient.Stop(
+                color: textColor.opacity(alpha),
+                location: location
+            )
+        }
     }
 }
 

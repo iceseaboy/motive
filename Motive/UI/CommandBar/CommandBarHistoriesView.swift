@@ -66,11 +66,11 @@ struct CommandBarHistoriesView: View {
                 .foregroundStyle(Color.Aurora.auroraGradient)
             
             VStack(spacing: AuroraSpacing.space2) {
-                Text("No sessions yet")
+                Text(L10n.CommandBar.noSessions)
                     .font(.Aurora.bodySmall.weight(.medium))
                     .foregroundColor(Color.Aurora.textPrimary)
                 
-                Text("Your conversation history will appear here")
+                Text(L10n.CommandBar.noSessionsDesc)
                     .font(.Aurora.caption)
                     .foregroundColor(Color.Aurora.textMuted)
             }
@@ -189,10 +189,10 @@ private struct HistoryListItem: View {
         let now = Date()
         let diff = now.timeIntervalSince(session.createdAt)
         
-        if diff < 60 { return "just now" }
-        if diff < 3600 { return "\(Int(diff / 60))m ago" }
-        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
-        if diff < 604800 { return "\(Int(diff / 86400))d ago" }
+        if diff < 60 { return L10n.Time.justNow }
+        if diff < 3600 { return String(format: L10n.Time.minutesAgo, Int(diff / 60)) }
+        if diff < 86400 { return String(format: L10n.Time.hoursAgo, Int(diff / 3600)) }
+        if diff < 604800 { return String(format: L10n.Time.daysAgo, Int(diff / 86400)) }
         
         let formatter = DateFormatter()
         formatter.dateStyle = .short

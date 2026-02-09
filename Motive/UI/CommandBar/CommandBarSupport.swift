@@ -13,6 +13,7 @@ extension AppState.MenuBarState {
         case .idle: return L10n.CommandBar.ready
         case .reasoning: return L10n.StatusBar.reasoning
         case .executing: return L10n.StatusBar.executing
+        case .responding: return L10n.StatusBar.executing
         }
     }
 }

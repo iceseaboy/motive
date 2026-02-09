@@ -192,7 +192,7 @@ struct SkillRow: View {
             
             HStack(spacing: AuroraSpacing.space2) {
                 if isEditingKey || !hasApiKey {
-                    SecureField("Enter API key...", text: $apiKeyInput)
+                    SecureField(L10n.Settings.skillsEnterApiKey, text: $apiKeyInput)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .monospaced))
                         .padding(.horizontal, 10)
@@ -212,7 +212,7 @@ struct SkillRow: View {
                     Button {
                         saveApiKey()
                     } label: {
-                        Text("Save")
+                        Text(L10n.save)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(Color.Aurora.textPrimary)
                             .padding(.horizontal, 12)
@@ -230,7 +230,7 @@ struct SkillRow: View {
                             apiKeyInput = currentApiKey
                             isEditingKey = false
                         } label: {
-                            Text("Cancel")
+                            Text(L10n.cancel)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(Color.Aurora.textMuted)
                         }
@@ -248,7 +248,7 @@ struct SkillRow: View {
                         isEditingKey = true
                         apiKeyInput = ""
                     } label: {
-                        Text("Edit")
+                        Text(L10n.edit)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(Color.Aurora.accent)
                     }

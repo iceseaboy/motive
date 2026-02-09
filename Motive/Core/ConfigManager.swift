@@ -236,6 +236,9 @@ final class ConfigManager: ObservableObject {
     // Trust level — controls how aggressively the AI operates
     @AppStorage("trustLevel") var trustLevelRawValue: String = TrustLevel.careful.rawValue
 
+    // Token usage totals (per model)
+    @AppStorage("tokenUsageTotalsJSON") var tokenUsageTotalsJSON: String = "{}"
+
     var trustLevel: TrustLevel {
         get { TrustLevel(rawValue: trustLevelRawValue) ?? .careful }
         set {

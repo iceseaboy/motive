@@ -381,7 +381,7 @@ extension CommandBarView {
 
             // Tab hint when autocomplete is available
             if autocompleteCompletion != nil {
-                Text("Tab")
+                Text(L10n.CommandBar.tab)
                     .font(.Aurora.micro.weight(.medium))
                     .foregroundColor(Color.Aurora.textMuted)
                     .padding(.horizontal, AuroraSpacing.space2)
@@ -406,11 +406,11 @@ extension CommandBarView {
     var placeholderText: String {
         switch mode {
         case .command:
-            return "Type a command..."
+            return L10n.CommandBar.typeCommand
         case .history:
-            return "Search sessions..."
+            return L10n.CommandBar.searchSessions
         case .running, .completed, .error:
-            return "Follow up..."  // Status shown above, not in placeholder
+            return L10n.CommandBar.followUp
         default:
             return L10n.CommandBar.placeholder
         }
@@ -496,6 +496,16 @@ extension CommandBarView {
                 .foregroundColor(Color.Aurora.textMuted)
                 .lineLimit(1)
                 .truncationMode(.middle)
+
+            if let contextTokens = appState.currentContextTokens {
+                Circle()
+                    .fill(Color.Aurora.textMuted.opacity(0.4))
+                    .frame(width: 3, height: 3)
+
+                Text("CTX \(TokenUsageFormatter.formatTokens(contextTokens))")
+                    .font(.Aurora.micro.weight(.medium))
+                    .foregroundColor(Color.Aurora.textMuted)
+            }
         }
         .padding(.horizontal, AuroraSpacing.space1)
         .padding(.vertical, AuroraSpacing.space1)

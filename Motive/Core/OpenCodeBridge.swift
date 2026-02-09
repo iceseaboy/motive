@@ -18,6 +18,7 @@ actor OpenCodeBridge {
         let environment: [String: String]
         let model: String?  // e.g., "openai/gpt-4o" or "anthropic/claude-sonnet-4-5-20250929"
         let debugMode: Bool
+        let projectDirectory: String  // Current project directory for server CWD
     }
 
     // MARK: - Properties
@@ -197,32 +198,7 @@ actor OpenCodeBridge {
         }
 
         do {
-            // Create or reuse session
-            let sessionID: String
-            if let existing = currentSessionId {
-                sessionID = existing
-                logger.info("Reusing existing session: \(sessionID)")
-            } else {
-                let session = try await apiClient.createSession()
-                sessionID = session.id
-                currentSessionId = sessionID
-                activeSessions.insert(sessionID)
-                logger.info("Created new session: \(sessionID)")
-            }
-
-            let sessionCount = activeSessions.count
-            let sseAlive = await sseClient.hasActiveStream
-            let sseConnected = await sseClient.connected
-            logger.info("Active sessions: \(sessionCount), SSE alive: \(sseAlive), SSE connected: \(sseConnected)")
-
-            // Send prompt asynchronously (results via SSE)
-            try await apiClient.sendPromptAsync(
-                sessionID: sessionID,
-                text: text,
-                model: configuration?.model
-            )
-
-            logger.info("Submitted intent to session \(sessionID)")
+            try await submitPrompt(text: text)
         } catch {
             logger.error("Failed to submit intent: \(error.localizedDescription)")
             await eventHandler(OpenCodeEvent(
@@ -370,7 +346,8 @@ actor OpenCodeBridge {
                 toolInputDict: inputDict,
                 toolOutput: info.output,
                 toolCallId: info.toolCallID,
-                sessionId: info.sessionID
+                sessionId: info.sessionID,
+                diff: info.diff
             ))
 
         case .toolError(let info):
@@ -385,6 +362,19 @@ actor OpenCodeBridge {
                 sessionId: info.sessionID
             ))
 
+        case .usageUpdated(let info):
+            guard isTrackedSession(info.sessionID) else { return }
+            await eventHandler(OpenCodeEvent(
+                kind: .usage,
+                rawJson: "",
+                text: "",
+                sessionId: info.sessionID,
+                model: info.model,
+                usage: info.usage,
+                cost: info.cost,
+                messageId: info.messageID
+            ))
+
         case .sessionIdle(let sessionID):
             guard isTrackedSession(sessionID) else { return }
             textBuffer.removeValue(forKey: sessionID)
@@ -397,14 +387,8 @@ actor OpenCodeBridge {
 
         case .sessionStatus(let info):
             guard isTrackedSession(info.sessionID) else { return }
-            if info.status == "busy" {
-                await eventHandler(OpenCodeEvent(
-                    kind: .thought,
-                    rawJson: "",
-                    text: "Processing...",
-                    sessionId: info.sessionID
-                ))
-            }
+            // Ignore busy status to avoid injecting synthetic "Processing..." text.
+            break
 
         case .sessionError(let info):
             guard isTrackedSession(info.sessionID) else { return }
@@ -454,8 +438,38 @@ actor OpenCodeBridge {
     }
 
     private func currentWorkingDirectory() -> String {
-        // Default to home directory; AppState provides the actual cwd via submitIntent
-        FileManager.default.homeDirectoryForCurrentUser.path
+        if let dir = configuration?.projectDirectory, !dir.isEmpty {
+            return dir
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.path
+    }
+
+    private func submitPrompt(text: String) async throws {
+        // Create or reuse session
+        let sessionID: String
+        if let existing = currentSessionId {
+            sessionID = existing
+            logger.info("Reusing existing session: \(sessionID)")
+        } else {
+            let session = try await apiClient.createSession()
+            sessionID = session.id
+            currentSessionId = sessionID
+            activeSessions.insert(sessionID)
+            logger.info("Created new session: \(sessionID)")
+        }
+
+        let sessionCount = activeSessions.count
+        let sseAlive = await sseClient.hasActiveStream
+        let sseConnected = await sseClient.connected
+        logger.info("Active sessions: \(sessionCount), SSE alive: \(sseAlive), SSE connected: \(sseConnected)")
+
+        // Send prompt asynchronously (results via SSE)
+        try await apiClient.sendPromptAsync(
+            sessionID: sessionID,
+            text: text,
+            model: configuration?.model
+        )
+        logger.info("Submitted intent to session \(sessionID)")
     }
 
     // MARK: - JSON Encoding Helpers

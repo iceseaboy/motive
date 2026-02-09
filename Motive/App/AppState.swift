@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
         case idle
         case reasoning
         case executing
+        case responding   // Model is outputting response text (not thinking)
     }
 
     enum SessionStatus: String, Sendable {
@@ -32,6 +33,12 @@ final class AppState: ObservableObject {
     @Published var lastErrorMessage: String?
     @Published var currentToolName: String?
     @Published var currentToolInput: String?  // Current tool's input (e.g., command, file path)
+    @Published var currentContextTokens: Int?
+    /// Transient reasoning text — shown live during thinking, cleared when thinking ends.
+    /// Not stored in the messages array.
+    @Published var currentReasoningText: String?
+    /// Task to dismiss reasoning after a short delay
+    var reasoningDismissTask: Task<Void, Never>?
     @Published var commandBarResetTrigger: Int = 0  // Increment to trigger reset
     @Published var sessionListRefreshTrigger: Int = 0  // Increment to refresh session list
 
@@ -48,6 +55,7 @@ final class AppState: ObservableObject {
     var drawerWindowController: DrawerWindowController?
     var quickConfirmController: QuickConfirmWindowController?
     var hasStarted = false
+    private var seenUsageMessageIds = Set<String>()
 
     // CloudKit for remote commands from iOS
     lazy var cloudKitManager: CloudKitManager = CloudKitManager()
@@ -69,5 +77,18 @@ final class AppState: ObservableObject {
 
     init(configManager: ConfigManager) {
         self.configManager = configManager
+    }
+
+    func resetUsageDeduplication() {
+        seenUsageMessageIds.removeAll()
+    }
+
+    func recordUsageMessageId(sessionId: String, messageId: String) -> Bool {
+        let key = "\(sessionId)::\(messageId)"
+        if seenUsageMessageIds.contains(key) {
+            return false
+        }
+        seenUsageMessageIds.insert(key)
+        return true
     }
 }

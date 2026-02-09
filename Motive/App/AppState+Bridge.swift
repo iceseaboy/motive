@@ -32,7 +32,8 @@ extension AppState {
             binaryURL: binaryURL,
             environment: configManager.makeEnvironment(),
             model: configManager.getModelString(),
-            debugMode: configManager.debugMode
+            debugMode: configManager.debugMode,
+            projectDirectory: configManager.currentProjectURL.path
         )
         await bridge.updateConfiguration(config)
 
@@ -65,8 +66,8 @@ extension AppState {
     }
 
     func handle(event: OpenCodeEvent) {
-        // Log every event arrival for diagnostics
-        Log.bridge("⬇︎ Event: \(event.kind.rawValue) tool=\(event.toolName ?? "-") text=\(event.text.prefix(60)) session=\(event.sessionId ?? "-")")
+        // Log every event arrival for diagnostics — full text, no truncation
+        Log.bridge("⬇︎ Event: kind=\(event.kind.rawValue) tool=\(event.toolName ?? "-") session=\(event.sessionId ?? "-") text=«\(event.text)»")
 
         // Once the user has manually interrupted, ignore all subsequent events.
         // OpenCode may send trailing tool/error events (e.g. "MessageAbortedError")
@@ -82,14 +83,29 @@ extension AppState {
         
         // Update UI state based on event kind
         switch event.kind {
+        case .usage:
+            applyUsageUpdate(event)
+
         case .thought:
             menuBarState = .reasoning
             currentToolName = nil
             currentToolInput = nil
+            // Cancel any pending dismiss — new reasoning is arriving
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            // Accumulate reasoning text into transient state (not messages)
+            if !event.text.isEmpty {
+                currentReasoningText = (currentReasoningText ?? "") + event.text
+            }
             // Update CloudKit for remote commands
             updateRemoteCommandStatus(toolName: "Thinking...")
+            // Don't flow to processEventContent — reasoning is transient
+            logEvent(event)
+            return
 
         case .call, .tool:
+            // Thinking is over — fade out transient reasoning
+            dismissReasoningAfterDelay()
             menuBarState = .executing
             currentToolName = event.toolName ?? "Processing"
             currentToolInput = event.toolInput
@@ -114,6 +130,7 @@ extension AppState {
             updateRemoteCommandStatus(toolName: event.toolName)
 
         case .diff:
+            dismissReasoningAfterDelay()
             menuBarState = .executing
             currentToolName = "Editing file"
             updateRemoteCommandStatus(toolName: "Editing file")
@@ -122,6 +139,9 @@ extension AppState {
             // Cancel session timeout on finish
             sessionTimeoutTask?.cancel()
             sessionTimeoutTask = nil
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            currentReasoningText = nil
             
             // --- Finish deduplication ---
             if event.isSecondaryFinish && sessionStatus == .completed {
@@ -152,7 +172,9 @@ extension AppState {
             }
 
         case .assistant:
-            menuBarState = .reasoning
+            dismissReasoningAfterDelay()
+            // Model is actively outputting response text — NOT thinking/waiting.
+            menuBarState = .responding
             currentToolName = nil
 
         case .user:
@@ -163,6 +185,9 @@ extension AppState {
             // Explicit error from OpenCode — always surface to user
             sessionTimeoutTask?.cancel()
             sessionTimeoutTask = nil
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            currentReasoningText = nil
             lastErrorMessage = event.text
             sessionStatus = .failed
             menuBarState = .idle
@@ -187,6 +212,20 @@ extension AppState {
 
         // Process event content (save session ID, add messages)
         processEventContent(event)
+    }
+
+    // MARK: - Reasoning Lifecycle
+
+    /// Dismiss transient reasoning text after a short delay, giving the user time to see it.
+    /// If new reasoning arrives before the delay, the task is cancelled and reasoning stays.
+    private func dismissReasoningAfterDelay() {
+        guard currentReasoningText != nil else { return }
+        reasoningDismissTask?.cancel()
+        reasoningDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.currentReasoningText = nil
+        }
     }
 
     // MARK: - Tool Lifecycle Helpers
@@ -473,6 +512,9 @@ extension AppState {
     // MARK: - Event Content Processing
 
     private func processEventContent(_ event: OpenCodeEvent) {
+        if event.kind == .usage {
+            return
+        }
         // Save OpenCode session ID to our session for resume capability
         if let sessionId = event.sessionId, let session = currentSession, session.openCodeSessionId == nil {
             session.openCodeSessionId = sessionId
@@ -499,8 +541,13 @@ extension AppState {
         }
 
         // --- TodoWrite interception (live has special UI handling) ---
-        if event.kind == .tool, let toolName = event.toolName, toolName.isTodoWriteTool {
-            handleTodoWriteEvent(event)
+        // Intercept both .call (running) and .tool (completed) to avoid duplicate bubbles.
+        if (event.kind == .tool || event.kind == .call),
+           let toolName = event.toolName, toolName.isTodoWriteTool {
+            // Only process completed events; skip the running call event entirely
+            if event.kind == .tool {
+                handleTodoWriteEvent(event)
+            }
             logEvent(event)
             return
         }
@@ -510,6 +557,44 @@ extension AppState {
         logEvent(event)
     }
 
+    private func applyUsageUpdate(_ event: OpenCodeEvent) {
+        guard let usage = event.usage else {
+            Log.debug("[Usage] applyUsageUpdate: no usage data in event")
+            return
+        }
+
+        Log.debug("[Usage] applyUsageUpdate: model=\(event.model ?? "nil") in=\(usage.input) out=\(usage.output) reason=\(usage.reasoning) msgId=\(event.messageId ?? "nil")")
+
+        if let messageId = event.messageId,
+           let sessionId = event.sessionId {
+            if !recordUsageMessageId(sessionId: sessionId, messageId: messageId) {
+                Log.debug("[Usage] Deduplicated messageId=\(messageId)")
+                return
+            }
+        }
+
+        // Model comes from the SSE event (message.updated has modelID).
+        // If model is nil, fall back to the currently selected model from settings
+        // so that usage is never silently dropped.
+        let model: String
+        if let m = event.model, !m.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            model = m
+        } else if let fallback = configManager.getModelString() {
+            Log.debug("[Usage] Model nil in event, using settings fallback: \(fallback)")
+            model = fallback
+        } else {
+            Log.debug("[Usage] No model available, skipping usage recording")
+            return
+        }
+
+        configManager.recordTokenUsage(model: model, usage: usage, cost: event.cost)
+
+        if usage.input > 0 {
+            currentContextTokens = usage.input
+            currentSession?.contextTokens = usage.input
+        }
+    }
+
     // MARK: - Message Insertion
 
     /// Insert an event into the live messages array.
@@ -517,9 +602,6 @@ extension AppState {
     private func insertEventMessage(_ event: OpenCodeEvent) {
         // Skip empty/unparseable events
         if event.kind == .unknown && event.text.isEmpty { return }
-        // Skip thought events (not shown in UI)
-        if event.kind == .thought { return }
-
         guard let message = event.toMessage() else { return }
 
         // --- System / Finish deduplication ---
@@ -549,6 +631,11 @@ extension AppState {
             } else {
                 messages.append(message)
             }
+            return
+        }
+
+        // Reasoning is transient (handled via currentReasoningText), skip if it arrives here
+        if message.type == .reasoning {
             return
         }
 

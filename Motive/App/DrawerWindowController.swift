@@ -22,6 +22,7 @@ final class DrawerWindowController {
 
     init<Content: View>(rootView: Content) {
         let hostingView = NSHostingView(rootView: AnyView(rootView))
+        hostingView.safeAreaRegions = []
         hostingView.wantsLayer = true
         hostingView.layer?.masksToBounds = false
         

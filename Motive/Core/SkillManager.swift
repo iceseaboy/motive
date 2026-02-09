@@ -328,96 +328,86 @@ description: \(skill.description)\(metadataLine)
         return Skill(
             id: "browser-automation",
             name: "Browser Automation",
-            description: "Autonomous browser agent for web tasks - shopping, searching, form filling. Auto-opens browser.",
+            description: "Autonomous browser agent for interactive web workflows requiring multi-step navigation, clicking, typing, or user decisions.",
             content: """
-            # Browser Automation (agent_task)
+            # Browser Automation (browser-use-sidecar)
             
-            Use `browser-use-sidecar` for ALL browser tasks. The agent automatically opens browser, navigates, clicks, types, and asks user for choices when needed.
+            ## When to Use Which Tool
             
-            ## Command: agent_task
+            You have TWO web tools. Choose based on the nature of the task:
+            
+            **Use the built-in `webfetch` tool when:**
+            The task only requires **reading** web content — no clicking, typing, logging in, or navigating between pages. Webfetch is faster, lighter, and sufficient for any read-only web access.
+            
+            **Use `browser-use-sidecar` when:**
+            The task requires **interaction** with a web page — clicking buttons, filling forms, navigating multi-step flows, making selections, logging in, or any workflow where a real browser session is needed.
+            
+            **Rule of thumb:** If you only need the content of a URL, use `webfetch`. If you need to *do something* on a website, use `browser-use-sidecar`.
+            
+            ---
+            
+            ## browser-use-sidecar Usage
+            
+            ### Command: agent_task
             
             ```bash
             browser-use-sidecar \(headedFlag)agent_task "your task description"
             ```
             
-            **The agent will:**
-            - Automatically open browser (no need to call `open` first)
-            - Navigate to websites
-            - Click buttons, fill forms
-            - Ask user for choices via `need_input` status
+            The agent autonomously opens a browser, navigates, clicks, types, and requests user input when decisions are needed.
             
-            ## Examples
+            ### Response Handling — CRITICAL POLLING LOOP
             
-            ```bash
-            # Shopping
-            browser-use-sidecar \(headedFlag)agent_task "Search for tissue paper on Taobao and pick one to add to cart"
-            
-            # Search
-            browser-use-sidecar \(headedFlag)agent_task "Search Google for iPhone 16 reviews"
-            
-            # Form
-            browser-use-sidecar \(headedFlag)agent_task "Fill contact form on example.com with name John"
-            ```
-            
-            ## Response Handling - CRITICAL POLLING LOOP
-            
-            **After calling `agent_task`, you MUST poll `agent_status` until task completes!**
+            After calling `agent_task`, you **MUST** poll `agent_status` until the task completes.
             
             **Status types:**
-            - `"running"` - Task in progress, WAIT 3-5 seconds then call `agent_status` again
-            - `"need_input"` - Agent needs user choice, use the built-in `question` tool then `agent_continue`
-            - `"completed"` - Done successfully
-            - `"error"` - Failed
+            - `"running"` — Task in progress. Wait 3–5 seconds, then call `agent_status` again.
+            - `"need_input"` — Agent needs a user decision. Use the built-in `question` tool, then `agent_continue`.
+            - `"completed"` — Task finished successfully.
+            - `"error"` — Task failed.
             
-            ## MANDATORY Workflow
+            ### Workflow
             
             ```bash
-            # Step 1: Start task
+            # 1. Start task
             browser-use-sidecar \(headedFlag)agent_task "your task"
-            # Returns: {"status": "running", ...}
             
-            # Step 2: POLL status (repeat until NOT "running")
-            sleep 5  # Wait a few seconds
+            # 2. Poll status (repeat until NOT "running")
+            sleep 5
             browser-use-sidecar agent_status
-            # If still "running", repeat step 2
-            # If "need_input", go to step 3
-            # If "completed" or "error", done
+            # "running"  → repeat step 2
+            # "need_input" → step 3
+            # "completed" / "error" → done
             
-            # Step 3: Handle need_input (if status is "need_input")
-            # Response example: {"status": "need_input", "question": "Which one?", "options": ["A", "B"]}
-            # -> Use the built-in `question` tool to show options to user
-            # -> After user picks "A":
-            browser-use-sidecar agent_continue "A"
-            # -> Then go back to step 2 (poll status again)
+            # 3. Handle need_input
+            # Use the built-in `question` tool to present options to user
+            # After user responds:
+            browser-use-sidecar agent_continue "user's choice"
+            # → go back to step 2
             
-            # Step 4: When completed
+            # 4. When done
             browser-use-sidecar close
             ```
             
-            ## Progressive Clarification (Required)
+            ### Commands Reference
             
-            Minimize user questions. Only ask when necessary.
+            - `agent_task "description"` — Start an autonomous browser task
+            - `agent_status` — Check task progress (poll repeatedly while running)
+            - `agent_continue "choice"` — Provide user's decision and resume
+            - `close` — Close the browser session
             
-            If the task is ambiguous:
-            - Phase 1 (coarse): ask for high-level constraints that narrow the search space.
-              Examples: goal, priority, budget/time range, scope, preference direction.
-            - Phase 2 (concrete): AFTER you have real candidates (from the web page or results),
-              ask the user to choose among those concrete options via the built-in `question` tool.
+            ### Progressive Clarification
             
-            Do NOT ask for concrete choices before real candidates exist.
+            Minimize questions to the user. Only ask when genuinely necessary.
             
-            ## Key Commands
+            - **Before browsing:** Ask only for high-level constraints (goal, budget range, preferences).
+            - **After real candidates exist:** Present concrete options for the user to choose from via the `question` tool.
+            - Never ask the user to choose between options that don't exist yet.
             
-            - `agent_task "description"` - Start autonomous browser task
-            - `agent_status` - Check task progress (MUST call repeatedly while running)
-            - `agent_continue "choice"` - Continue after user input
-            - `close` - Close browser when done
+            ### Safety (Non-negotiable)
             
-            ## Safety (Non-negotiable)
-            
-            - Never complete a payment (enter passwords, confirm transactions).
-            - Never submit an order without explicit user approval.
-            - If login expires, CAPTCHA appears, or anything unexpected — notify user immediately.
+            - Never complete a payment, enter passwords, or confirm transactions without explicit user approval.
+            - If login expires, CAPTCHA appears, or anything unexpected happens — notify the user immediately.
             """,
             type: .capability,
             enabled: enabled

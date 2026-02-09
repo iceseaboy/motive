@@ -103,7 +103,7 @@ struct QuickConfirmView: View {
             } else {
                 // Free text input
                 AuroraStyledTextField(
-                    placeholder: "Type your answer...",
+                    placeholder: L10n.Permission.typeAnswer,
                     text: $textInput
                 )
             }
@@ -172,7 +172,7 @@ struct QuickConfirmView: View {
             // Permission type (e.g., "edit", "bash")
             if let permType = request.permissionType {
                 HStack(spacing: AuroraSpacing.space2) {
-                    Text("Permission:")
+                    Text(L10n.Permission.permissionLabel)
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.textSecondary)
 
@@ -185,7 +185,7 @@ struct QuickConfirmView: View {
             // File paths / patterns
             if let patterns = request.patterns, !patterns.isEmpty {
                 HStack(spacing: AuroraSpacing.space2) {
-                    Text(patterns.count == 1 ? "Path:" : "Paths:")
+                    Text(patterns.count == 1 ? L10n.Permission.pathLabel : L10n.Permission.pathsLabel)
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.textSecondary)
 
@@ -239,20 +239,20 @@ struct QuickConfirmView: View {
             HStack(spacing: AuroraSpacing.space2) {
                 Spacer()
                 
-                Button("Reject") {
+                Button(L10n.reject) {
                     onResponse("Reject")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 
-                Button("Allow Once") {
+                Button(L10n.allowOnce) {
                     onResponse("Allow Once")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.Aurora.primary)
                 .controlSize(.small)
                 
-                Button("Always Allow") {
+                Button(L10n.alwaysAllow) {
                     onResponse("Always Allow")
                 }
                 .buttonStyle(.borderedProminent)
@@ -283,9 +283,9 @@ struct QuickConfirmView: View {
     private var headerTitle: String {
         switch request.type {
         case .question:
-            return request.header ?? "Question"
+            return request.header ?? L10n.Permission.question
         case .permission:
-            return "Permission Required"
+            return L10n.Permission.permissionRequired
         }
     }
     

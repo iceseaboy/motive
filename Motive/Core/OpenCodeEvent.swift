@@ -75,6 +75,7 @@ struct ConversationMessage: Identifiable, Sendable {
         case tool
         case system
         case todo       // Dedicated type for todo list display
+        case reasoning  // Reasoning/thinking stream
     }
 
     enum Status: String, Sendable {
@@ -136,6 +137,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case user
         case assistant  // text message from AI
         case tool       // tool_call / tool_use
+        case usage      // token usage updates
     }
 
     let id: UUID
@@ -148,10 +150,33 @@ struct OpenCodeEvent: Sendable, Identifiable {
     let toolOutput: String?
     let toolCallId: String?
     let sessionId: String?
+    let model: String?
+    let usage: TokenUsage?
+    let cost: Double?
+    let messageId: String?
+    /// Unified diff from OpenCode protocol (`state.metadata.diff`).
+    let diff: String?
     /// Whether this is a secondary/redundant finish event (session.idle, process exit)
     let isSecondaryFinish: Bool
 
-    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, toolOutput: String? = nil, toolCallId: String? = nil, sessionId: String? = nil, isSecondaryFinish: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        kind: Kind,
+        rawJson: String,
+        text: String,
+        toolName: String? = nil,
+        toolInput: String? = nil,
+        toolInputDict: [String: Any]? = nil,
+        toolOutput: String? = nil,
+        toolCallId: String? = nil,
+        sessionId: String? = nil,
+        model: String? = nil,
+        usage: TokenUsage? = nil,
+        cost: Double? = nil,
+        messageId: String? = nil,
+        diff: String? = nil,
+        isSecondaryFinish: Bool = false
+    ) {
         self.id = id
         self.kind = kind
         self.rawJson = rawJson
@@ -162,6 +187,11 @@ struct OpenCodeEvent: Sendable, Identifiable {
         self.toolOutput = toolOutput
         self.toolCallId = toolCallId
         self.sessionId = sessionId
+        self.model = model
+        self.usage = usage
+        self.cost = cost
+        self.messageId = messageId
+        self.diff = diff
         self.isSecondaryFinish = isSecondaryFinish
     }
 
@@ -336,6 +366,9 @@ struct OpenCodeEvent: Sendable, Identifiable {
             dict["type"] = "user"
             dict["part"] = ["text": text]
 
+        case .usage:
+            return rawJson
+
         case .unknown:
             return rawJson  // Nothing useful to serialize
         }
@@ -393,61 +426,6 @@ struct OpenCodeEvent: Sendable, Identifiable {
         return keys.lazy.compactMap { dict[$0] as? String }.first
     }
 
-    /// Whether this tool name represents a file-editing operation.
-    private static func isFileEditTool(_ name: String) -> Bool {
-        let lower = name.lowercased()
-        return lower == "apply_patch" || lower == "applypatch"
-            || lower == "edit" || lower == "editfile" || lower == "edit_file"
-            || lower == "write" || lower == "writefile" || lower == "write_file"
-            || lower == "patch"
-    }
-
-    /// Extract unified diff / patch content from a file-editing tool's input dictionary.
-    /// Checks common keys used by different OpenCode tools.
-    /// For file-editing tools, any non-trivial input is treated as potential diff content.
-    static func extractDiffContent(from dict: [String: Any]?) -> String? {
-        guard let dict else { return nil }
-
-        // 1. Explicit "patch" key (apply_patch structured input)
-        if let patch = dict["patch"] as? String, !patch.isEmpty {
-            return patch
-        }
-        // 2. Explicit "diff" key
-        if let diffStr = dict["diff"] as? String, !diffStr.isEmpty {
-            return diffStr
-        }
-        // 3. Explicit "content" key (some write tools)
-        if let content = dict["content"] as? String, !content.isEmpty,
-           content.contains("\n") {
-            return content
-        }
-        // 4. For edit tools: construct a mini diff from old_string / new_string
-        if let oldStr = dict["old_string"] as? String,
-           let newStr = dict["new_string"] as? String {
-            let path = dict["path"] as? String ?? dict["filePath"] as? String ?? "file"
-            var diff = "--- a/\(path)\n+++ b/\(path)\n"
-            for line in oldStr.split(separator: "\n", omittingEmptySubsequences: false) {
-                diff += "-\(line)\n"
-            }
-            for line in newStr.split(separator: "\n", omittingEmptySubsequences: false) {
-                diff += "+\(line)\n"
-            }
-            return diff
-        }
-        // 5. Raw string input — for tools like apply_patch that send patch as a bare string.
-        //    Accept any multi-line raw input for file-editing tools (caller already
-        //    verified that this is a file-editing tool via isFileEditTool).
-        if let raw = dict["_rawInput"] as? String, !raw.isEmpty, raw.contains("\n") {
-            return raw
-        }
-        // 6. Last resort: try all string values in the dict that look like multi-line content
-        for (_, value) in dict {
-            if let str = value as? String, !str.isEmpty, str.contains("\n"), str.count > 20 {
-                return str
-            }
-        }
-        return nil
-    }
 
     /// Convert to ConversationMessage for UI display
     func toMessage() -> ConversationMessage? {
@@ -466,13 +444,14 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case .assistant:
             messageType = .assistant
             messageStatus = .completed
+        case .thought:
+            messageType = .reasoning
+            messageStatus = .completed
         case .tool, .call:
             // Tool calls without output are still running
             // Tool calls with output (tool_use) are completed
             messageType = .tool
             messageStatus = toolOutput != nil ? .completed : .running
-        case .thought:
-            return nil // Don't show thought events as messages
         case .diff:
             messageType = .tool
             messageStatus = .completed
@@ -487,20 +466,10 @@ struct OpenCodeEvent: Sendable, Identifiable {
             if text.isEmpty { return nil }
             messageType = .system
             messageStatus = .completed
+        case .usage:
+            return nil
         }
         
-        // Extract diff content for file-editing tools
-        let diff: String?
-        if let name = toolName, OpenCodeEvent.isFileEditTool(name) {
-            diff = OpenCodeEvent.extractDiffContent(from: toolInputDict)
-            // Diagnostic: log what we have for file-edit tools
-            let dictKeys = toolInputDict?.keys.sorted().joined(separator: ",") ?? "nil"
-            let diffLen = diff?.count ?? 0
-            Log.bridge("🔍 Diff extraction: tool=\(name) dictKeys=[\(dictKeys)] diffLen=\(diffLen) hasDict=\(toolInputDict != nil)")
-        } else {
-            diff = nil
-        }
-
         return ConversationMessage(
             id: id,
             type: messageType,
@@ -510,7 +479,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
             toolOutput: toolOutput,
             toolCallId: toolCallId,
             status: messageStatus,
-            diffContent: diff
+            diffContent: self.diff
         )
     }
 }

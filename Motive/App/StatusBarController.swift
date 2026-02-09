@@ -112,6 +112,8 @@ final class StatusBarController {
                 displayState = .thinking
             case .executing:
                 displayState = .executing(tool: toolName)
+            case .responding:
+                displayState = .executing(tool: toolName)
             }
         }
         
