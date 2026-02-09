@@ -52,7 +52,7 @@ struct CommandListItem: View {
             .padding(.vertical, AuroraSpacing.space2)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.glassOverlay.opacity(0.06) : Color.clear))
+                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
             )
         }
         .buttonStyle(.plain)
@@ -85,7 +85,7 @@ struct ProjectListItem: View {
                             .foregroundColor(Color.Aurora.textPrimary)
 
                         if isCurrent {
-                            Text(L10n.CommandBar.current)
+                            Text("current")
                                 .font(.Aurora.micro)
                                 .foregroundColor(Color.Aurora.primary)
                                 .padding(.horizontal, 6)
@@ -117,7 +117,7 @@ struct ProjectListItem: View {
             .padding(.vertical, AuroraSpacing.space2)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.glassOverlay.opacity(0.06) : Color.clear))
+                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
             )
         }
         .buttonStyle(.plain)
@@ -242,11 +242,11 @@ struct InlineShortcutHint: View {
                         .padding(.vertical, 2)
                         .background(
                             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.08))
+                                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.05))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                                .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.18), lineWidth: 0.5)
+                                .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.12), lineWidth: 0.5)
                         )
                 }
             }

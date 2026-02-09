@@ -21,13 +21,13 @@ extension CommandBarView {
             if showsAboveContent {
                 aboveInputContent
                 Rectangle()
-                    .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
+                    .fill(Color.Aurora.glassOverlay.opacity(0.06))
                     .frame(height: 0.5)
             }
             inputAreaView
             if showsBelowContent {
                 Rectangle()
-                    .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
+                    .fill(Color.Aurora.glassOverlay.opacity(0.06))
                     .frame(height: 0.5)
                 belowInputContent
             } else {
@@ -381,7 +381,7 @@ extension CommandBarView {
 
             // Tab hint when autocomplete is available
             if autocompleteCompletion != nil {
-                Text(L10n.CommandBar.tab)
+                Text("Tab")
                     .font(.Aurora.micro.weight(.medium))
                     .foregroundColor(Color.Aurora.textMuted)
                     .padding(.horizontal, AuroraSpacing.space2)
@@ -406,11 +406,11 @@ extension CommandBarView {
     var placeholderText: String {
         switch mode {
         case .command:
-            return L10n.CommandBar.typeCommand
+            return "Type a command..."
         case .history:
-            return L10n.CommandBar.searchSessions
+            return "Search sessions..."
         case .running, .completed, .error:
-            return L10n.CommandBar.followUp
+            return "Follow up..."  // Status shown above, not in placeholder
         default:
             return L10n.CommandBar.placeholder
         }
@@ -475,10 +475,10 @@ extension CommandBarView {
         }
         .frame(height: 38)
         .padding(.horizontal, AuroraSpacing.space6)
-        .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.08))
+        .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.03))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.18))
+                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.06))
                 .frame(height: 0.5)
         }
     }
@@ -496,16 +496,6 @@ extension CommandBarView {
                 .foregroundColor(Color.Aurora.textMuted)
                 .lineLimit(1)
                 .truncationMode(.middle)
-
-            if let contextTokens = appState.currentContextTokens {
-                Circle()
-                    .fill(Color.Aurora.textMuted.opacity(0.4))
-                    .frame(width: 3, height: 3)
-
-                Text("CTX \(TokenUsageFormatter.formatTokens(contextTokens))")
-                    .font(.Aurora.micro.weight(.medium))
-                    .foregroundColor(Color.Aurora.textMuted)
-            }
         }
         .padding(.horizontal, AuroraSpacing.space1)
         .padding(.vertical, AuroraSpacing.space1)
@@ -579,11 +569,10 @@ extension CommandBarView {
                 .strokeBorder(borderColor, lineWidth: 0.5)
 
             // Top-edge inner luminance (mimics light reflection on glass)
-            // Always white — it's a bright highlight at the glass edge
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [Color.white.opacity(isDark ? 0.15 : 0.5), Color.clear],
+                        colors: [Color.Aurora.glassOverlay.opacity(0.15), Color.clear],
                         startPoint: .top,
                         endPoint: .center
                     ),
@@ -600,7 +589,7 @@ extension CommandBarView {
         case .error:
             Color.Aurora.error.opacity(0.5)
         default:
-            Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.15)
+            Color.Aurora.glassOverlay.opacity(0.08)
         }
     }
 
@@ -614,9 +603,9 @@ extension CommandBarView {
                 blendingMode: .behindWindow,
                 state: .active
             )
-            // Layer 2: Tint overlay — more opaque in light mode for text contrast
+            // Layer 2: Very subtle tint overlay — low opacity lets the desktop show through
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
-                .fill(Color.Aurora.background.opacity(isDark ? 0.45 : 0.65))
+                .fill(Color.Aurora.background.opacity(0.45))
         }
     }
 }
