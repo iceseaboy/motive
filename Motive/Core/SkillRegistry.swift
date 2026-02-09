@@ -75,8 +75,21 @@ final class SkillRegistry: ObservableObject {
 
     func promptEntries() -> [SkillEntry] {
         eligibleEntries().filter { entry in
-            !shouldExcludeFromPrompt(entry) && !isSystemToolEntry(entry)
+            isSkillEnabled(entry) && !shouldExcludeFromPrompt(entry) && !isSystemToolEntry(entry)
         }
+    }
+
+    /// Check if a skill is enabled using the same logic as the permission whitelist:
+    /// 1. User explicit config > 2. metadata.defaultEnabled > 3. false
+    func isSkillEnabled(_ entry: SkillEntry) -> Bool {
+        guard let configManager else { return entry.metadata?.defaultEnabled ?? false }
+        let config = configManager.skillsConfig
+        let skillKey = entry.metadata?.skillKey ?? entry.name
+        let entryConfig = config.entries[skillKey] ?? config.entries[entry.name]
+        if let explicitEnabled = entryConfig?.enabled {
+            return explicitEnabled
+        }
+        return entry.metadata?.defaultEnabled ?? false
     }
     
     /// Internal configuration: which skills should NOT appear in the prompt
