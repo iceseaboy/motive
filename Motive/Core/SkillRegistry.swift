@@ -80,15 +80,11 @@ final class SkillRegistry: ObservableObject {
     }
     
     /// Internal configuration: which skills should NOT appear in the prompt
-    /// These skills are provided via MCP tools - AI uses them via tool calls, not prompt listing
     private func shouldExcludeFromPrompt(_ entry: SkillEntry) -> Bool {
-        let systemMcpSkills: Set<String> = [
-            "ask-user-question",    // MCP tool
-            "file-permission",      // MCP tool
-            "safe-file-deletion",   // Rule (enforced by file-permission)
+        let excludedSkills: Set<String> = [
             "browser-automation",   // Capability (external binary)
         ]
-        return systemMcpSkills.contains(entry.name)
+        return excludedSkills.contains(entry.name)
     }
 
     func mcpEntries() -> [SkillEntry] {
@@ -221,21 +217,7 @@ final class SkillRegistry: ObservableObject {
     }
 
     private func isSystemToolEntry(_ entry: SkillEntry) -> Bool {
-        let normalized = normalizeSkillName(entry.name)
-        switch normalized {
-        case "askuserquestion", "filepermission":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func normalizeSkillName(_ name: String) -> String {
-        let base = name
-            .components(separatedBy: ["/", ":", "."])
-            .last ?? name
-        let lowered = base.lowercased()
-        return lowered.filter { $0.isLetter || $0.isNumber }
+        return false
     }
 
     private static func resolveUserPath(_ path: String) -> URL {

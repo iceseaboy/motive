@@ -24,6 +24,7 @@ struct DrawerView: View {
     @State private var showFileCompletion: Bool = false
     @State private var selectedFileIndex: Int = 0
     @State private var atQueryRange: Range<String.Index>? = nil
+    @State private var streamingScrollTask: Task<Void, Never>?
     
     private var isDark: Bool { colorScheme == .dark }
 
@@ -39,16 +40,13 @@ struct DrawerView: View {
                     .padding(.top, AuroraSpacing.space4)
                     .padding(.bottom, AuroraSpacing.space3)
                 
-                // Subtle divider with fade edges
-                Divider()
-                
-                // Error banner (if any)
-                if let error = appState.lastErrorMessage {
-                    errorBanner(error)
-                }
+                // Subtle glass separator
+                Rectangle()
+                    .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
+                    .frame(height: 0.5)
                 
                 // Content
-                if appState.messages.isEmpty && appState.lastErrorMessage == nil {
+                if appState.messages.isEmpty {
                     emptyState
                 } else if !appState.messages.isEmpty {
                     conversationContent
@@ -82,7 +80,7 @@ struct DrawerView: View {
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
-                .strokeBorder(Color.Aurora.border.opacity(0.5), lineWidth: 0.5)
+                .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.10 : 0.15), lineWidth: 0.5)
         )
         .onAppear {
             withAnimation(.auroraSpring.delay(0.1)) {
@@ -134,18 +132,18 @@ struct DrawerView: View {
     
     private var drawerBackground: some View {
         ZStack {
-            // Use same approach as CommandBar: VisualEffectView with cornerRadius
+            // Layer 1: System vibrancy blur (primary translucency)
             VisualEffectView(
-                material: .hudWindow,
+                material: .popover,
                 blendingMode: .behindWindow,
                 state: .active,
                 cornerRadius: AuroraRadius.xl,
                 masksToBounds: true
             )
             
-            // Semi-transparent overlay for consistent appearance
+            // Layer 2: Tint overlay — translucent to let the glass show through
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
-                .fill(Color.Aurora.background.opacity(0.92))
+                .fill(Color.Aurora.background.opacity(isDark ? 0.6 : 0.7))
         }
     }
     
@@ -179,15 +177,19 @@ struct DrawerView: View {
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                        .fill(showSessionPicker ? Color.Aurora.surfaceElevated : Color.Aurora.surface.opacity(0.5))
+                        .fill(Color.Aurora.glassOverlay.opacity(showSessionPicker ? 0.10 : 0.06))
                 )
             }
             .buttonStyle(.plain)
             
             Spacer()
-            
+
             // Status badge
-            SessionStatusBadge(status: appState.sessionStatus, currentTool: appState.currentToolName)
+            SessionStatusBadge(
+                status: appState.sessionStatus,
+                currentTool: appState.currentToolName,
+                isThinking: appState.menuBarState == .reasoning
+            )
             
             // New chat button
             Button(action: { 
@@ -198,7 +200,7 @@ struct DrawerView: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(Color.Aurora.textSecondary)
                     .frame(width: 28, height: 28)
-                    .background(Color.Aurora.surfaceElevated)
+                    .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10))
                     .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -211,7 +213,7 @@ struct DrawerView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(Color.Aurora.textMuted)
                     .frame(width: 28, height: 28)
-                    .background(Color.Aurora.surfaceElevated)
+                    .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10))
                     .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -286,52 +288,6 @@ struct DrawerView: View {
         .transition(.opacity)
     }
     
-    // MARK: - Error Banner
-    
-    private func errorBanner(_ error: String) -> some View {
-        HStack(spacing: AuroraSpacing.space3) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16))
-                .foregroundColor(Color.Aurora.error)
-            
-            VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
-                Text(L10n.error)
-                    .font(.Aurora.bodySmall.weight(.semibold))
-                    .foregroundColor(Color.Aurora.textPrimary)
-                
-                Text(error)
-                    .font(.Aurora.caption)
-                    .foregroundColor(Color.Aurora.textSecondary)
-                    .lineLimit(3)
-            }
-            
-            Spacer()
-            
-            Button {
-                appState.lastErrorMessage = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Color.Aurora.textMuted)
-                    .frame(width: 22, height: 22)
-                    .background(Color.Aurora.surface)
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(AuroraSpacing.space3)
-        .background(
-            RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                .fill(Color.Aurora.error.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                        .stroke(Color.Aurora.error.opacity(0.2), lineWidth: 1)
-                )
-        )
-        .padding(.horizontal, AuroraSpacing.space4)
-        .padding(.vertical, AuroraSpacing.space3)
-    }
-    
     // MARK: - Empty State
     
     private var emptyState: some View {
@@ -340,7 +296,7 @@ struct DrawerView: View {
             
             ZStack {
                 Circle()
-                    .fill(Color.Aurora.surface)
+                    .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.08))
                     .frame(width: 80, height: 80)
                 
                 Image(systemName: "sparkles")
@@ -361,7 +317,7 @@ struct DrawerView: View {
             }
             
             // Hint about session dropdown
-            Text("Tip: Click the title above to switch sessions")
+            Text(L10n.Drawer.tip)
                 .font(.Aurora.caption)
                 .foregroundColor(Color.Aurora.textMuted)
             
@@ -387,9 +343,19 @@ struct DrawerView: View {
                             )
                     }
                     
-                    // Thinking indicator (with id for scrolling)
-                    if appState.sessionStatus == .running {
-                        ThinkingIndicator(toolName: appState.currentToolName)
+                    // Transient reasoning bubble — shows live thinking process,
+                    // disappears when thinking ends (tool call / assistant text / finish).
+                    if let reasoningText = appState.currentReasoningText {
+                        TransientReasoningBubble(text: reasoningText)
+                            .id("transient-reasoning")
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                    // Thinking indicator — only show when genuinely waiting for OpenCode
+                    // with no active output (not during assistant text streaming).
+                    else if appState.sessionStatus == .running
+                                && appState.currentToolName == nil
+                                && appState.menuBarState != .responding {
+                        ThinkingIndicator()
                             .id("thinking-indicator")
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -403,14 +369,19 @@ struct DrawerView: View {
                 .padding(.vertical, AuroraSpacing.space4)
             }
             .onAppear {
-                scrollToBottom(proxy: proxy)
+                scrollToBottom(proxy: proxy, animated: false)
             }
             .onChange(of: appState.messages.count) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
             .onChange(of: appState.messages.last?.content) { _, _ in
                 // Scroll when message content updates (streaming)
-                scrollToBottom(proxy: proxy)
+                // Throttled to avoid animation conflicts from rapid delta updates
+                scheduleStreamingScroll(proxy: proxy)
+            }
+            .onChange(of: appState.currentReasoningText) { _, _ in
+                // Scroll when reasoning text streams in
+                scheduleStreamingScroll(proxy: proxy)
             }
             .onChange(of: appState.sessionStatus) { _, newStatus in
                 // Scroll when status changes (e.g., starts running)
@@ -421,12 +392,25 @@ struct DrawerView: View {
         }
     }
     
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
-            withAnimation(.auroraSpring) {
+    /// Throttle streaming scroll to avoid rapid-fire animation conflicts
+    private func scheduleStreamingScroll(proxy: ScrollViewProxy) {
+        // Cancel any pending scroll to avoid stacking animations
+        streamingScrollTask?.cancel()
+        streamingScrollTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+            scrollToBottom(proxy: proxy)
+        }
+    }
+    
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
+        if animated {
+            // Use a non-bouncing animation to prevent the "scroll back up" effect
+            withAnimation(.easeOut(duration: 0.15)) {
                 proxy.scrollTo("bottom-anchor", anchor: .bottom)
             }
+        } else {
+            proxy.scrollTo("bottom-anchor", anchor: .bottom)
         }
     }
     
@@ -436,7 +420,7 @@ struct DrawerView: View {
         let isRunning = appState.sessionStatus == .running
         
         return VStack(spacing: 0) {
-            // Project directory indicator
+            // Project directory + context size
             HStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: "folder")
                     .font(.system(size: 10, weight: .medium))
@@ -448,12 +432,18 @@ struct DrawerView: View {
                     .lineLimit(1)
                 
                 Spacer()
+
+                if let contextTokens = appState.currentContextTokens {
+                    ContextSizeBadge(tokens: contextTokens)
+                        .help(L10n.Drawer.contextHelp)
+                }
             }
             .padding(.horizontal, AuroraSpacing.space4)
             .padding(.vertical, AuroraSpacing.space2)
-            .background(Color.Aurora.surface.opacity(0.6))
             
-            Divider()
+            Rectangle()
+                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
+                .frame(height: 0.5)
             
             HStack(spacing: AuroraSpacing.space3) {
                 HStack(spacing: AuroraSpacing.space2) {
@@ -495,12 +485,17 @@ struct DrawerView: View {
                 }
                 .padding(.horizontal, AuroraSpacing.space3)
                 .padding(.vertical, AuroraSpacing.space2)
-                .background(Color.Aurora.surface.opacity(isRunning ? 0.6 : 1))
+                .background(
+                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
+                        .fill(isDark ? Color.Aurora.glassOverlay.opacity(0.06) : Color.white.opacity(0.55))
+                )
                 .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
                         .strokeBorder(
-                            isInputFocused && !isRunning ? Color.Aurora.borderFocus.opacity(0.8) : Color.Aurora.border.opacity(0.5),
+                            isInputFocused && !isRunning
+                                ? Color.Aurora.borderFocus.opacity(0.8)
+                                : Color.Aurora.glassOverlay.opacity(isDark ? 0.1 : 0.15),
                             lineWidth: isInputFocused && !isRunning ? 1 : 0.5
                         )
                 )
@@ -508,7 +503,7 @@ struct DrawerView: View {
             }
             .padding(.horizontal, AuroraSpacing.space4)
             .padding(.vertical, AuroraSpacing.space3)
-            .background(Color.Aurora.surface.opacity(0.7))
+            .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.08))
         }
     }
     
@@ -685,24 +680,21 @@ private struct SessionPickerItem: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 6, height: 6)
-            
-            // Content (clickable to select)
-            Button(action: onSelect) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.intent)
-                        .font(.Aurora.bodySmall.weight(.medium))
-                        .foregroundColor(Color.Aurora.textPrimary)
-                        .lineLimit(1)
-                    
-                    Text(timeAgo)
-                        .font(.Aurora.caption)
-                        .foregroundColor(Color.Aurora.textMuted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Session info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.intent)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(Color.Aurora.textPrimary)
+                    .lineLimit(1)
+
+                Text(timeAgo)
+                    .font(.Aurora.caption)
+                    .foregroundColor(Color.Aurora.textMuted)
             }
-            .buttonStyle(.plain)
-            
-            // Delete button (separate from select)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Delete button (separate hit target, only on hover)
             if isHovering {
                 Button(action: {
                     showDeleteConfirmation()
@@ -711,7 +703,7 @@ private struct SessionPickerItem: View {
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(Color.Aurora.textMuted)
                         .frame(width: 20, height: 20)
-                        .background(Color.Aurora.surface)
+                        .background(Color.Aurora.glassOverlay.opacity(0.08))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -721,10 +713,12 @@ private struct SessionPickerItem: View {
         }
         .padding(.horizontal, AuroraSpacing.space3)
         .padding(.vertical, AuroraSpacing.space2)
+        .contentShape(Rectangle())  // Entire row is hit-testable
         .background(
             RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
                 .fill(isHovering ? Color.Aurora.surfaceElevated : Color.clear)
         )
+        .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
         .animation(.auroraFast, value: isHovering)
     }

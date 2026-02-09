@@ -41,12 +41,13 @@ extension AppState {
         // Only ESC or focus loss should hide it
         startNewSession(intent: trimmed)
 
-        // Add user message to conversation
+        // Add user message to conversation and log it for replay
         let userMessage = ConversationMessage(
             type: .user,
             content: trimmed
         )
         messages.append(userMessage)
+        logEvent(OpenCodeEvent(kind: .user, rawJson: "", text: trimmed))
 
         // Use provided working directory or configured project directory
         let cwd = workingDirectory ?? configManager.currentProjectURL.path
@@ -71,18 +72,28 @@ extension AppState {
         sessionStatus = .interrupted
         menuBarState = .idle
         currentToolName = nil
+        currentToolInput = nil
+        lastErrorMessage = nil  // Clear any previous error — this is a user-initiated stop
 
-        // Mark all running tool messages as failed (interrupted)
+        // Mark all running tool messages as completed (user stopped, not a failure)
         for i in messages.indices where messages[i].type == .tool && messages[i].status == .running {
-            messages[i] = messages[i].withStatus(.failed)
+            messages[i] = messages[i].withStatus(.completed)
         }
 
         // Add system message
         let systemMessage = ConversationMessage(
             type: .system,
-            content: "Session interrupted by user"
+            content: L10n.Drawer.interrupted
         )
         messages.append(systemMessage)
+
+        // Snapshot messages for history replay
+        if let session = currentSession {
+            session.messagesData = ConversationMessage.serializeMessages(messages)
+        }
+
+        // Immediately sync menu bar to idle (before any trailing SSE events arrive)
+        updateStatusBar()
     }
 
     /// Get all sessions sorted by date (newest first)
@@ -102,10 +113,13 @@ extension AppState {
         }
     }
 
-    /// Switch to a different session
+    /// Switch to a different session.
+    /// Loads the saved messages snapshot directly — no event reconstruction needed.
     func switchToSession(_ session: Session) {
         currentSession = session
         sessionStatus = SessionStatus(rawValue: session.status) ?? .completed
+        currentContextTokens = session.contextTokens
+         resetUsageDeduplication()
 
         // Sync OpenCodeBridge session ID
         Task { await bridge.setSessionId(session.openCodeSessionId) }
@@ -113,9 +127,14 @@ extension AppState {
         // Restore project directory for this session
         restoreProjectDirectory(for: session)
 
-        // Rebuild messages from logs
-        messages = [ConversationMessage(type: .user, content: session.intent, timestamp: session.createdAt)]
-        replaySessionLogs(session.logs)
+        // Load the saved messages snapshot (identical to what was displayed live)
+        if let data = session.messagesData,
+           let saved = ConversationMessage.deserializeMessages(data) {
+            messages = saved
+        } else {
+            // No snapshot — show empty (old sessions before this feature)
+            messages = [ConversationMessage(type: .user, content: session.intent, timestamp: session.createdAt)]
+        }
     }
 
     /// Restore the project directory to match the session's original cwd.
@@ -129,61 +148,6 @@ extension AppState {
         }
     }
 
-    /// Replay historical logs into the messages array with proper merging.
-    private func replaySessionLogs(_ logs: [LogEntry]) {
-        for log in logs {
-            let event = OpenCodeEvent(rawJson: log.rawJson)
-
-            // Handle TodoWrite during replay
-            if event.kind == .tool, let toolName = event.toolName, toolName.isTodoWriteTool {
-                replayTodoEvent(event)
-                continue
-            }
-
-            // Handle AskUserQuestion during replay — show as "Question" with response
-            if event.kind == .tool, isAskUserQuestionTool(event.toolName) {
-                replayAskUserQuestionEvent(event)
-                continue
-            }
-
-            guard let message = event.toMessage() else { continue }
-
-            // Skip redundant completion messages
-            if message.type == .system && isCompletionText(message.content) {
-                let alreadyHas = messages.contains { $0.type == .system && $0.content.lowercased() == "completed" }
-                if alreadyHas || message.content.lowercased() != "completed" { continue }
-            }
-
-            // All historical tool messages are completed; merge by toolCallId
-            if message.type == .tool {
-                let completed = message.withStatus(.completed)
-                if let callId = completed.toolCallId,
-                   let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
-                    messages[idx] = messages[idx].mergingToolData(from: completed)
-                } else {
-                    messages.append(completed)
-                }
-            } else {
-                messages.append(message)
-            }
-        }
-    }
-
-    /// Replay a single TodoWrite event into the messages array.
-    private func replayTodoEvent(_ event: OpenCodeEvent) {
-        let todoItems = parseTodoItemsForReplay(from: event)
-        guard !todoItems.isEmpty else { return }
-        let summary = todoSummary(todoItems)
-        if let idx = messages.lastIndex(where: { $0.type == .todo }) {
-            messages[idx] = messages[idx].withTodos(todoItems, summary: summary)
-        } else {
-            messages.append(ConversationMessage(
-                type: .todo, content: summary,
-                status: .completed, todoItems: todoItems
-            ))
-        }
-    }
-
     /// Start a new empty session (for "New Chat" button)
     func startNewEmptySession() {
         currentSession = nil
@@ -191,6 +155,8 @@ extension AppState {
         sessionStatus = .idle
         menuBarState = .idle
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         // Clear OpenCodeBridge session ID for fresh start
         Task { await bridge.setSessionId(nil) }
@@ -204,6 +170,8 @@ extension AppState {
         sessionStatus = .idle
         menuBarState = .idle
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         Task { await bridge.setSessionId(nil) }
         // @Observable handles change tracking automatically
@@ -307,79 +275,17 @@ extension AppState {
         menuBarState = .executing
         session.status = "running"
 
-        // Add user message
+        // Add user message and log it for replay
         let userMessage = ConversationMessage(
             type: .user,
             content: trimmed
         )
         messages.append(userMessage)
+        logEvent(OpenCodeEvent(kind: .user, rawJson: "", text: trimmed))
 
         // Use the project directory that this session was created with
         let cwd = session.projectPath.isEmpty ? configManager.currentProjectURL.path : session.projectPath
         Task { await bridge.resumeSession(sessionId: openCodeSessionId, text: trimmed, cwd: cwd) }
-    }
-
-    /// Replay a single AskUserQuestion event into the messages array.
-    private func replayAskUserQuestionEvent(_ event: OpenCodeEvent) {
-        let inputDict: [String: Any]? = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson)
-        let questionText: String
-        if let q = inputDict?["question"] as? String {
-            questionText = q
-        } else if let questions = inputDict?["questions"] as? [[String: Any]],
-                  let firstQ = questions.first?["question"] as? String {
-            questionText = firstQ
-        } else {
-            questionText = "Question"
-        }
-
-        // Merge by toolCallId if a question message already exists
-        if let callId = event.toolCallId,
-           let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
-            let existing = messages[idx]
-            messages[idx] = ConversationMessage(
-                id: existing.id, type: .tool,
-                content: existing.content, timestamp: existing.timestamp,
-                toolName: "Question", toolInput: existing.toolInput,
-                toolOutput: event.toolOutput ?? existing.toolOutput,
-                toolCallId: existing.toolCallId,
-                status: .completed
-            )
-        } else {
-            messages.append(ConversationMessage(
-                type: .tool,
-                content: questionText,
-                toolName: "Question",
-                toolInput: questionText,
-                toolOutput: event.toolOutput,
-                toolCallId: event.toolCallId,
-                status: .completed
-            ))
-        }
-    }
-
-    /// Parse todo items during session replay (simplified version for historical data)
-    private func parseTodoItemsForReplay(from event: OpenCodeEvent) -> [TodoItem] {
-        if let inputDict = event.toolInputDict,
-           let todosArray = inputDict["todos"] as? [[String: Any]] {
-            return todosArray.compactMap { TodoItem(from: $0) }
-        }
-        guard let data = event.rawJson.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let part = object["part"] as? [String: Any] else {
-            return []
-        }
-        // Try tool_call format
-        if let input = part["input"] as? [String: Any],
-           let todosArray = input["todos"] as? [[String: Any]] {
-            return todosArray.compactMap { TodoItem(from: $0) }
-        }
-        // Try tool_use format
-        if let state = part["state"] as? [String: Any],
-           let input = state["input"] as? [String: Any],
-           let todosArray = input["todos"] as? [[String: Any]] {
-            return todosArray.compactMap { TodoItem(from: $0) }
-        }
-        return []
     }
 
     private func startNewSession(intent: String) {
@@ -387,6 +293,8 @@ extension AppState {
         menuBarState = .executing
         sessionStatus = .running
         currentToolName = nil
+        currentContextTokens = nil
+        resetUsageDeduplication()
 
         // Clear OpenCodeBridge session ID for fresh start
         Task { await bridge.setSessionId(nil) }

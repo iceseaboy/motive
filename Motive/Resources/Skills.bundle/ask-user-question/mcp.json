@@ -1,8 +1,0 @@
-{
-  "type": "local",
-  "command": ["/usr/bin/env", "node", "{baseDir}/ask-user-question.js"],
-  "environment": {
-    "QUESTION_API_PORT": "9227"
-  },
-  "timeoutMs": 10000
-}

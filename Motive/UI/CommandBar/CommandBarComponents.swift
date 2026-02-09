@@ -85,7 +85,7 @@ struct ProjectListItem: View {
                             .foregroundColor(Color.Aurora.textPrimary)
 
                         if isCurrent {
-                            Text("current")
+                            Text(L10n.CommandBar.current)
                                 .font(.Aurora.micro)
                                 .foregroundColor(Color.Aurora.primary)
                                 .padding(.horizontal, 6)

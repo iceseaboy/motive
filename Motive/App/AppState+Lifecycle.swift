@@ -41,8 +41,6 @@ extension AppState {
         SkillManager.shared.setConfigManager(configManager)
         SkillRegistry.shared.setConfigManager(configManager)
 
-        PermissionManager.shared.startServers()
-        observePermissionRequests()
         observeMenuBarState()
         Task {
             await configureBridge()
@@ -95,8 +93,8 @@ extension AppState {
     }
 
     func updateStatusBar() {
-        let isWaiting = PermissionManager.shared.isShowingRequest
-        let inputType = PermissionManager.shared.currentRequest?.type == .question ? "Question" : "Permission"
+        let isWaiting = pendingQuestionMessageId != nil
+        let inputType = "Question"
         statusBarController?.update(
             state: menuBarState,
             toolName: currentToolName,
@@ -111,8 +109,8 @@ extension AppState {
             .debounce(for: .milliseconds(16), scheduler: RunLoop.main) // ~1 frame at 60fps
             .sink { [weak self] state in
                 guard let self else { return }
-                let isWaiting = PermissionManager.shared.isShowingRequest
-                let inputType = PermissionManager.shared.currentRequest?.type == .question ? "Question" : "Permission"
+                let isWaiting = self.pendingQuestionMessageId != nil
+                let inputType = "Question"
                 self.statusBarController?.update(
                     state: state,
                     toolName: self.currentToolName,
@@ -121,128 +119,6 @@ extension AppState {
                 )
             }
             .store(in: &cancellables)
-    }
-
-    private func observePermissionRequests() {
-        PermissionManager.shared.$currentRequest
-            .receive(on: RunLoop.main)
-            .sink { [weak self] request in
-                guard let self else { return }
-
-                if let request = request {
-                    // If this is a remote command, send question to iOS via CloudKit
-                    if let commandId = self.currentRemoteCommandId {
-                        self.sendQuestionToiOS(request: request, commandId: commandId)
-                    } else if self.drawerWindowController?.isVisible == true {
-                        // Drawer will handle it via its own UI
-                    } else {
-                        self.showQuickConfirm(for: request)
-                    }
-                } else {
-                    // Dismiss quick confirm if request is cleared
-                    self.quickConfirmController?.dismiss()
-                }
-
-                // Update status bar to show waiting state
-                self.updateStatusBar()
-            }
-            .store(in: &cancellables)
-    }
-
-    /// Send a permission/question request to iOS via CloudKit for remote commands
-    private func sendQuestionToiOS(request: PermissionRequest, commandId: String) {
-        Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
-        
-        let optionLabels = request.options?.map { $0.label } ?? ["Yes", "No"]
-        let header = request.header ?? ""
-        let question = request.question ?? "Question from Mac"
-        let questionText = header.isEmpty ? question : "\(header): \(question)"
-        
-        Task {
-            let response = await cloudKitManager.sendPermissionRequest(
-                commandId: commandId,
-                question: questionText,
-                options: optionLabels
-            )
-            
-            // Build response and send to PermissionManager
-            let permResponse: PermissionResponse
-            if let response = response {
-                Log.debug("Got response from iOS: \(response)")
-                if request.type == .question {
-                    permResponse = PermissionResponse(
-                        requestId: request.id,
-                        taskId: request.taskId,
-                        decision: .allow,
-                        selectedOptions: [response],
-                        customText: response
-                    )
-                } else {
-                    let approved = response.lowercased() == "yes" || response.lowercased() == "allow" || response.lowercased() == "approved"
-                    permResponse = PermissionResponse(
-                        requestId: request.id,
-                        taskId: request.taskId,
-                        decision: approved ? .allow : .deny
-                    )
-                }
-            } else {
-                Log.debug("No response from iOS, denying request")
-                permResponse = PermissionResponse(
-                    requestId: request.id,
-                    taskId: request.taskId,
-                    decision: .deny
-                )
-            }
-            
-            PermissionManager.shared.respond(with: permResponse)
-            updateStatusBar()
-        }
-    }
-
-    private func showQuickConfirm(for request: PermissionRequest) {
-        if quickConfirmController == nil {
-            quickConfirmController = QuickConfirmWindowController()
-        }
-
-        // Get status bar button frame for positioning
-        let anchorFrame = statusBarController?.buttonFrame
-
-        quickConfirmController?.show(
-            request: request,
-            anchorFrame: anchorFrame,
-            onResponse: { [weak self] response in
-                // Handle the response
-                let permResponse: PermissionResponse
-                if request.type == .question {
-                    permResponse = PermissionResponse(
-                        requestId: request.id,
-                        taskId: request.taskId,
-                        decision: .allow,
-                        selectedOptions: [response],
-                        customText: response
-                    )
-                } else {
-                    let approved = response == "approved"
-                    permResponse = PermissionResponse(
-                        requestId: request.id,
-                        taskId: request.taskId,
-                        decision: approved ? .allow : .deny
-                    )
-                }
-                PermissionManager.shared.respond(with: permResponse)
-                self?.updateStatusBar()
-            },
-            onCancel: { [weak self] in
-                // Cancel/deny the request
-                let permResponse = PermissionResponse(
-                    requestId: request.id,
-                    taskId: request.taskId,
-                    decision: .deny
-                )
-                PermissionManager.shared.respond(with: permResponse)
-                self?.updateStatusBar()
-            }
-        )
     }
 
     private func createCommandBarIfNeeded() {

@@ -41,7 +41,6 @@ struct MotiveTests {
     @Test func simplifiedToolNameMapsKnownTools() async throws {
         #expect("ReadFile".simplifiedToolName == "Read")
         #expect("Write".simplifiedToolName == "Write")
-        #expect("AskUserQuestion".simplifiedToolName == "Question")
         #expect("Shell".simplifiedToolName == "Shell")
         #expect("TodoWrite".simplifiedToolName == "Todo")
     }

@@ -28,7 +28,7 @@ enum SkillGating {
             }
         } else {
             // Use metadata.defaultEnabled if present
-            // Otherwise, system skills (ask-user-question, file-permission, etc.) are enabled by default
+            // System skills are enabled by default
             let isSystemSkill = SkillManager.systemSkillIds.contains(entry.name)
             let defaultEnabled = entry.metadata?.defaultEnabled ?? isSystemSkill
             if !defaultEnabled {

@@ -70,7 +70,7 @@ struct CommandBarRunningView: View {
                 HStack(spacing: AuroraSpacing.space2) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 10, weight: .bold))
-                    Text("Stop")
+                    Text(L10n.CommandBar.stop)
                         .font(.Aurora.caption.weight(.medium))
                 }
                 .foregroundColor(.white)
@@ -122,7 +122,7 @@ struct CommandBarRunningView: View {
             if toolMessages.isEmpty {
                 HStack(spacing: AuroraSpacing.space2) {
                     AuroraLoadingDots()
-                    Text("Starting…")
+                    Text(L10n.CommandBar.starting)
                         .font(.Aurora.caption)
                         .foregroundColor(Color.Aurora.textMuted)
                 }
@@ -199,7 +199,7 @@ private struct ActivityLogItem: View {
             statusIcon
                 .frame(width: 16)
             
-            Text(message.toolName?.simplifiedToolName ?? "Tool")
+            Text(message.toolName?.simplifiedToolName ?? L10n.Drawer.tool)
                 .font(.Aurora.caption.weight(.medium))
                 .foregroundColor(Color.Aurora.textSecondary)
             

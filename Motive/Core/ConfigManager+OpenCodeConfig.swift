@@ -42,8 +42,8 @@ extension ConfigManager {
     /// Generate opencode.json config file
     /// Path: ~/.motive/config/opencode.json
     ///
-    /// IMPORTANT: This must ALWAYS be generated to set permission: "allow"
-    /// Without this, OpenCode CLI blocks waiting for permission prompts that never show in GUI
+    /// Uses ToolPermissionPolicy for permission rules and OpenCode's
+    /// native question/permission system (no MCP sidecar needed).
     func generateOpenCodeConfig() {
         // Config now goes to workspace directory (~/.motive/config/)
         let configDir = workspaceDirectory.appendingPathComponent("config")
@@ -54,78 +54,11 @@ extension ConfigManager {
         
         // Determine provider name for OpenCode
         let providerName = provider.openCodeProviderName
-        
         let baseURLValue = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        // MCP scripts stay in workspace for user access
-        let mcpDir = workspaceDirectory.appendingPathComponent("mcp")
-        let mcpScripts = McpScriptManager.ensureScripts(in: mcpDir)
-        let nodePath = resolveNodePath()
-        if let nodePath {
-            Log.config(" Resolved node path for MCP: \(nodePath)")
-        } else {
-            Log.config(" WARNING - Node not found in PATH. MCP will use /usr/bin/env node")
-        }
         
-        // System prompt - build using SkillManager for capability instructions
+        // System prompt - build using SystemPromptBuilder
         let builder = SystemPromptBuilder()
-        let fullSystemPrompt = builder.build()
-        
-        // Add critical GUI communication rules at the beginning
-        let systemPrompt = """
-<important name="user-communication">
-CRITICAL: The user CANNOT see your text output or CLI prompts!
-You are running in a GUI app where terminal output is hidden.
-
-To ask ANY question or get user input, you MUST use the AskUserQuestion MCP tool.
-
-⛔ FORBIDDEN: Do NOT use the built-in "question" tool. It is DISABLED.
-The built-in question tool blocks on stdin which is not connected to any UI.
-Using it will freeze the entire session with no way for the user to respond.
-You MUST ALWAYS use the MCP "AskUserQuestion" tool instead — it is the ONLY
-way to display questions to the user.
-
-MANDATORY: You MUST ALWAYS include the "options" array when calling AskUserQuestion.
-The user interface REQUIRES options to display properly. Questions without options will fail.
-
-Rules for AskUserQuestion:
-1. ALWAYS include "options" array with 2-4 choices - THIS IS REQUIRED, NOT OPTIONAL
-2. ALWAYS include an "Other" option for custom input
-3. Keep headers short (max 12 characters)
-4. Each option must have "label" and optionally "description"
-
-CORRECT example (with options - REQUIRED):
-{
-  "questions": [{
-    "question": "How should I rename the files?",
-    "header": "Rename",
-    "options": [
-      { "label": "Keep original", "description": "Keep the original filename" },
-      { "label": "Use English", "description": "Translate to English names" },
-      { "label": "Add prefix", "description": "Add a prefix like file_001" },
-      { "label": "Other", "description": "Let me specify custom naming" }
-    ],
-    "multiSelect": false
-  }]
-}
-
-WRONG example (missing options - DO NOT DO THIS):
-{
-  "questions": [{
-    "question": "How should I rename?",
-    "header": "Rename"
-  }]
-}
-
-Before WRITE operations (create, delete, rename, move, modify, overwrite),
-you MUST call the request_file_permission tool and wait for the response.
-
-IMPORTANT: Reading files does NOT require permission. Do not call request_file_permission for Read, Glob, Grep, or any read-only operation.
-
-Never attempt to prompt via CLI or rely on terminal prompts - they will not work!
-</important>
-
-\(fullSystemPrompt)
-"""
+        let systemPrompt = builder.build()
         
         // Build skill permissions using WHITELIST approach
         // Default: deny all, then explicitly allow enabled skills
@@ -153,32 +86,22 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
             }
         }
         
-        // Build config - always include permission: "allow"
-        let permissionRules: [String: Any] = [
-            "*": "allow",
-            // Allow external directories to avoid CLI prompts (e.g., ~/Downloads)
-            "external_directory": "allow",
-            // Block OpenCode's built-in question prompt (CLI-only),
-            // but keep MCP ask-user-question available via skills.
-            "question": "deny",
-            // Skill-level permissions using WHITELIST (deny all, allow specific)
-            "skill": skillPermissions
-        ]
+        // Build permission rules from ToolPermissionPolicy (native system)
+        var permissionRules = ToolPermissionPolicy.shared.toOpenCodePermissionRules()
+        // Add skill permissions
+        permissionRules["skill"] = skillPermissions
+        
         var config: [String: Any] = [
             "$schema": "https://opencode.ai/config.json",
             "default_agent": "motive",
             "enabled_providers": [providerName],
-            // CRITICAL: Auto-allow all permissions - CLI prompts don't show in GUI
+            // Permission rules from ToolPermissionPolicy (native enforcement)
             "permission": permissionRules,
             "agent": [
                 "motive": [
-                    "description": "Motive default agent with UI permission flow",
+                    "description": "Motive default agent",
                     "prompt": systemPrompt,
                     "mode": "primary",
-                    // Agent-level permissions inherit and override global.
-                    // question: deny prevents the LLM from using OpenCode's built-in
-                    // question tool; all user-facing questions must go through the
-                    // MCP AskUserQuestion tool instead.
                     "permission": permissionRules
                 ]
             ]
@@ -197,58 +120,7 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
             Log.config(" Provider '\(providerName)' configured with baseURL: \(baseURLValue)")
         }
 
-        if let mcpScripts {
-            let filePermissionCommand: [String]
-            let askUserCommand: [String]
-            if let nodePath {
-                filePermissionCommand = [nodePath, mcpScripts.filePermission]
-                askUserCommand = [nodePath, mcpScripts.askUserQuestion]
-                Log.config(" MCP using node at: \(nodePath)")
-            } else {
-                filePermissionCommand = ["/usr/bin/env", "node", mcpScripts.filePermission]
-                askUserCommand = ["/usr/bin/env", "node", mcpScripts.askUserQuestion]
-                Log.config(" MCP using /usr/bin/env node (node not found in PATH)")
-            }
-            Log.config(" MCP file-permission script: \(mcpScripts.filePermission)")
-            Log.config(" MCP ask-user-question script: \(mcpScripts.askUserQuestion)")
-            
-            // Verify scripts exist
-            if FileManager.default.fileExists(atPath: mcpScripts.filePermission) {
-                Log.config(" MCP file-permission script EXISTS")
-            } else {
-                Log.config(" WARNING - MCP file-permission script NOT FOUND")
-            }
-            if FileManager.default.fileExists(atPath: mcpScripts.askUserQuestion) {
-                Log.config(" MCP ask-user-question script EXISTS")
-            } else {
-                Log.config(" WARNING - MCP ask-user-question script NOT FOUND")
-            }
-            
-            config["mcp"] = [
-                "file-permission": [
-                    "type": "local",
-                    "command": filePermissionCommand,
-                    "enabled": true,
-                    "environment": [
-                        "PERMISSION_API_PORT": "9226"
-                    ],
-                    "timeout": 10000
-                ],
-                "ask-user-question": [
-                    "type": "local",
-                    "command": askUserCommand,
-                    "enabled": true,
-                    "environment": [
-                        "QUESTION_API_PORT": "9227"
-                    ],
-                    "timeout": 10000
-                ]
-            ]
-        } else {
-            Log.config(" WARNING - MCP scripts not created!")
-        }
-
-        // Merge MCP tools from skills (if enabled)
+        // Merge MCP tools from skills (if enabled) — only skill-provided MCP tools, not built-in
         if skillsSystemEnabled {
             let skillMcp = SkillRegistry.shared.buildMcpConfigEntries()
             if !skillMcp.isEmpty {
@@ -279,16 +151,5 @@ Never attempt to prompt via CLI or rely on terminal prompts - they will not work
         } catch {
             Log.config(" ERROR - Failed to write OpenCode config: \(error)")
         }
-    }
-
-    func resolveNodePath() -> String? {
-        let path = buildExtendedPath(base: ProcessInfo.processInfo.environment["PATH"])
-        let candidates = path.split(separator: ":").map { "\($0)/node" }
-        for candidate in candidates {
-            if FileManager.default.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-        return nil
     }
 }

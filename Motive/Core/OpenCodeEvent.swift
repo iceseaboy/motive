@@ -13,8 +13,6 @@ extension String {
     /// Simplify tool names for better UI display
     var simplifiedToolName: String {
         switch self {
-        case "AskUserQuestion": return "Question"
-        case "request_file_permission": return "Permission"
         case "ReadFile", "Read": return "Read"
         case "WriteFile", "Write": return "Write"
         case "EditFile", "Edit": return "Edit"
@@ -77,6 +75,7 @@ struct ConversationMessage: Identifiable, Sendable {
         case tool
         case system
         case todo       // Dedicated type for todo list display
+        case reasoning  // Reasoning/thinking stream
     }
 
     enum Status: String, Sendable {
@@ -96,6 +95,7 @@ struct ConversationMessage: Identifiable, Sendable {
     let toolCallId: String?
     let status: Status          // Lifecycle status (replaces isStreaming)
     let todoItems: [TodoItem]?  // Parsed todo items for .todo type
+    let diffContent: String?    // Unified diff for file-editing tools
 
     init(
         id: UUID = UUID(),
@@ -107,7 +107,8 @@ struct ConversationMessage: Identifiable, Sendable {
         toolOutput: String? = nil,
         toolCallId: String? = nil,
         status: Status = .completed,
-        todoItems: [TodoItem]? = nil
+        todoItems: [TodoItem]? = nil,
+        diffContent: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -119,6 +120,7 @@ struct ConversationMessage: Identifiable, Sendable {
         self.toolCallId = toolCallId
         self.status = status
         self.todoItems = todoItems
+        self.diffContent = diffContent
     }
 }
 
@@ -135,6 +137,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case user
         case assistant  // text message from AI
         case tool       // tool_call / tool_use
+        case usage      // token usage updates
     }
 
     let id: UUID
@@ -143,14 +146,37 @@ struct OpenCodeEvent: Sendable, Identifiable {
     let text: String
     let toolName: String?
     let toolInput: String?
-    let toolInputDict: [String: Any]?  // Full tool input for AskUserQuestion/TodoWrite parsing
+    let toolInputDict: [String: Any]?  // Full tool input for TodoWrite parsing
     let toolOutput: String?
     let toolCallId: String?
     let sessionId: String?
+    let model: String?
+    let usage: TokenUsage?
+    let cost: Double?
+    let messageId: String?
+    /// Unified diff from OpenCode protocol (`state.metadata.diff`).
+    let diff: String?
     /// Whether this is a secondary/redundant finish event (session.idle, process exit)
     let isSecondaryFinish: Bool
 
-    init(id: UUID = UUID(), kind: Kind, rawJson: String, text: String, toolName: String? = nil, toolInput: String? = nil, toolInputDict: [String: Any]? = nil, toolOutput: String? = nil, toolCallId: String? = nil, sessionId: String? = nil, isSecondaryFinish: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        kind: Kind,
+        rawJson: String,
+        text: String,
+        toolName: String? = nil,
+        toolInput: String? = nil,
+        toolInputDict: [String: Any]? = nil,
+        toolOutput: String? = nil,
+        toolCallId: String? = nil,
+        sessionId: String? = nil,
+        model: String? = nil,
+        usage: TokenUsage? = nil,
+        cost: Double? = nil,
+        messageId: String? = nil,
+        diff: String? = nil,
+        isSecondaryFinish: Bool = false
+    ) {
         self.id = id
         self.kind = kind
         self.rawJson = rawJson
@@ -161,6 +187,11 @@ struct OpenCodeEvent: Sendable, Identifiable {
         self.toolOutput = toolOutput
         self.toolCallId = toolCallId
         self.sessionId = sessionId
+        self.model = model
+        self.usage = usage
+        self.cost = cost
+        self.messageId = messageId
+        self.diff = diff
         self.isSecondaryFinish = isSecondaryFinish
     }
 
@@ -240,13 +271,114 @@ struct OpenCodeEvent: Sendable, Identifiable {
                 ?? "Unknown error"
             Log.bridge("⚠️ OpenCode error event: \(errorText)")
             self.init(kind: .error, rawJson: rawJson, text: errorText, sessionId: sessionId)
-            
+
+        case "user":
+            // User message (logged by Motive in submitIntent/resumeSession)
+            let userText = part?["text"] as? String ?? object["text"] as? String ?? ""
+            self.init(kind: .user, rawJson: rawJson, text: userText, sessionId: sessionId)
+
+        case "question.asked":
+            // Native question stored from bridge — reconstruct for replay
+            let questions = object["questions"] as? [[String: Any]] ?? []
+            let questionText = questions.first?["question"] as? String ?? "Question"
+            let questionId = object["id"] as? String
+            // Build inputDict with _isNativeQuestion for handleNativeQuestion interception
+            var inputDict: [String: Any] = ["_isNativeQuestion": true, "question": questionText]
+            if let id = questionId { inputDict["_nativeQuestionID"] = id }
+            if let q = questions.first {
+                inputDict["options"] = q["options"] ?? []
+                inputDict["multiple"] = q["multiple"] ?? false
+                inputDict["custom"] = q["custom"] ?? true
+            }
+            self.init(kind: .tool, rawJson: rawJson, text: questionText, toolName: "Question", toolInput: questionText, toolInputDict: inputDict, sessionId: sessionId)
+
+        case "permission.asked":
+            // Native permission stored from bridge — reconstruct for replay
+            let permission = object["permission"] as? String ?? "unknown"
+            let patterns = object["patterns"] as? [String] ?? []
+            let permId = object["id"] as? String
+            let metadata = object["metadata"] as? [String: String] ?? [:]
+            var inputDict: [String: Any] = [
+                "_isNativePermission": true,
+                "permission": permission,
+                "patterns": patterns,
+                "metadata": metadata,
+            ]
+            if let id = permId { inputDict["_nativePermissionID"] = id }
+            let description = "\(permission): \(patterns.joined(separator: ", "))"
+            self.init(kind: .tool, rawJson: rawJson, text: description, toolName: "Permission", toolInput: patterns.joined(separator: ", "), toolInputDict: inputDict, sessionId: sessionId)
+
         default:
             // Unknown message type — log it for debugging instead of silently dropping
             let message = OpenCodeEvent.extractString(from: object, keys: ["message", "text", "content", "summary", "detail"])
             Log.bridge("⚠️ Unrecognized event type: '\(messageType)' — raw: \(rawJson.prefix(500))")
             self.init(kind: .unknown, rawJson: rawJson, text: message ?? "Unrecognized event: \(messageType)", sessionId: sessionId)
         }
+    }
+
+    // MARK: - Replay Serialization
+
+    /// Serialize this event into JSON that `OpenCodeEvent(rawJson:)` can parse back.
+    /// Used by logEvent to persist bridge-created events (which have empty rawJson).
+    func toReplayJSON() -> String {
+        // If rawJson is already populated (e.g., question.asked, permission.asked), use it as-is
+        if !rawJson.isEmpty { return rawJson }
+
+        var dict: [String: Any] = [:]
+        if let sid = sessionId { dict["sessionID"] = sid }
+
+        switch kind {
+        case .assistant:
+            dict["type"] = "text"
+            dict["part"] = ["text": text, "sessionID": sessionId ?? ""]
+
+        case .tool, .call:
+            // Reconstruct as tool_use (combined call + result format)
+            var state: [String: Any] = ["tool": toolName ?? "Tool"]
+            if let input = toolInputDict, JSONSerialization.isValidJSONObject(input) {
+                state["input"] = input
+            } else if let inputStr = toolInput {
+                state["input"] = ["description": inputStr]
+            }
+            if let output = toolOutput { state["output"] = output }
+            if let callId = toolCallId { state["id"] = callId }
+            state["status"] = toolOutput != nil ? "completed" : "running"
+            dict["type"] = "tool_use"
+            dict["part"] = ["tool": toolName ?? "Tool", "state": state, "sessionID": sessionId ?? ""]
+
+        case .thought:
+            dict["type"] = "step_start"
+            dict["part"] = ["text": text, "sessionID": sessionId ?? ""]
+
+        case .finish:
+            dict["type"] = "step_finish"
+            dict["part"] = ["reason": isSecondaryFinish ? "idle" : "stop", "sessionID": sessionId ?? ""]
+
+        case .error:
+            dict["type"] = "error"
+            dict["error"] = text
+
+        case .diff:
+            dict["type"] = "tool_use"
+            dict["part"] = ["tool": toolName ?? "Edit", "state": ["status": "completed"], "sessionID": sessionId ?? ""]
+
+        case .user:
+            dict["type"] = "user"
+            dict["part"] = ["text": text]
+
+        case .usage:
+            return rawJson
+
+        case .unknown:
+            return rawJson  // Nothing useful to serialize
+        }
+
+        guard JSONSerialization.isValidJSONObject(dict),
+              let data = try? JSONSerialization.data(withJSONObject: dict),
+              let str = String(data: data, encoding: .utf8) else {
+            return rawJson
+        }
+        return str
     }
 
     private static func extractString(from object: [String: Any], keys: [String]) -> String? {
@@ -294,6 +426,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         return keys.lazy.compactMap { dict[$0] as? String }.first
     }
 
+
     /// Convert to ConversationMessage for UI display
     func toMessage() -> ConversationMessage? {
         // Skip empty messages — but always keep finish, error, and tool-with-name events
@@ -311,13 +444,14 @@ struct OpenCodeEvent: Sendable, Identifiable {
         case .assistant:
             messageType = .assistant
             messageStatus = .completed
+        case .thought:
+            messageType = .reasoning
+            messageStatus = .completed
         case .tool, .call:
             // Tool calls without output are still running
             // Tool calls with output (tool_use) are completed
             messageType = .tool
             messageStatus = toolOutput != nil ? .completed : .running
-        case .thought:
-            return nil // Don't show thought events as messages
         case .diff:
             messageType = .tool
             messageStatus = .completed
@@ -332,6 +466,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
             if text.isEmpty { return nil }
             messageType = .system
             messageStatus = .completed
+        case .usage:
+            return nil
         }
         
         return ConversationMessage(
@@ -342,7 +478,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
             toolInput: toolInput,
             toolOutput: toolOutput,
             toolCallId: toolCallId,
-            status: messageStatus
+            status: messageStatus,
+            diffContent: self.diff
         )
     }
 }
@@ -356,7 +493,7 @@ extension ConversationMessage {
             id: id, type: type, content: content, timestamp: timestamp,
             toolName: toolName, toolInput: toolInput,
             toolOutput: toolOutput, toolCallId: toolCallId,
-            status: newStatus, todoItems: todoItems
+            status: newStatus, todoItems: todoItems, diffContent: diffContent
         )
     }
 
@@ -366,7 +503,7 @@ extension ConversationMessage {
             id: id, type: type, content: newContent, timestamp: timestamp,
             toolName: toolName, toolInput: toolInput,
             toolOutput: toolOutput, toolCallId: toolCallId,
-            status: status, todoItems: todoItems
+            status: status, todoItems: todoItems, diffContent: diffContent
         )
     }
 
@@ -376,7 +513,7 @@ extension ConversationMessage {
             id: id, type: type, content: summary, timestamp: timestamp,
             toolName: toolName, toolInput: toolInput,
             toolOutput: toolOutput, toolCallId: toolCallId,
-            status: status, todoItems: items
+            status: status, todoItems: items, diffContent: diffContent
         )
     }
 
@@ -393,7 +530,8 @@ extension ConversationMessage {
             toolOutput: toolOutput ?? incoming.toolOutput,
             toolCallId: toolCallId ?? incoming.toolCallId,
             status: incoming.toolOutput != nil ? .completed : status,
-            todoItems: todoItems
+            todoItems: todoItems,
+            diffContent: diffContent ?? incoming.diffContent
         )
     }
 
@@ -417,5 +555,75 @@ extension ConversationMessage {
         let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false)
         let lineCount = max(lines.count, 1)
         return "Output · \(lineCount) \(lineCount == 1 ? "line" : "lines")"
+    }
+
+    // MARK: - Snapshot Serialization
+
+    /// Serialize a messages array to Data for persistence.
+    /// Saves exactly what the live UI displayed — no reconstruction needed for history.
+    static func serializeMessages(_ messages: [ConversationMessage]) -> Data? {
+        let dicts: [[String: Any]] = messages.compactMap { msg in
+            var dict: [String: Any] = [
+                "id": msg.id.uuidString,
+                "type": msg.type.rawValue,
+                "content": msg.content,
+                "status": msg.status.rawValue,
+                "timestamp": msg.timestamp.timeIntervalSince1970,
+            ]
+            if let v = msg.toolName { dict["toolName"] = v }
+            if let v = msg.toolInput { dict["toolInput"] = v }
+            if let v = msg.toolOutput { dict["toolOutput"] = v }
+            if let v = msg.toolCallId { dict["toolCallId"] = v }
+            if let v = msg.diffContent { dict["diffContent"] = v }
+            if let todos = msg.todoItems {
+                dict["todoItems"] = todos.map { [
+                    "id": $0.id,
+                    "content": $0.content,
+                    "status": $0.status.rawValue,
+                ] as [String: String] }
+            }
+            return dict
+        }
+        guard JSONSerialization.isValidJSONObject(dicts) else { return nil }
+        return try? JSONSerialization.data(withJSONObject: dicts)
+    }
+
+    /// Deserialize a messages array from persisted Data.
+    static func deserializeMessages(_ data: Data) -> [ConversationMessage]? {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+        let results: [ConversationMessage] = array.compactMap { dict in
+            guard let idStr = dict["id"] as? String, let id = UUID(uuidString: idStr),
+                  let typeStr = dict["type"] as? String, let type = MessageType(rawValue: typeStr),
+                  let content = dict["content"] as? String,
+                  let statusStr = dict["status"] as? String, let status = Status(rawValue: statusStr)
+            else { return nil }
+
+            let ts = dict["timestamp"] as? TimeInterval ?? Date().timeIntervalSince1970
+
+            var todoItems: [TodoItem]?
+            if let todoDicts = dict["todoItems"] as? [[String: String]] {
+                todoItems = todoDicts.compactMap { td in
+                    guard let id = td["id"], let content = td["content"],
+                          let statusStr = td["status"], let status = TodoItem.Status(rawValue: statusStr)
+                    else { return nil }
+                    return TodoItem(id: id, content: content, status: status)
+                }
+            }
+
+            return ConversationMessage(
+                id: id,
+                type: type,
+                content: content,
+                timestamp: Date(timeIntervalSince1970: ts),
+                toolName: dict["toolName"] as? String,
+                toolInput: dict["toolInput"] as? String,
+                toolOutput: dict["toolOutput"] as? String,
+                toolCallId: dict["toolCallId"] as? String,
+                status: status,
+                todoItems: todoItems,
+                diffContent: dict["diffContent"] as? String
+            )
+        }
+        return results.isEmpty ? nil : results
     }
 }

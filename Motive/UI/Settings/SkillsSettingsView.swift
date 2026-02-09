@@ -132,7 +132,7 @@ struct SkillsSettingsView: View {
                     .font(.system(size: 12))
                     .foregroundColor(Color.Aurora.textMuted)
                 
-                TextField("Search...", text: $searchText)
+                TextField(L10n.Settings.skillsSearch, text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .frame(width: 120)
@@ -175,7 +175,7 @@ struct SkillsSettingsView: View {
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isLoading)
-            .accessibilityLabel("Refresh skills")
+            .accessibilityLabel(L10n.Settings.skillsRefreshA11y)
         }
         .padding(.bottom, 12)
     }
@@ -189,7 +189,7 @@ struct SkillsSettingsView: View {
                     Spacer()
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("Loading...")
+                    Text(L10n.loading)
                         .font(.system(size: 11))
                         .foregroundColor(Color.Aurora.textMuted)
                         .padding(.top, 8)
@@ -202,7 +202,7 @@ struct SkillsSettingsView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 24))
                         .foregroundColor(Color.Aurora.textMuted)
-                    Text(searchText.isEmpty ? "No skills" : "No matches")
+                    Text(searchText.isEmpty ? L10n.Settings.skillsNoSkills : L10n.Settings.skillsNoMatch)
                         .font(.system(size: 12))
                         .foregroundColor(Color.Aurora.textMuted)
                         .padding(.top, 8)
@@ -261,7 +261,7 @@ struct SkillsSettingsView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 32))
                         .foregroundColor(Color.Aurora.textMuted)
-                    Text("Select a skill")
+                    Text(L10n.Settings.skillsSelect)
                         .font(.system(size: 13))
                         .foregroundColor(Color.Aurora.textMuted)
                         .padding(.top, 8)
@@ -286,7 +286,7 @@ struct SkillsSettingsView: View {
                 if !sanitized.isEmpty {
                     markdownContent = sanitized
                 } else {
-                    markdownError = "Unable to load SKILL.md"
+                    markdownError = L10n.Settings.skillsUnableToLoad
                 }
             }
         }
@@ -549,7 +549,7 @@ private struct SkillDetail: View {
     
     private var missingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Missing Requirements")
+            Text(L10n.Settings.skillsMissingReqs)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(Color.Aurora.warning)
             
@@ -601,9 +601,9 @@ private struct SkillDetail: View {
                     ZStack(alignment: .trailing) {
                         Group {
                             if showApiKey {
-                                TextField("Enter API key...", text: $apiKeyInput)
+                                TextField(L10n.Settings.skillsEnterApiKey, text: $apiKeyInput)
                             } else {
-                                SecureField("Enter API key...", text: $apiKeyInput)
+                                SecureField(L10n.Settings.skillsEnterApiKey, text: $apiKeyInput)
                             }
                         }
                         .textFieldStyle(.plain)
@@ -635,7 +635,7 @@ private struct SkillDetail: View {
                     Button {
                         saveApiKey()
                     } label: {
-                        Text("Save")
+                        Text(L10n.save)
                             .font(.system(size: 10, weight: .medium))
                     }
                     .buttonStyle(.borderedProminent)
@@ -648,7 +648,7 @@ private struct SkillDetail: View {
                             isEditingKey = false
                             showApiKey = false
                         } label: {
-                            Text("Cancel")
+                            Text(L10n.cancel)
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(Color.Aurora.textMuted)
                         }
@@ -667,7 +667,7 @@ private struct SkillDetail: View {
                         isEditingKey = true
                         apiKeyInput = ""
                     } label: {
-                        Text("Edit")
+                        Text(L10n.edit)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(Color.Aurora.primary)
                     }
@@ -685,7 +685,7 @@ private struct SkillDetail: View {
     
     private var installSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Install")
+            Text(L10n.install)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(Color.Aurora.textMuted)
             
@@ -736,7 +736,7 @@ private struct SkillDetail: View {
         VStack(alignment: .leading, spacing: 8) {
             // Title row with Toggle
             HStack {
-                Text("Skill Guide")
+                Text(L10n.Settings.skillsGuide)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color.Aurora.textMuted)
                     .textCase(.uppercase)
@@ -747,11 +747,11 @@ private struct SkillDetail: View {
                 // Toggle moved here - disabled when skill is blocked
                 HStack(spacing: 8) {
                     if !isReady {
-                        Text("Blocked")
+                        Text(L10n.Settings.skillsBlocked)
                             .font(.system(size: 11))
                             .foregroundColor(Color.Aurora.warning)
                     } else {
-                        Text(status.disabled ? "Disabled" : "Enabled")
+                        Text(status.disabled ? L10n.Settings.skillsDisabled : L10n.Settings.skillsEnabled)
                             .font(.system(size: 11))
                             .foregroundColor(status.disabled ? Color.Aurora.textMuted : Color.Aurora.success)
                     }
@@ -772,7 +772,7 @@ private struct SkillDetail: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .scaleEffect(0.6)
-                        Text("Loading...")
+                        Text(L10n.loading)
                             .font(.system(size: 11))
                             .foregroundColor(Color.Aurora.textMuted)
                     }

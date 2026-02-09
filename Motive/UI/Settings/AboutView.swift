@@ -69,13 +69,13 @@ struct AboutView: View {
                     .foregroundColor(Color.Aurora.textPrimary)
                 
                 // Version
-                Text("Version \(appVersion) (\(buildNumber))")
+                Text("\(L10n.Settings.version) \(appVersion) (\(buildNumber))")
                     .font(.system(size: 12))
                     .foregroundColor(Color.Aurora.textSecondary)
             }
             
             // Copyright
-            Text("© 2024-2026 Velvet. All rights reserved.")
+            Text(L10n.Settings.allRightsReserved)
                 .font(.system(size: 11))
                 .foregroundColor(Color.Aurora.textMuted)
         }
@@ -85,7 +85,7 @@ struct AboutView: View {
     
     private var acknowledgementsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("POWERED BY")
+            Text(L10n.Settings.poweredBy)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color.Aurora.textMuted)
                 .textCase(.uppercase)

@@ -16,6 +16,18 @@
 "common.warning" = "Warning";
 "common.ok" = "OK";
 "common.unsaved_changes" = "Unsaved changes";
+"common.show" = "Show";
+"common.hide" = "Hide";
+"common.expand" = "Expand";
+"common.collapse" = "Collapse";
+"common.show_less" = "Show less";
+"common.show_more_lines" = "Show %d more lines";
+"common.loading" = "Loading...";
+"common.install" = "Install";
+"common.edit" = "Edit";
+"common.reject" = "Reject";
+"common.allow_once" = "Allow Once";
+"common.always_allow" = "Always Allow";
 
 // MARK: - Command Bar
 "commandbar.placeholder" = "What should I do?";
@@ -44,6 +56,18 @@
 "commandbar.dismiss" = "Dismiss";
 "commandbar.ready" = "Ready";
 "commandbar.type_request" = "Type your request below";
+"commandbar.starting" = "Starting…";
+"commandbar.current" = "current";
+"commandbar.no_sessions" = "No sessions yet";
+"commandbar.no_sessions.desc" = "Your conversation history will appear here";
+"commandbar.modified_files" = "Modified files:";
+"commandbar.follow_up" = "Follow up…";
+"commandbar.tools_executed" = "%d tool(s) executed";
+"commandbar.task_finished" = "Task finished";
+"commandbar.more_files" = "+%d more files";
+"commandbar.tab" = "Tab";
+"commandbar.search_sessions" = "Search sessions...";
+"commandbar.type_command" = "Type a command...";
 
 // MARK: - Settings
 "settings.title" = "Settings";
@@ -54,6 +78,8 @@
 "settings.tab.general.subtitle" = "Startup, appearance, and keyboard shortcuts";
 "settings.tab.ai_provider" = "AI Provider";
 "settings.tab.ai_provider.subtitle" = "Configure your AI provider and API credentials";
+"settings.tab.usage" = "Usage";
+"settings.tab.usage.subtitle" = "Token usage and cost summary";
 "settings.tab.skills" = "Skills";
 "settings.tab.skills.subtitle" = "Manage installed skills and tool wiring";
 "settings.tab.about.subtitle" = "Application info and component status";
@@ -221,6 +247,43 @@
 "settings.hotkey.press_keys" = "Press keys...";
 "settings.hotkey.click_to_record" = "Click to record";
 
+// Trust Level
+"settings.permissions.trust.careful" = "Careful";
+"settings.permissions.trust.careful.desc" = "Ask before file edits and shell commands";
+"settings.permissions.trust.balanced" = "Balanced";
+"settings.permissions.trust.balanced.desc" = "Auto-approve edits, ask for unknown commands";
+"settings.permissions.trust.yolo" = "YOLO";
+"settings.permissions.trust.yolo.desc" = "Allow all operations (except dangerous ones)";
+
+// Permission Policy
+"settings.permissions.trust_level" = "TRUST LEVEL";
+"settings.permissions.trust_all_ops" = "All operations run without approval. Use with caution.";
+"settings.permissions.add_rule" = "Add rule...";
+"settings.permissions.add_rule_for" = "Add Rule for %@";
+"settings.permissions.pattern" = "Pattern";
+"settings.permissions.action" = "Action";
+"settings.permissions.description_optional" = "Description (optional)";
+"settings.permissions.what_rule_does" = "What this rule does";
+
+// Skills Detail
+"settings.skills.search" = "Search...";
+"settings.skills.refresh_a11y" = "Refresh skills";
+"settings.skills.loading" = "Loading...";
+"settings.skills.no_match" = "No matches";
+"settings.skills.select" = "Select a skill";
+"settings.skills.unable_to_load" = "Unable to load SKILL.md";
+"settings.skills.missing_reqs" = "Missing Requirements";
+"settings.skills.enter_api_key" = "Enter API key...";
+"settings.skills.guide" = "Skill Guide";
+"settings.skills.blocked" = "Blocked";
+"settings.skills.disabled" = "Disabled";
+"settings.skills.enabled" = "Enabled";
+
+// About
+"settings.about.powered_by" = "POWERED BY";
+"settings.about.all_rights_reserved" = "© 2024-2026 Velvet. All rights reserved.";
+"settings.advanced.actions" = "Actions";
+
 // MARK: - Drawer
 "drawer.new_session" = "New Session";
 "drawer.new_chat" = "New Chat";
@@ -241,16 +304,41 @@
 "drawer.no_history" = "No history yet";
 "drawer.assistant" = "Assistant";
 "drawer.tool" = "Tool";
+"drawer.tip" = "Tip: Click the title above to switch sessions";
+"drawer.tasks" = "Tasks";
+"drawer.changes" = "Changes";
+"drawer.context_help" = "Current context size";
+"drawer.show_output" = "Show output";
+"drawer.hide_output" = "Hide output";
 
 // MARK: - Permission Request
 "permission.file" = "File Permission";
 "permission.question" = "Question";
 "permission.allow_once" = "Allow";
 "permission.deny_once" = "Deny";
+"permission.required" = "Permission Required";
+"permission.label" = "Permission:";
+"permission.path" = "Path:";
+"permission.paths" = "Paths:";
+"permission.type_response" = "Type your response...";
+"permission.type_answer" = "Type your answer...";
+"permission.preview_changes" = "Preview changes";
 
 // MARK: - Alerts
 "alert.delete_session_title" = "Delete this session?";
 "alert.delete_session_message" = "This will permanently delete \"%@\"";
+
+// MARK: - Usage
+"usage.token_usage" = "TOKEN USAGE";
+"usage.no_data" = "No usage data yet.";
+"usage.cumulative" = "Totals are cumulative across sessions.";
+"usage.cost_reported" = "Cost is reported by OpenCode.";
+"usage.reset" = "Reset Usage";
+"usage.input" = "Input";
+"usage.output" = "Output";
+"usage.reasoning" = "Reasoning";
+"usage.cache_read" = "Cache Read";
+"usage.cache_write" = "Cache Write";
 
 // MARK: - Time
 "time.just_now" = "just now";
@@ -302,6 +390,16 @@
 "onboarding.complete.hotkey_label" = "Your hotkey";
 "onboarding.complete.hotkey_hint" = "Press this anywhere to open the Command Bar";
 "onboarding.complete.start_using" = "Start Using Motive";
+
+// Accessibility extra
+"onboarding.accessibility.hotkey_ready" = "Hotkey is ready to use";
+"onboarding.accessibility.hotkey_required" = "Required for global hotkey";
+
+// Permission
+"onboarding.permission.mode" = "Permission Mode";
+"onboarding.permission.mode_desc" = "Choose how much autonomy the AI has";
+"onboarding.permission.yolo_warning" = "All operations run without approval";
+"onboarding.permission.change_hint" = "You can change this anytime in Settings → Permissions";
 
 // Common
 "onboarding.skip" = "Skip";

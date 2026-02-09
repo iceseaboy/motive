@@ -23,6 +23,19 @@ enum L10n {
     static let warning = "common.warning".localized
     static let ok = "common.ok".localized
     static let unsavedChanges = "common.unsaved_changes".localized
+    static let show = "common.show".localized
+    static let hide = "common.hide".localized
+    static let expand = "common.expand".localized
+    static let collapse = "common.collapse".localized
+    static let showLess = "common.show_less".localized
+    static let loading = "common.loading".localized
+    static let install = "common.install".localized
+    static let edit = "common.edit".localized
+    static let reject = "common.reject".localized
+    static let allowOnce = "common.allow_once".localized
+    static let alwaysAllow = "common.always_allow".localized
+    /// "Show %d more lines" – use with `String(format:, count)`
+    static let showMoreLines = "common.show_more_lines".localized
     
     // MARK: - Command Bar
     enum CommandBar {
@@ -52,6 +65,18 @@ enum L10n {
         static let dismiss = "commandbar.dismiss".localized
         static let ready = "commandbar.ready".localized
         static let typeRequest = "commandbar.type_request".localized
+        static let starting = "commandbar.starting".localized
+        static let current = "commandbar.current".localized
+        static let noSessions = "commandbar.no_sessions".localized
+        static let noSessionsDesc = "commandbar.no_sessions.desc".localized
+        static let modifiedFiles = "commandbar.modified_files".localized
+        static let followUp = "commandbar.follow_up".localized
+        static let toolsExecuted = "commandbar.tools_executed".localized
+        static let taskFinished = "commandbar.task_finished".localized
+        static let moreFiles = "commandbar.more_files".localized
+        static let tab = "commandbar.tab".localized
+        static let searchSessions = "commandbar.search_sessions".localized
+        static let typeCommand = "commandbar.type_command".localized
     }
     
     // MARK: - Settings
@@ -64,6 +89,8 @@ enum L10n {
         static let generalSubtitle = "settings.tab.general.subtitle".localized
         static let aiProvider = "settings.tab.ai_provider".localized
         static let aiProviderSubtitle = "settings.tab.ai_provider.subtitle".localized
+        static let usage = "settings.tab.usage".localized
+        static let usageSubtitle = "settings.tab.usage.subtitle".localized
         static let permissions = "settings.tab.permissions".localized
         static let permissionsSubtitle = "settings.tab.permissions.subtitle".localized
         static let advanced = "settings.tab.advanced".localized
@@ -230,6 +257,43 @@ enum L10n {
         // Hotkey Recorder
         static let pressKeys = "settings.hotkey.press_keys".localized
         static let clickToRecord = "settings.hotkey.click_to_record".localized
+        
+        // Trust Level
+        static let trustCareful = "settings.permissions.trust.careful".localized
+        static let trustCarefulDesc = "settings.permissions.trust.careful.desc".localized
+        static let trustBalanced = "settings.permissions.trust.balanced".localized
+        static let trustBalancedDesc = "settings.permissions.trust.balanced.desc".localized
+        static let trustYolo = "settings.permissions.trust.yolo".localized
+        static let trustYoloDesc = "settings.permissions.trust.yolo.desc".localized
+        
+        // Permission Policy
+        static let trustLevel = "settings.permissions.trust_level".localized
+        static let trustAllOps = "settings.permissions.trust_all_ops".localized
+        static let addRule = "settings.permissions.add_rule".localized
+        static let addRuleFor = "settings.permissions.add_rule_for".localized
+        static let pattern = "settings.permissions.pattern".localized
+        static let action = "settings.permissions.action".localized
+        static let descriptionOptional = "settings.permissions.description_optional".localized
+        static let whatRuleDoes = "settings.permissions.what_rule_does".localized
+        
+        // Skills
+        static let skillsSearch = "settings.skills.search".localized
+        static let skillsRefreshA11y = "settings.skills.refresh_a11y".localized
+        static let skillsLoading = "settings.skills.loading".localized
+        static let skillsNoMatch = "settings.skills.no_match".localized
+        static let skillsSelect = "settings.skills.select".localized
+        static let skillsUnableToLoad = "settings.skills.unable_to_load".localized
+        static let skillsMissingReqs = "settings.skills.missing_reqs".localized
+        static let skillsEnterApiKey = "settings.skills.enter_api_key".localized
+        static let skillsGuide = "settings.skills.guide".localized
+        static let skillsBlocked = "settings.skills.blocked".localized
+        static let skillsDisabled = "settings.skills.disabled".localized
+        static let skillsEnabled = "settings.skills.enabled".localized
+        
+        // About
+        static let poweredBy = "settings.about.powered_by".localized
+        static let allRightsReserved = "settings.about.all_rights_reserved".localized
+        static let actions = "settings.advanced.actions".localized
     }
     
     // MARK: - Drawer
@@ -253,6 +317,12 @@ enum L10n {
         static let noHistory = "drawer.no_history".localized
         static let assistant = "drawer.assistant".localized
         static let tool = "drawer.tool".localized
+        static let tip = "drawer.tip".localized
+        static let tasks = "drawer.tasks".localized
+        static let changes = "drawer.changes".localized
+        static let contextHelp = "drawer.context_help".localized
+        static let showOutput = "drawer.show_output".localized
+        static let hideOutput = "drawer.hide_output".localized
     }
     
     // MARK: - Permission Request
@@ -261,6 +331,13 @@ enum L10n {
         static let question = "permission.question".localized
         static let allowOnce = "permission.allow_once".localized
         static let denyOnce = "permission.deny_once".localized
+        static let permissionRequired = "permission.required".localized
+        static let permissionLabel = "permission.label".localized
+        static let pathLabel = "permission.path".localized
+        static let pathsLabel = "permission.paths".localized
+        static let typeResponse = "permission.type_response".localized
+        static let typeAnswer = "permission.type_answer".localized
+        static let previewChanges = "permission.preview_changes".localized
     }
     
     // MARK: - Alerts
@@ -285,6 +362,20 @@ enum L10n {
         static let commandBar = "statusbar.command_bar".localized
         static let settings = "statusbar.settings".localized
         static let quit = "statusbar.quit".localized
+    }
+    
+    // MARK: - Usage
+    enum Usage {
+        static let tokenUsage = "usage.token_usage".localized
+        static let noData = "usage.no_data".localized
+        static let cumulative = "usage.cumulative".localized
+        static let costReported = "usage.cost_reported".localized
+        static let reset = "usage.reset".localized
+        static let input = "usage.input".localized
+        static let output = "usage.output".localized
+        static let reasoning = "usage.reasoning".localized
+        static let cacheRead = "usage.cache_read".localized
+        static let cacheWrite = "usage.cache_write".localized
     }
     
     // MARK: - Errors
@@ -326,6 +417,16 @@ enum L10n {
         static let hotkeyLabel = "onboarding.complete.hotkey_label".localized
         static let hotkeyHint = "onboarding.complete.hotkey_hint".localized
         static let startUsing = "onboarding.complete.start_using".localized
+        
+        // Accessibility
+        static let hotkeyReady = "onboarding.accessibility.hotkey_ready".localized
+        static let hotkeyRequired = "onboarding.accessibility.hotkey_required".localized
+        
+        // Permission
+        static let permissionMode = "onboarding.permission.mode".localized
+        static let permissionModeDesc = "onboarding.permission.mode_desc".localized
+        static let permissionYoloWarning = "onboarding.permission.yolo_warning".localized
+        static let permissionChangeHint = "onboarding.permission.change_hint".localized
         
         // Common
         static let skip = "onboarding.skip".localized

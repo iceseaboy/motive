@@ -43,7 +43,7 @@ struct AdvancedSettingsView: View {
                         }
                     }
                     
-                    SettingRow("Actions", showDivider: false) {
+                    SettingRow(L10n.Settings.actions, showDivider: false) {
                         HStack(spacing: 10) {
                             Button {
                                 showFileImporter = true

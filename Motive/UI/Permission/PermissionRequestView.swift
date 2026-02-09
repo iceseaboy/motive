@@ -3,6 +3,7 @@
 //  Motive
 //
 //  Aurora Design System - Permission Request Modal
+//  Adapted for native OpenCode question/permission system.
 //
 
 import SwiftUI
@@ -64,24 +65,7 @@ struct PermissionRequestView: View {
                 }
                 
                 // Action Buttons
-                HStack(spacing: AuroraSpacing.space3) {
-                    Button(action: { respond(allowed: false) }) {
-                        Text(denyButtonText)
-                            .font(.Aurora.bodySmall.weight(.medium))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, AuroraSpacing.space3)
-                    }
-                    .buttonStyle(AuroraPermissionButtonStyle(style: .secondary))
-                    
-                    Button(action: { respond(allowed: true) }) {
-                        Text(allowButtonText)
-                            .font(.Aurora.bodySmall.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, AuroraSpacing.space3)
-                    }
-                    .buttonStyle(AuroraPermissionButtonStyle(style: request.isDeleteOperation ? .danger : .primary))
-                    .disabled(isAllowDisabled)
-                }
+                actionButtons
             }
             .padding(AuroraSpacing.space5)
             .background(Color.Aurora.background)
@@ -105,62 +89,92 @@ struct PermissionRequestView: View {
     // MARK: - Computed Properties
     
     private var headerTitle: String {
-        if request.isDeleteOperation {
-            return "File Deletion Warning"
-        }
-        
         switch request.type {
-        case .file:
-            return "File Permission Required"
         case .question:
-            return request.header ?? "Question"
-        case .tool:
-            return "Permission Required"
+            return request.header ?? L10n.Permission.question
+        case .permission:
+            if let permType = request.permissionType {
+                return "\(permType.capitalized) Permission"
+            }
+            return L10n.Permission.permissionRequired
         }
     }
     
     private var iconGradientColors: [Color] {
-        if request.isDeleteOperation {
-            return [Color.Aurora.error, Color.Aurora.warning]
-        }
-        
         switch request.type {
-        case .file:
-            return [Color.Aurora.warning, Color(hex: "F97316")]
         case .question:
             return Color.Aurora.auroraGradientColors
-        case .tool:
-            return [Color.Aurora.accentMid, Color.Aurora.accentEnd]
+        case .permission:
+            return [Color.Aurora.warning, Color(hex: "F97316")]
         }
     }
     
     private var iconImage: Image {
-        if request.isDeleteOperation {
-            return Image(systemName: "exclamationmark.triangle.fill")
-        }
-        
         switch request.type {
-        case .file:
-            return Image(systemName: "doc.fill")
         case .question:
             return Image(systemName: "hand.raised.fill")
-        case .tool:
-            return Image(systemName: "hand.raised.fill")
+        case .permission:
+            return Image(systemName: "lock.shield.fill")
         }
     }
     
-    private var denyButtonText: String {
-        request.type == .question ? "Cancel" : "Deny"
-    }
+    // MARK: - Action Buttons
     
-    private var allowButtonText: String {
-        if request.isDeleteOperation {
-            return request.displayFilePaths.count > 1 ? "Delete All" : "Delete"
+    @ViewBuilder
+    private var actionButtons: some View {
+        switch request.type {
+        case .question:
+            // Question: Cancel + Submit
+            HStack(spacing: AuroraSpacing.space3) {
+                Button(action: { respond(allowed: false) }) {
+                    Text(L10n.cancel)
+                        .font(.Aurora.bodySmall.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
+                }
+                .buttonStyle(AuroraPermissionButtonStyle(style: .secondary))
+                
+                Button(action: { respond(allowed: true) }) {
+                    Text(L10n.submit)
+                        .font(.Aurora.bodySmall.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
+                }
+                .buttonStyle(AuroraPermissionButtonStyle(style: .primary))
+                .disabled(isSubmitDisabled)
+            }
+            
+        case .permission:
+            // Permission: Reject / Allow Once / Always Allow
+            HStack(spacing: AuroraSpacing.space2) {
+                Button(action: { respondPermission(reply: "Reject") }) {
+                    Text(L10n.reject)
+                        .font(.Aurora.bodySmall.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
+                }
+                .buttonStyle(AuroraPermissionButtonStyle(style: .danger))
+                
+                Button(action: { respondPermission(reply: "Allow Once") }) {
+                    Text(L10n.allowOnce)
+                        .font(.Aurora.bodySmall.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
+                }
+                .buttonStyle(AuroraPermissionButtonStyle(style: .secondary))
+                
+                Button(action: { respondPermission(reply: "Always Allow") }) {
+                    Text(L10n.alwaysAllow)
+                        .font(.Aurora.bodySmall.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AuroraSpacing.space3)
+                }
+                .buttonStyle(AuroraPermissionButtonStyle(style: .primary))
+            }
         }
-        return request.type == .question ? "Submit" : "Allow"
     }
     
-    private var isAllowDisabled: Bool {
+    private var isSubmitDisabled: Bool {
         if request.type == .question,
            !showCustomInput,
            let options = request.options,
@@ -175,77 +189,54 @@ struct PermissionRequestView: View {
     @ViewBuilder
     private var requestContent: some View {
         switch request.type {
-        case .file:
-            filePermissionContent
         case .question:
             questionContent
-        case .tool:
-            toolContent
+        case .permission:
+            toolPermissionContent
         }
     }
     
     @ViewBuilder
-    private var filePermissionContent: some View {
+    private var toolPermissionContent: some View {
         VStack(alignment: .leading, spacing: AuroraSpacing.space3) {
-            // Delete warning banner
-            if request.isDeleteOperation {
-                HStack {
-                    Text(request.displayFilePaths.count > 1
-                         ? "\(request.displayFilePaths.count) files will be permanently deleted:"
-                         : "This file will be permanently deleted:")
-                        .font(.Aurora.caption)
-                        .foregroundColor(Color.Aurora.error)
-                }
-                .padding(AuroraSpacing.space2)
-                .background(Color.Aurora.error.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
-            } else if let operation = request.fileOperation {
-                Text(operation.rawValue.uppercased())
+            // Permission type badge
+            if let permType = request.permissionType {
+                Text(permType.uppercased())
                     .font(.Aurora.micro.weight(.bold))
-                    .foregroundColor(Color.Aurora.accent)
+                    .foregroundColor(Color.Aurora.warning)
                     .padding(.horizontal, AuroraSpacing.space2)
                     .padding(.vertical, AuroraSpacing.space1)
-                    .background(Color.Aurora.accent.opacity(0.12))
+                    .background(Color.Aurora.warning.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
             }
             
-            // File paths
-            VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
-                ForEach(request.displayFilePaths, id: \.self) { path in
-                    Text(request.displayFilePaths.count > 1 ? "• \(path)" : path)
-                        .font(.Aurora.monoSmall)
-                        .foregroundColor(Color.Aurora.textPrimary)
+            // Patterns (file paths or commands)
+            if let patterns = request.patterns, !patterns.isEmpty {
+                VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
+                    ForEach(patterns, id: \.self) { pattern in
+                        Text(patterns.count > 1 ? "• \(pattern)" : pattern)
+                            .font(.Aurora.monoSmall)
+                            .foregroundColor(Color.Aurora.textPrimary)
+                    }
                 }
-                
-                if let targetPath = request.targetPath {
-                    Text("→ \(targetPath)")
-                        .font(.Aurora.monoSmall)
-                        .foregroundColor(Color.Aurora.textSecondary)
-                }
-            }
-            .padding(AuroraSpacing.space3)
-            .background(Color.Aurora.surface)
-            .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 0.5)
-            )
-            
-            if request.isDeleteOperation {
-                Text("This action cannot be undone.")
-                    .font(.Aurora.caption)
-                    .foregroundColor(Color.Aurora.textMuted)
+                .padding(AuroraSpacing.space3)
+                .background(Color.Aurora.surface)
+                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                        .stroke(Color.Aurora.border, lineWidth: 0.5)
+                )
             }
             
-            // Content preview
-            if let preview = request.contentPreview {
-                DisclosureGroup("Preview content") {
+            // Diff preview
+            if let diff = request.diff, !diff.isEmpty {
+                DisclosureGroup(L10n.Permission.previewChanges) {
                     ScrollView {
-                        Text(preview)
+                        Text(diff)
                             .font(.Aurora.monoSmall)
                             .foregroundColor(Color.Aurora.textSecondary)
                     }
-                    .frame(maxHeight: 100)
+                    .frame(maxHeight: 150)
                 }
                 .font(.Aurora.caption)
                 .foregroundColor(Color.Aurora.textSecondary)
@@ -264,7 +255,7 @@ struct PermissionRequestView: View {
             
             if showCustomInput {
                 VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
-                    TextField("Type your response...", text: $customResponse)
+                    TextField(L10n.Permission.typeResponse, text: $customResponse)
                         .textFieldStyle(AuroraModernTextFieldStyle())
                         .onSubmit {
                             if !customResponse.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -308,48 +299,7 @@ struct PermissionRequestView: View {
         }
     }
     
-    @ViewBuilder
-    private var toolContent: some View {
-        VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
-            if let toolName = request.toolName {
-                Text("Allow \(toolName.simplifiedToolName)?")
-                    .font(.Aurora.body)
-                    .foregroundColor(Color.Aurora.textSecondary)
-                
-                VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
-                    Text("Tool: \(toolName.simplifiedToolName)")
-                        .font(.Aurora.caption)
-                        .foregroundColor(Color.Aurora.textSecondary)
-                    
-                    if let input = request.toolInput {
-                        ScrollView {
-                            Text(formatToolInput(input))
-                                .font(.Aurora.monoSmall)
-                                .foregroundColor(Color.Aurora.textPrimary)
-                        }
-                        .frame(maxHeight: 100)
-                    }
-                }
-                .padding(AuroraSpacing.space3)
-                .background(Color.Aurora.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 0.5)
-                )
-            }
-        }
-    }
-    
-    // MARK: - Helpers
-    
-    private func formatToolInput(_ input: [String: Any]) -> String {
-        if let data = try? JSONSerialization.data(withJSONObject: input, options: .prettyPrinted),
-           let string = String(data: data, encoding: .utf8) {
-            return string
-        }
-        return String(describing: input)
-    }
+    // MARK: - Response Helpers
     
     private func respond(allowed: Bool) {
         var response = PermissionResponse(
@@ -366,6 +316,17 @@ struct PermissionRequestView: View {
             }
         }
         
+        onRespond(response)
+    }
+    
+    private func respondPermission(reply: String) {
+        var response = PermissionResponse(
+            requestId: request.id,
+            taskId: request.taskId,
+            decision: reply == "Reject" ? .deny : .allow,
+            message: reply
+        )
+        response.selectedOptions = [reply]
         onRespond(response)
     }
 }
@@ -491,9 +452,15 @@ private struct AuroraPermissionButtonStyle: ButtonStyle {
         request: PermissionRequest(
             id: "test",
             taskId: "task_1",
-            type: .file,
-            fileOperation: .delete,
-            filePath: "/Users/test/Documents/important.txt"
+            type: .permission,
+            question: "Allow edit for src/main.ts?",
+            header: "Edit Permission",
+            permissionType: "edit",
+            patterns: ["src/main.ts"],
+            diff: """
+            - const x = 1;
+            + const x = 2;
+            """
         ),
         onRespond: { _ in }
     )

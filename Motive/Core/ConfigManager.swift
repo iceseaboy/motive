@@ -232,6 +232,21 @@ final class ConfigManager: ObservableObject {
     // Skills system (OpenClaw-style)
     @AppStorage("skillsSystemEnabled") var skillsSystemEnabled: Bool = true
     @AppStorage("skillsConfigJSON") var skillsConfigJSON: String = ""
+
+    // Trust level — controls how aggressively the AI operates
+    @AppStorage("trustLevel") var trustLevelRawValue: String = TrustLevel.careful.rawValue
+
+    // Token usage totals (per model)
+    @AppStorage("tokenUsageTotalsJSON") var tokenUsageTotalsJSON: String = "{}"
+
+    var trustLevel: TrustLevel {
+        get { TrustLevel(rawValue: trustLevelRawValue) ?? .careful }
+        set {
+            trustLevelRawValue = newValue.rawValue
+            ToolPermissionPolicy.shared.applyTrustLevel(newValue)
+            generateOpenCodeConfig()
+        }
+    }
     
 
     @AppStorage("hotkey") var hotkey: String = "⌥Space"

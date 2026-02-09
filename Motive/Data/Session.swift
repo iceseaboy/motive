@@ -44,6 +44,11 @@ final class Session {
     /// Project directory used when the session was created (resolved path)
     var projectPath: String = ""
     @Relationship(deleteRule: .cascade) var logs: [LogEntry]
+    /// Snapshot of the live messages array, saved when session completes/interrupts.
+    /// This is the SINGLE source of truth for historical display — no reconstruction needed.
+    var messagesData: Data?
+    /// Latest known context size (input tokens) for this session.
+    var contextTokens: Int?
     
     /// Type-safe accessor for session status
     var sessionStatus: SessionStatus {
@@ -51,7 +56,16 @@ final class Session {
         set { status = newValue.rawValue }
     }
 
-    init(id: UUID = UUID(), intent: String, createdAt: Date = Date(), openCodeSessionId: String? = nil, status: SessionStatus = .running, projectPath: String = "", logs: [LogEntry] = []) {
+    init(
+        id: UUID = UUID(),
+        intent: String,
+        createdAt: Date = Date(),
+        openCodeSessionId: String? = nil,
+        status: SessionStatus = .running,
+        projectPath: String = "",
+        logs: [LogEntry] = [],
+        contextTokens: Int? = nil
+    ) {
         self.id = id
         self.intent = intent
         self.createdAt = createdAt
@@ -59,5 +73,6 @@ final class Session {
         self.status = status.rawValue
         self.projectPath = projectPath
         self.logs = logs
+        self.contextTokens = contextTokens
     }
 }

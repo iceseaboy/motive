@@ -40,32 +40,42 @@ struct PersonaSettingsView: View {
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var hasChanges = false
-    @FocusState private var isEmojiFocused: Bool
-    
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Tab Bar
-            personaTabBar
-            
-            // Content based on selected tab
-            Group {
-                switch selectedTab {
-                case .identity:
-                    identityView
-                case .soul:
-                    markdownEditorView(
-                        content: $soulContent,
-                        placeholder: soulPlaceholder
-                    )
-                case .user:
-                    markdownEditorView(
-                        content: $userContent,
-                        placeholder: userPlaceholder
-                    )
+            // Tab bar + content in a single bordered container
+            VStack(spacing: 0) {
+                personaTabBar
+                
+                Divider()
+                
+                Group {
+                    switch selectedTab {
+                    case .identity:
+                        identityContent
+                    case .soul:
+                        markdownEditorContent(
+                            content: $soulContent,
+                            placeholder: soulPlaceholder
+                        )
+                    case .user:
+                        markdownEditorContent(
+                            content: $userContent,
+                            placeholder: userPlaceholder
+                        )
+                    }
                 }
+                .frame(maxHeight: .infinity)
             }
-            .frame(maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.Aurora.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.Aurora.border, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             
             // Footer
             footerView
@@ -93,19 +103,11 @@ struct PersonaSettingsView: View {
             Spacer()
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.Aurora.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
-        )
     }
     
     // MARK: - Identity Tab
     
-    private var identityView: some View {
+    private var identityContent: some View {
         VStack(spacing: 0) {
             identityRow(
                 label: L10n.Settings.personaName,
@@ -159,14 +161,6 @@ struct PersonaSettingsView: View {
                 showDivider: false
             )
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.Aurora.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
-        )
     }
     
     @ViewBuilder
@@ -244,32 +238,24 @@ struct PersonaSettingsView: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    // Emoji display/input
-                    ZStack(alignment: .center) {
-                        if value.wrappedValue.isEmpty {
-                            Text("🌸")
-                                .opacity(0.3)
-                        }
-                        TextField("", text: value)
-                            .textFieldStyle(.plain)
-                            .multilineTextAlignment(.center)
-                            .focused($isEmojiFocused)
-                    }
-                    .font(.system(size: 20))
-                    .frame(width: 44, height: 36)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.Aurora.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 1)
-                )
+                    // Emoji display + hidden receiver for Character Palette
+                    EmojiInputField(emoji: value)
+                        .frame(width: 44, height: 36)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.Aurora.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(Color.Aurora.border, lineWidth: 1)
+                        )
                     
                     // Emoji picker button
                     Button {
-                        // Focus the text field first, then open picker
-                        isEmojiFocused = true
+                        // Make the EmojiInputField first responder, then open picker
+                        if let window = NSApp.keyWindow {
+                            findAndFocusEmojiField(in: window.contentView)
+                        }
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(100))
                             NSApp.orderFrontCharacterPalette(nil)
@@ -281,14 +267,14 @@ struct PersonaSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .frame(width: 28, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.Aurora.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 1)
-                )
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.Aurora.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.Aurora.border, lineWidth: 1)
+                    )
                     .help(L10n.Settings.openEmojiPicker)
                 }
             }
@@ -301,11 +287,22 @@ struct PersonaSettingsView: View {
                 .padding(.leading, 16)
         }
     }
+
+    private func findAndFocusEmojiField(in view: NSView?) {
+        guard let view else { return }
+        if let field = view as? EmojiNSTextField {
+            view.window?.makeFirstResponder(field)
+            return
+        }
+        for subview in view.subviews {
+            findAndFocusEmojiField(in: subview)
+        }
+    }
     
     // MARK: - Markdown Editor Tab
     
     @ViewBuilder
-    private func markdownEditorView(
+    private func markdownEditorContent(
         content: Binding<String>,
         placeholder: String
     ) -> some View {
@@ -330,14 +327,6 @@ struct PersonaSettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.Aurora.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
-        )
     }
     
     // MARK: - Footer
@@ -559,5 +548,49 @@ private struct PersonaTabButton: View {
             return Color.Aurora.surfaceElevated
         }
         return Color.clear
+    }
+}
+
+// MARK: - Emoji Input (NSViewRepresentable)
+
+/// Custom NSTextField that replaces its entire content on any input.
+/// When the user picks an emoji from Character Palette, it replaces — never appends.
+final class EmojiNSTextField: NSTextField {
+    var onEmojiInserted: ((String) -> Void)?
+
+    override func textDidChange(_ notification: Notification) {
+        guard let text = currentEditor()?.string, !text.isEmpty else { return }
+        // Replace everything with the last character entered
+        let emoji = String(text.last!)
+        onEmojiInserted?(emoji)
+        self.stringValue = emoji
+        // Move cursor to end
+        currentEditor()?.selectedRange = NSRange(location: emoji.count, length: 0)
+    }
+}
+
+/// SwiftUI wrapper for EmojiNSTextField — displays a single emoji, replaces on new input.
+struct EmojiInputField: NSViewRepresentable {
+    @Binding var emoji: String
+
+    func makeNSView(context: Context) -> EmojiNSTextField {
+        let field = EmojiNSTextField()
+        field.isBordered = false
+        field.drawsBackground = false
+        field.alignment = .center
+        field.font = NSFont.systemFont(ofSize: 20)
+        field.focusRingType = .none
+        field.stringValue = emoji
+        field.placeholderString = "🌸"
+        field.onEmojiInserted = { newEmoji in
+            emoji = newEmoji
+        }
+        return field
+    }
+
+    func updateNSView(_ nsView: EmojiNSTextField, context: Context) {
+        if nsView.stringValue != emoji {
+            nsView.stringValue = emoji
+        }
     }
 }

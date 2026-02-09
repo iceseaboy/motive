@@ -16,6 +16,18 @@
 "common.warning" = "警告";
 "common.ok" = "好";
 "common.unsaved_changes" = "有未保存的更改";
+"common.show" = "显示";
+"common.hide" = "隐藏";
+"common.expand" = "展开";
+"common.collapse" = "收起";
+"common.show_less" = "收起";
+"common.show_more_lines" = "显示更多 %d 行";
+"common.loading" = "加载中...";
+"common.install" = "安装";
+"common.edit" = "编辑";
+"common.reject" = "拒绝";
+"common.allow_once" = "允许一次";
+"common.always_allow" = "始终允许";
 
 // MARK: - Command Bar
 "commandbar.placeholder" = "你想让我做什么？";
@@ -44,6 +56,18 @@
 "commandbar.dismiss" = "关闭";
 "commandbar.ready" = "就绪";
 "commandbar.type_request" = "在下方输入你的请求";
+"commandbar.starting" = "启动中…";
+"commandbar.current" = "当前";
+"commandbar.no_sessions" = "暂无会话";
+"commandbar.no_sessions.desc" = "你的对话历史将显示在这里";
+"commandbar.modified_files" = "修改的文件：";
+"commandbar.follow_up" = "追问…";
+"commandbar.tools_executed" = "执行了 %d 个工具";
+"commandbar.task_finished" = "任务完成";
+"commandbar.more_files" = "还有 %d 个文件";
+"commandbar.tab" = "Tab";
+"commandbar.search_sessions" = "搜索会话...";
+"commandbar.type_command" = "输入命令...";
 
 // MARK: - Settings
 "settings.title" = "设置";
@@ -54,6 +78,8 @@
 "settings.tab.general.subtitle" = "启动、外观和快捷键";
 "settings.tab.ai_provider" = "AI 服务商";
 "settings.tab.ai_provider.subtitle" = "配置 AI 服务商和 API 凭据";
+"settings.tab.usage" = "用量";
+"settings.tab.usage.subtitle" = "Token 用量与费用统计";
 "settings.tab.skills" = "技能";
 "settings.tab.skills.subtitle" = "管理已安装的技能与工具连接";
 "settings.tab.about.subtitle" = "应用信息与组件状态";
@@ -221,6 +247,43 @@
 "settings.hotkey.press_keys" = "请按键...";
 "settings.hotkey.click_to_record" = "点击录制";
 
+// Trust Level
+"settings.permissions.trust.careful" = "谨慎";
+"settings.permissions.trust.careful.desc" = "文件编辑和命令执行前都需确认";
+"settings.permissions.trust.balanced" = "平衡";
+"settings.permissions.trust.balanced.desc" = "自动批准编辑，未知命令需确认";
+"settings.permissions.trust.yolo" = "YOLO";
+"settings.permissions.trust.yolo.desc" = "允许所有操作（危险操作除外）";
+
+// Permission Policy
+"settings.permissions.trust_level" = "信任级别";
+"settings.permissions.trust_all_ops" = "所有操作无需审批即可运行。请谨慎使用。";
+"settings.permissions.add_rule" = "添加规则...";
+"settings.permissions.add_rule_for" = "为 %@ 添加规则";
+"settings.permissions.pattern" = "匹配模式";
+"settings.permissions.action" = "操作";
+"settings.permissions.description_optional" = "描述（可选）";
+"settings.permissions.what_rule_does" = "这条规则的作用";
+
+// Skills Detail
+"settings.skills.search" = "搜索...";
+"settings.skills.refresh_a11y" = "刷新技能";
+"settings.skills.loading" = "加载中...";
+"settings.skills.no_match" = "无匹配结果";
+"settings.skills.select" = "选择一个技能";
+"settings.skills.unable_to_load" = "无法加载 SKILL.md";
+"settings.skills.missing_reqs" = "缺少依赖";
+"settings.skills.enter_api_key" = "输入 API 密钥...";
+"settings.skills.guide" = "技能指南";
+"settings.skills.blocked" = "已屏蔽";
+"settings.skills.disabled" = "已禁用";
+"settings.skills.enabled" = "已启用";
+
+// About
+"settings.about.powered_by" = "技术支持";
+"settings.about.all_rights_reserved" = "© 2024-2026 Velvet. 保留所有权利。";
+"settings.advanced.actions" = "操作";
+
 // MARK: - Drawer
 "drawer.new_session" = "新会话";
 "drawer.new_chat" = "新对话";
@@ -241,16 +304,41 @@
 "drawer.no_history" = "暂无历史";
 "drawer.assistant" = "助手";
 "drawer.tool" = "工具";
+"drawer.tip" = "提示：点击顶部标题切换会话";
+"drawer.tasks" = "任务";
+"drawer.changes" = "更改";
+"drawer.context_help" = "当前上下文大小";
+"drawer.show_output" = "显示输出";
+"drawer.hide_output" = "隐藏输出";
 
 // MARK: - Permission Request
 "permission.file" = "文件权限";
 "permission.question" = "询问";
 "permission.allow_once" = "允许";
 "permission.deny_once" = "拒绝";
+"permission.required" = "需要权限";
+"permission.label" = "权限：";
+"permission.path" = "路径：";
+"permission.paths" = "路径：";
+"permission.type_response" = "输入你的回复...";
+"permission.type_answer" = "输入你的答案...";
+"permission.preview_changes" = "预览更改";
 
 // MARK: - Alerts
 "alert.delete_session_title" = "删除此会话？";
 "alert.delete_session_message" = "将永久删除「%@」";
+
+// MARK: - Usage
+"usage.token_usage" = "Token 用量";
+"usage.no_data" = "暂无用量数据。";
+"usage.cumulative" = "统计为所有会话的累计值。";
+"usage.cost_reported" = "费用由 OpenCode 报告。";
+"usage.reset" = "重置用量";
+"usage.input" = "输入";
+"usage.output" = "输出";
+"usage.reasoning" = "推理";
+"usage.cache_read" = "缓存读取";
+"usage.cache_write" = "缓存写入";
 
 // MARK: - Time
 "time.just_now" = "刚刚";
@@ -302,6 +390,16 @@
 "onboarding.complete.hotkey_label" = "你的快捷键";
 "onboarding.complete.hotkey_hint" = "在任何地方按下此快捷键打开命令栏";
 "onboarding.complete.start_using" = "开始使用 Motive";
+
+// Accessibility extra
+"onboarding.accessibility.hotkey_ready" = "快捷键已就绪";
+"onboarding.accessibility.hotkey_required" = "全局快捷键需要此权限";
+
+// Permission
+"onboarding.permission.mode" = "权限模式";
+"onboarding.permission.mode_desc" = "选择 AI 拥有多少自主权";
+"onboarding.permission.yolo_warning" = "所有操作无需审批即可运行";
+"onboarding.permission.change_hint" = "你可以随时在 设置 → 权限 中更改";
 
 // Common
 "onboarding.skip" = "跳过";

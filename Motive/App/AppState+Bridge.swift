@@ -4,6 +4,9 @@
 //
 //  Created by geezerrrr on 2026/1/19.
 //
+//  Handles OpenCode SSE events routed through OpenCodeBridge.
+//  Uses native question/permission system (no MCP sidecar).
+//
 
 import Combine
 import Foundation
@@ -29,7 +32,8 @@ extension AppState {
             binaryURL: binaryURL,
             environment: configManager.makeEnvironment(),
             model: configManager.getModelString(),
-            debugMode: configManager.debugMode
+            debugMode: configManager.debugMode,
+            projectDirectory: configManager.currentProjectURL.path
         )
         await bridge.updateConfiguration(config)
 
@@ -54,7 +58,7 @@ extension AppState {
             
             // Still running after timeout — warn the user
             if sessionStatus == .running {
-                Log.debug("⚠️ Session timeout: no events for \(Int(Self.sessionTimeoutSeconds))s while still running")
+                Log.debug("Session timeout: no events for \(Int(Self.sessionTimeoutSeconds))s while still running")
                 lastErrorMessage = "No response from OpenCode for \(Int(Self.sessionTimeoutSeconds)) seconds. The process may be stalled. You can interrupt or wait."
                 statusBarController?.showError()
             }
@@ -62,83 +66,71 @@ extension AppState {
     }
 
     func handle(event: OpenCodeEvent) {
+        // Log every event arrival for diagnostics — full text, no truncation
+        Log.bridge("⬇︎ Event: kind=\(event.kind.rawValue) tool=\(event.toolName ?? "-") session=\(event.sessionId ?? "-") text=«\(event.text)»")
+
+        // Once the user has manually interrupted, ignore all subsequent events.
+        // OpenCode may send trailing tool/error events (e.g. "MessageAbortedError")
+        // that would overwrite the interrupted state and confuse the UI.
+        if sessionStatus == .interrupted {
+            Log.debug("Ignoring post-interrupt event: \(event.kind.rawValue)")
+            logEvent(event)
+            return
+        }
+
         // Reset session timeout on every event
         resetSessionTimeout()
         
         // Update UI state based on event kind
         switch event.kind {
+        case .usage:
+            applyUsageUpdate(event)
+
         case .thought:
             menuBarState = .reasoning
             currentToolName = nil
             currentToolInput = nil
+            // Cancel any pending dismiss — new reasoning is arriving
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            // Accumulate reasoning text into transient state (not messages)
+            if !event.text.isEmpty {
+                currentReasoningText = (currentReasoningText ?? "") + event.text
+            }
             // Update CloudKit for remote commands
             updateRemoteCommandStatus(toolName: "Thinking...")
+            // Don't flow to processEventContent — reasoning is transient
+            logEvent(event)
+            return
 
         case .call, .tool:
+            // Thinking is over — fade out transient reasoning
+            dismissReasoningAfterDelay()
             menuBarState = .executing
             currentToolName = event.toolName ?? "Processing"
-            currentToolInput = event.toolInput  // Store tool input immediately
+            currentToolInput = event.toolInput
 
-            // Intercept AskUserQuestion tool calls
-            if isAskUserQuestionTool(event.toolName) {
-                Log.debug("AskUserQuestion event: kind=\(event.kind.rawValue) hasOutput=\(event.toolOutput != nil) callId=\(event.toolCallId ?? "nil") pendingQ=\(pendingQuestionMessageId?.uuidString.prefix(8) ?? "nil")")
-
-                // tool_use with output AND an existing pending question = already answered
-                if event.toolOutput != nil, pendingQuestionMessageId != nil {
-                    updateQuestionMessage(response: event.toolOutput ?? "")
-                    Log.debug("AskUserQuestion: merged tool_use output with existing question")
-                    logEvent(event)
-                    return
-                }
-
-                // tool_use with output but NO pending question = combined event,
-                // create a completed question message directly so it appears in conversation
-                if event.toolOutput != nil, pendingQuestionMessageId == nil {
-                    if let callId = event.toolCallId,
-                       let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == callId }) {
-                        // Merge by callId with existing message
-                        let existing = messages[idx]
-                        messages[idx] = ConversationMessage(
-                            id: existing.id, type: .tool,
-                            content: existing.content, timestamp: existing.timestamp,
-                            toolName: existing.toolName, toolInput: existing.toolInput,
-                            toolOutput: event.toolOutput, toolCallId: existing.toolCallId,
-                            status: .completed
-                        )
-                        Log.debug("AskUserQuestion: merged by callId (no pending question)")
-                    } else {
-                        // No existing message at all — create a completed question record
-                        let inputDict = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson)
-                        let questionText = inputDict?["question"] as? String
-                            ?? (inputDict?["questions"] as? [[String: Any]])?.first?["question"] as? String
-                            ?? "Question"
-                        messages.append(ConversationMessage(
-                            type: .tool,
-                            content: questionText,
-                            toolName: "Question",
-                            toolInput: questionText,
-                            toolOutput: event.toolOutput,
-                            toolCallId: event.toolCallId,
-                            status: .completed
-                        ))
-                        Log.debug("AskUserQuestion: created completed question message from tool_use (no prior tool_call)")
-                    }
-                    logEvent(event)
-                    return
-                }
-
-                // tool_call without output = new question, show modal
-                if let inputDict = event.toolInputDict ?? extractAskUserQuestionInput(from: event.rawJson) {
-                    handleAskUserQuestion(input: inputDict, event: event)
-                    logEvent(event)
-                    return
-                }
-                Log.debug("AskUserQuestion: matched tool name but no input payload")
+            // Intercept native question events from SSE
+            if let inputDict = event.toolInputDict,
+               inputDict["_isNativeQuestion"] as? Bool == true {
+                handleNativeQuestion(inputDict: inputDict, event: event)
+                logEvent(event)
+                return
             }
+
+            // Intercept native permission events from SSE
+            if let inputDict = event.toolInputDict,
+               inputDict["_isNativePermission"] as? Bool == true {
+                handleNativePermission(inputDict: inputDict, event: event)
+                logEvent(event)
+                return
+            }
+
             // Update CloudKit for remote commands
             updateRemoteCommandStatus(toolName: event.toolName)
 
         case .diff:
+            dismissReasoningAfterDelay()
             menuBarState = .executing
             currentToolName = "Editing file"
             updateRemoteCommandStatus(toolName: "Editing file")
@@ -147,13 +139,12 @@ extension AppState {
             // Cancel session timeout on finish
             sessionTimeoutTask?.cancel()
             sessionTimeoutTask = nil
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            currentReasoningText = nil
             
             // --- Finish deduplication ---
-            // Secondary finish events (session.idle, process exit) are silently absorbed
-            // when a primary finish (step_finish) has already been processed.
-            // This prevents the "Completed / Session idle / Task completed" triple-spam.
             if event.isSecondaryFinish && sessionStatus == .completed {
-                // Already completed — just ensure cleanup, don't add another message
                 Log.debug("Ignoring secondary finish event (already completed)")
                 return
             }
@@ -166,9 +157,10 @@ extension AppState {
             // Mark all running tool messages as completed (cleanup)
             finalizeRunningMessages()
 
-            // Update session status
+            // Update session status and snapshot messages
             if let session = currentSession {
                 session.status = "completed"
+                session.messagesData = ConversationMessage.serializeMessages(messages)
             }
             // Show completion in status bar
             statusBarController?.showCompleted()
@@ -180,7 +172,9 @@ extension AppState {
             }
 
         case .assistant:
-            menuBarState = .reasoning
+            dismissReasoningAfterDelay()
+            // Model is actively outputting response text — NOT thinking/waiting.
+            menuBarState = .responding
             currentToolName = nil
 
         case .user:
@@ -191,6 +185,9 @@ extension AppState {
             // Explicit error from OpenCode — always surface to user
             sessionTimeoutTask?.cancel()
             sessionTimeoutTask = nil
+            reasoningDismissTask?.cancel()
+            reasoningDismissTask = nil
+            currentReasoningText = nil
             lastErrorMessage = event.text
             sessionStatus = .failed
             menuBarState = .idle
@@ -207,28 +204,28 @@ extension AppState {
             }
 
         case .unknown:
-            // Check for various error patterns
-            let errorText = detectError(in: event.text, rawJson: event.rawJson)
-            if let error = errorText {
-                lastErrorMessage = error
-                sessionStatus = .failed
-                menuBarState = .idle
-                currentToolName = nil
-                if let session = currentSession {
-                    session.status = "failed"
-                }
-                // Show error in status bar
-                statusBarController?.showError()
-                // Fail remote command in CloudKit
-                if let commandId = currentRemoteCommandId {
-                    cloudKitManager.failCommand(commandId: commandId, error: error)
-                    currentRemoteCommandId = nil
-                }
+            // With SSE, unknown events are rare — just log them
+            if !event.text.isEmpty {
+                Log.debug("Unknown event: \(event.text.prefix(200))")
             }
         }
 
         // Process event content (save session ID, add messages)
         processEventContent(event)
+    }
+
+    // MARK: - Reasoning Lifecycle
+
+    /// Dismiss transient reasoning text after a short delay, giving the user time to see it.
+    /// If new reasoning arrives before the delay, the task is cancelled and reasoning stays.
+    private func dismissReasoningAfterDelay() {
+        guard currentReasoningText != nil else { return }
+        reasoningDismissTask?.cancel()
+        reasoningDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.currentReasoningText = nil
+        }
     }
 
     // MARK: - Tool Lifecycle Helpers
@@ -240,77 +237,49 @@ extension AppState {
         }
     }
 
-    // MARK: - AskUserQuestion
+    // MARK: - Native Question Handling
 
-    func isAskUserQuestionTool(_ toolName: String?) -> Bool {
-        guard let toolName else { return false }
-        let normalized = normalizeToolName(toolName)
-        if normalized == "askuserquestion" { return true }
-        return normalized.hasSuffix("askuserquestion")
-    }
+    /// Handle a native question from OpenCode's question tool (via SSE).
+    private func handleNativeQuestion(inputDict: [String: Any], event: OpenCodeEvent) {
+        let questionID = inputDict["_nativeQuestionID"] as? String ?? UUID().uuidString
+        let questionText = inputDict["question"] as? String ?? "Question from AI"
+        let custom = inputDict["custom"] as? Bool ?? true
+        let multiple = inputDict["multiple"] as? Bool ?? false
 
-    private func normalizeToolName(_ toolName: String) -> String {
-        let base = toolName
-            .components(separatedBy: ["/", ":", "."])
-            .last ?? toolName
-        let lowered = base.lowercased()
-        let stripped = lowered.filter { $0.isLetter || $0.isNumber }
-        return stripped
-    }
-
-    func extractAskUserQuestionInput(from rawJson: String) -> [String: Any]? {
-        guard let data = rawJson.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let part = object["part"] as? [String: Any] else {
-            return nil
-        }
-
-        if let input = extractInputDict(from: part) {
-            return input
-        }
-        if let state = part["state"] as? [String: Any],
-           let input = extractInputDict(from: state) {
-            return input
-        }
-        return nil
-    }
-
-    private func extractInputDict(from container: [String: Any]) -> [String: Any]? {
-        let keys = ["input", "arguments", "args"]
-        for key in keys {
-            if let dict = container[key] as? [String: Any] { return dict }
-        }
-        for key in keys {
-            if let str = container[key] as? String,
-               let data = str.data(using: .utf8),
-               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                return dict
+        // Parse options
+        var options: [PermissionRequest.QuestionOption] = []
+        var optionLabels: [String] = []
+        if let rawOptions = inputDict["options"] as? [[String: Any]] {
+            for opt in rawOptions {
+                let label = opt["label"] as? String ?? ""
+                let description = opt["description"] as? String
+                options.append(PermissionRequest.QuestionOption(label: label, description: description))
+                optionLabels.append(label)
             }
         }
-        return nil
-    }
 
-    /// Update remote command status in CloudKit
-    private func updateRemoteCommandStatus(toolName: String?) {
-        guard let commandId = currentRemoteCommandId else { return }
-        cloudKitManager.updateProgress(commandId: commandId, toolName: toolName)
-    }
+        // Add custom "Other" option if custom input is enabled and not already present
+        if custom && !options.contains(where: { $0.label.lowercased() == "other" }) {
+            options.append(PermissionRequest.QuestionOption(label: "Other", description: "Type your own answer"))
+            optionLabels.append("Other")
+        }
 
-    /// Handle AskUserQuestion tool call - show popup, add to conversation, and send response via PTY
-    private func handleAskUserQuestion(input: [String: Any], event: OpenCodeEvent) {
-        Log.debug("Intercepted AskUserQuestion tool call")
+        // Default options if none provided
+        if options.isEmpty {
+            options = [
+                PermissionRequest.QuestionOption(label: "Yes"),
+                PermissionRequest.QuestionOption(label: "No"),
+                PermissionRequest.QuestionOption(label: "Other", description: "Custom response"),
+            ]
+            optionLabels = ["Yes", "No", "Other"]
+        }
 
-        guard let firstQuestion = parseAskUserQuestions(from: input) else { return }
-
-        let questionText = firstQuestion["question"] as? String ?? "Question from AI"
-        let header = firstQuestion["header"] as? String ?? "Question"
-        let multiSelect = firstQuestion["multiSelect"] as? Bool ?? false
-        let (options, optionLabels) = parseQuestionOptions(from: firstQuestion)
+        Log.debug("Native question: \(questionText) options=\(optionLabels)")
 
         // Add question to conversation as a tool message (waiting for user response)
         let questionMessageId = UUID()
         pendingQuestionMessageId = questionMessageId
-        let optionsSummary = optionLabels.isEmpty ? "" : " [\(optionLabels.joined(separator: " / "))]"
+        let optionsSummary = " [\(optionLabels.joined(separator: " / "))]"
         messages.append(ConversationMessage(
             id: questionMessageId,
             type: .tool,
@@ -318,101 +287,34 @@ extension AppState {
             toolName: "Question",
             toolInput: questionText + optionsSummary,
             toolCallId: event.toolCallId,
-            status: .running  // Waiting for user response
+            status: .running
         ))
 
         // If this is a remote command, send question to iOS via CloudKit
         if let commandId = currentRemoteCommandId {
-            sendQuestionToRemote(commandId: commandId, header: header, question: questionText, options: optionLabels)
+            sendQuestionToRemote(commandId: commandId, questionID: questionID, question: questionText, options: optionLabels)
             return
         }
 
-        // For local commands, show QuickConfirm
-        showLocalQuestionPrompt(
-            question: questionText, header: header,
-            options: options, multiSelect: multiSelect
+        // Show local QuickConfirm
+        showNativeQuestionPrompt(
+            questionID: questionID,
+            question: questionText,
+            options: options,
+            multiSelect: multiple
         )
     }
 
-    /// Parse the questions array from AskUserQuestion input.
-    /// Supports both `"questions": [...]` and single `"question": "..."` shapes.
-    private func parseAskUserQuestions(from input: [String: Any]) -> [String: Any]? {
-        let questions: [[String: Any]]
-        if let rawQuestions = input["questions"] as? [[String: Any]] {
-            questions = rawQuestions
-        } else if let question = input["question"] as? String {
-            var single: [String: Any] = ["question": question]
-            if let h = input["header"] as? String { single["header"] = h }
-            if let o = input["options"] { single["options"] = o }
-            if let m = input["multiSelect"] { single["multiSelect"] = m }
-            questions = [single]
-        } else {
-            Log.debug("AskUserQuestion: no questions found in input")
-            return nil
-        }
-        guard let first = questions.first else {
-            Log.debug("AskUserQuestion: empty questions array")
-            return nil
-        }
-        return first
-    }
-
-    /// Parse question options into structured options and label strings.
-    private func parseQuestionOptions(from question: [String: Any]) -> ([PermissionRequest.QuestionOption], [String]) {
-        var options: [PermissionRequest.QuestionOption] = []
-        var labels: [String] = []
-
-        if let rawOptions = question["options"] as? [[String: Any]] {
-            for opt in rawOptions {
-                let label = opt["label"] as? String ?? ""
-                labels.append(label)
-                options.append(PermissionRequest.QuestionOption(label: label, description: opt["description"] as? String))
-            }
-        } else if let rawOptions = question["options"] as? [String] {
-            for label in rawOptions {
-                labels.append(label)
-                options.append(PermissionRequest.QuestionOption(label: label))
-            }
-        }
-
-        // Default Yes/No/Other when no options provided
-        if options.isEmpty {
-            options = [
-                PermissionRequest.QuestionOption(label: "Yes"),
-                PermissionRequest.QuestionOption(label: "No"),
-                PermissionRequest.QuestionOption(label: "Other", description: "Custom response"),
-            ]
-            labels = ["Yes", "No", "Other"]
-        }
-
-        return (options, labels)
-    }
-
-    /// Forward a question to iOS via CloudKit (for remote commands).
-    private func sendQuestionToRemote(commandId: String, header: String, question: String, options: [String]) {
-        Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
-        Task {
-            let response = await cloudKitManager.sendPermissionRequest(
-                commandId: commandId,
-                question: "\(header): \(question)",
-                options: options
-            )
-            Log.debug(response != nil ? "Got response from iOS: \(response!)" : "No response from iOS, sending empty response")
-            updateQuestionMessage(response: response ?? "User declined to answer.")
-            await bridge.sendResponse(response ?? "")
-            updateStatusBar()
-        }
-    }
-
-    /// Show a local QuickConfirm prompt for AskUserQuestion.
-    private func showLocalQuestionPrompt(
-        question: String, header: String,
-        options: [PermissionRequest.QuestionOption], multiSelect: Bool
+    /// Show a local QuickConfirm prompt for a native question.
+    private func showNativeQuestionPrompt(
+        questionID: String,
+        question: String,
+        options: [PermissionRequest.QuestionOption],
+        multiSelect: Bool
     ) {
-        let requestId = "askuser_\(UUID().uuidString)"
         let request = PermissionRequest(
-            id: requestId, taskId: requestId, type: .question,
-            question: question, header: header,
+            id: questionID, taskId: questionID, type: .question,
+            question: question, header: "Question",
             options: options, multiSelect: multiSelect
         )
 
@@ -424,21 +326,170 @@ extension AppState {
             request: request,
             anchorFrame: statusBarController?.buttonFrame,
             onResponse: { [weak self] (response: String) in
-                Log.debug("AskUserQuestion response: \(response)")
+                Log.debug("Native question response: \(response)")
                 self?.updateQuestionMessage(response: response)
-                Task { [weak self] in await self?.bridge.sendResponse(response) }
+                Task { [weak self] in
+                    await self?.bridge.replyToQuestion(
+                        requestID: questionID,
+                        answers: [[response]]
+                    )
+                }
                 self?.updateStatusBar()
             },
             onCancel: { [weak self] in
-                Log.debug("AskUserQuestion cancelled")
+                Log.debug("Native question cancelled")
                 self?.updateQuestionMessage(response: "User declined to answer.")
-                Task { [weak self] in await self?.bridge.sendResponse("") }
+                Task { [weak self] in
+                    await self?.bridge.rejectQuestion(requestID: questionID)
+                }
                 self?.updateStatusBar()
             }
         )
     }
 
-    /// Update the pending AskUserQuestion message with the user's response
+    // MARK: - Native Permission Handling
+
+    /// Handle a native permission request from OpenCode (via SSE).
+    private func handleNativePermission(inputDict: [String: Any], event: OpenCodeEvent) {
+        let permissionID = inputDict["_nativePermissionID"] as? String ?? UUID().uuidString
+        let permission = inputDict["permission"] as? String ?? "unknown"
+        let patterns = inputDict["patterns"] as? [String] ?? []
+        let metadata = inputDict["metadata"] as? [String: String] ?? [:]
+        let diff = metadata["diff"]
+
+        Log.debug("Native permission: \(permission) patterns=\(patterns)")
+
+        // Add permission to conversation
+        let permMessageId = UUID()
+        pendingQuestionMessageId = permMessageId
+        let patternsStr = patterns.joined(separator: ", ")
+        messages.append(ConversationMessage(
+            id: permMessageId,
+            type: .tool,
+            content: "\(permission): \(patternsStr)",
+            toolName: "Permission",
+            toolInput: patternsStr,
+            toolCallId: event.toolCallId,
+            status: .running
+        ))
+
+        // Build options for the permission dialog
+        var options: [PermissionRequest.QuestionOption] = [
+            PermissionRequest.QuestionOption(label: "Allow Once", description: "Allow this specific action"),
+            PermissionRequest.QuestionOption(label: "Always Allow", description: "Allow and remember for this pattern"),
+            PermissionRequest.QuestionOption(label: "Reject", description: "Deny this action"),
+        ]
+
+        // Include diff preview in the question text if available
+        var questionText = "Allow \(permission) for \(patternsStr)?"
+        if let diff, !diff.isEmpty {
+            questionText += "\n\n```diff\n\(diff)\n```"
+        }
+
+        // If remote command, handle via CloudKit
+        if let commandId = currentRemoteCommandId {
+            sendPermissionToRemote(commandId: commandId, permissionID: permissionID, question: questionText, options: options.map(\.label))
+            return
+        }
+
+        // Show local QuickConfirm
+        var request = PermissionRequest(
+            id: permissionID, taskId: permissionID, type: .permission,
+            question: questionText, header: "Permission Request",
+            options: options, multiSelect: false
+        )
+        // Set permission-specific fields for permissionContent view
+        request.permissionType = permission
+        request.patterns = patterns
+        request.diff = diff
+
+        if quickConfirmController == nil {
+            quickConfirmController = QuickConfirmWindowController()
+        }
+
+        quickConfirmController?.show(
+            request: request,
+            anchorFrame: statusBarController?.buttonFrame,
+            onResponse: { [weak self] (response: String) in
+                Log.debug("Native permission response: \(response)")
+                self?.updateQuestionMessage(response: response)
+
+                let reply: OpenCodeAPIClient.PermissionReply
+                switch response.lowercased() {
+                case "always allow":
+                    reply = .always
+                case "reject":
+                    reply = .reject(nil)
+                default:
+                    reply = .once
+                }
+
+                Task { [weak self] in
+                    await self?.bridge.replyToPermission(requestID: permissionID, reply: reply)
+                }
+                self?.updateStatusBar()
+            },
+            onCancel: { [weak self] in
+                Log.debug("Native permission rejected")
+                self?.updateQuestionMessage(response: "Rejected")
+                Task { [weak self] in
+                    await self?.bridge.replyToPermission(requestID: permissionID, reply: .reject("User rejected"))
+                }
+                self?.updateStatusBar()
+            }
+        )
+    }
+
+    // MARK: - Remote (CloudKit) Helpers
+
+    /// Forward a native question to iOS via CloudKit (for remote commands).
+    private func sendQuestionToRemote(commandId: String, questionID: String, question: String, options: [String]) {
+        Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
+        Task {
+            let response = await cloudKitManager.sendPermissionRequest(
+                commandId: commandId,
+                question: question,
+                options: options
+            )
+            Log.debug(response != nil ? "Got response from iOS: \(response!)" : "No response from iOS, sending empty response")
+            updateQuestionMessage(response: response ?? "User declined to answer.")
+            await bridge.replyToQuestion(requestID: questionID, answers: [[response ?? ""]])
+            updateStatusBar()
+        }
+    }
+
+    /// Forward a native permission to iOS via CloudKit (for remote commands).
+    private func sendPermissionToRemote(commandId: String, permissionID: String, question: String, options: [String]) {
+        Log.debug("Sending permission to iOS via CloudKit for remote command: \(commandId)")
+        Task {
+            let response = await cloudKitManager.sendPermissionRequest(
+                commandId: commandId,
+                question: question,
+                options: options
+            )
+            let reply: OpenCodeAPIClient.PermissionReply
+            if let response, response.lowercased().contains("always") {
+                reply = .always
+            } else if let response, (response.lowercased() == "allow" || response.lowercased() == "allow once") {
+                reply = .once
+            } else {
+                reply = .reject(nil)
+            }
+            updateQuestionMessage(response: response ?? "Rejected")
+            await bridge.replyToPermission(requestID: permissionID, reply: reply)
+            updateStatusBar()
+        }
+    }
+
+    /// Update remote command status in CloudKit
+    private func updateRemoteCommandStatus(toolName: String?) {
+        guard let commandId = currentRemoteCommandId else { return }
+        cloudKitManager.updateProgress(commandId: commandId, toolName: toolName)
+    }
+
+    // MARK: - Question/Permission Message Updates
+
+    /// Update the pending question/permission message with the user's response.
     private func updateQuestionMessage(response: String) {
         guard let messageId = pendingQuestionMessageId,
               let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
@@ -458,63 +509,12 @@ extension AppState {
         pendingQuestionMessageId = nil
     }
 
-    /// Detect errors from OpenCode output using a table-driven approach.
-    private func detectError(in text: String, rawJson: String) -> String? {
-        let lowerText = text.lowercased()
-
-        // Ordered list: (keywords-to-match, user-facing message or nil for raw text)
-        // Each entry is ([keywords], message). ALL keywords must be present.
-        typealias Rule = (keywords: [String], message: String?)
-        let rules: [Rule] = [
-            (["opencode not configured"],                                nil),
-            (["not configured"],                                         nil),
-            (["authentication"],                                         "API authentication failed. Check your API key in Settings."),
-            (["unauthorized"],                                           "API authentication failed. Check your API key in Settings."),
-            (["invalid api key"],                                        "API authentication failed. Check your API key in Settings."),
-            (["401"],                                                    "API authentication failed. Check your API key in Settings."),
-            (["rate limit"],                                             "Rate limit exceeded. Please wait and try again."),
-            (["429"],                                                    "Rate limit exceeded. Please wait and try again."),
-            (["too many requests"],                                      "Rate limit exceeded. Please wait and try again."),
-            (["model not found"],                                        "Model not found. Check your model name in Settings."),
-            (["does not exist"],                                         "Model not found. Check your model name in Settings."),
-            (["invalid model"],                                          "Model not found. Check your model name in Settings."),
-            (["connection", "refused"],                                   "Connection failed. Check your Base URL or network."),
-            (["connection", "failed"],                                    "Connection failed. Check your Base URL or network."),
-            (["econnrefused"],                                           "Network error. Check your internet connection."),
-            (["network error"],                                          "Network error. Check your internet connection."),
-            (["ollama", "not running"],                                   "Ollama is not running. Start Ollama and try again."),
-            (["ollama", "not found"],                                    "Ollama is not running. Start Ollama and try again."),
-        ]
-
-        for rule in rules {
-            if rule.keywords.allSatisfy({ lowerText.contains($0) }) {
-                return rule.message ?? text
-            }
-        }
-
-        // Encrypted content verification → clear session and suggest retry
-        if lowerText.contains("encrypted content")
-            && (lowerText.contains("could not be verified") || lowerText.contains("invalid_encrypted_content")) {
-            if let session = currentSession {
-                Log.debug("Encrypted content verification failed - clearing session ID (likely project mismatch)")
-                session.openCodeSessionId = nil
-            }
-            Task { await bridge.setSessionId(nil) }
-            return "Session context mismatch. Please try again - a new session will be started."
-        }
-
-        // Generic error detection
-        let lowerJson = rawJson.lowercased()
-        if lowerText.contains("error") || lowerJson.contains("\"error\"") {
-            return text.count < 200 ? text : "An error occurred. Check the console for details."
-        }
-
-        return nil
-    }
-
     // MARK: - Event Content Processing
 
     private func processEventContent(_ event: OpenCodeEvent) {
+        if event.kind == .usage {
+            return
+        }
         // Save OpenCode session ID to our session for resume capability
         if let sessionId = event.sessionId, let session = currentSession, session.openCodeSessionId == nil {
             session.openCodeSessionId = sessionId
@@ -528,62 +528,125 @@ extension AppState {
             Log.debug("Tool event [\(phase)]: \(event.toolName ?? "?") callId=\(event.toolCallId ?? "nil") hasOutput=\(hasOutput)")
         }
 
-        // --- TodoWrite interception ---
-        if event.kind == .tool, let toolName = event.toolName, toolName.isTodoWriteTool {
-            handleTodoWriteEvent(event)
+        // --- Question / Permission result interception ---
+        // The call events are intercepted in handle(event:) via _isNativeQuestion/_isNativePermission.
+        // The result events (with toolOutput) arrive separately without those flags.
+        // Skip them here — the Question/Permission message lifecycle is fully managed
+        // by handleNativeQuestion/handleNativePermission and updateQuestionMessage.
+        if event.kind == .tool || event.kind == .call,
+           let toolName = event.toolName?.lowercased(),
+           toolName == "question" || toolName == "permission" {
             logEvent(event)
             return
         }
 
-        // Convert event to conversation message and add to list
-        guard let message = event.toMessage() else {
+        // --- TodoWrite interception (live has special UI handling) ---
+        // Intercept both .call (running) and .tool (completed) to avoid duplicate bubbles.
+        if (event.kind == .tool || event.kind == .call),
+           let toolName = event.toolName, toolName.isTodoWriteTool {
+            // Only process completed events; skip the running call event entirely
+            if event.kind == .tool {
+                handleTodoWriteEvent(event)
+            }
             logEvent(event)
             return
         }
 
-        // --- Finish event handling ---
-        // Secondary finish events with empty text are silent (just for state cleanup)
-        if message.type == .system && event.isSecondaryFinish {
-            if message.content.isEmpty {
-                // Silent cleanup finish — don't add any message
-                logEvent(event)
-                return
-            }
-            // Non-empty secondary finish (e.g., first finish was session.idle before step_finish)
-            // Only add if no completion message exists yet
-            let hasCompletionMessage = messages.contains { $0.type == .system && isCompletionText($0.content) }
-            if hasCompletionMessage {
-                logEvent(event)
+        // Insert into live messages array
+        insertEventMessage(event)
+        logEvent(event)
+    }
+
+    private func applyUsageUpdate(_ event: OpenCodeEvent) {
+        guard let usage = event.usage else {
+            Log.debug("[Usage] applyUsageUpdate: no usage data in event")
+            return
+        }
+
+        Log.debug("[Usage] applyUsageUpdate: model=\(event.model ?? "nil") in=\(usage.input) out=\(usage.output) reason=\(usage.reasoning) msgId=\(event.messageId ?? "nil")")
+
+        if let messageId = event.messageId,
+           let sessionId = event.sessionId {
+            if !recordUsageMessageId(sessionId: sessionId, messageId: messageId) {
+                Log.debug("[Usage] Deduplicated messageId=\(messageId)")
                 return
             }
         }
 
-        // --- Primary finish: only add if no completion message already ---
-        if message.type == .system && isCompletionText(message.content) {
-            let hasCompletionMessage = messages.contains { $0.type == .system && isCompletionText($0.content) }
-            if hasCompletionMessage {
-                logEvent(event)
-                return
+        // Model comes from the SSE event (message.updated has modelID).
+        // If model is nil, fall back to the currently selected model from settings
+        // so that usage is never silently dropped.
+        let model: String
+        if let m = event.model, !m.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            model = m
+        } else if let fallback = configManager.getModelString() {
+            Log.debug("[Usage] Model nil in event, using settings fallback: \(fallback)")
+            model = fallback
+        } else {
+            Log.debug("[Usage] No model available, skipping usage recording")
+            return
+        }
+
+        configManager.recordTokenUsage(model: model, usage: usage, cost: event.cost)
+
+        if usage.input > 0 {
+            currentContextTokens = usage.input
+            currentSession?.contextTokens = usage.input
+        }
+    }
+
+    // MARK: - Message Insertion
+
+    /// Insert an event into the live messages array.
+    /// Handles streaming merge for assistant deltas, tool lifecycle, and finish deduplication.
+    private func insertEventMessage(_ event: OpenCodeEvent) {
+        // Skip empty/unparseable events
+        if event.kind == .unknown && event.text.isEmpty { return }
+        guard let message = event.toMessage() else { return }
+
+        // --- System / Finish deduplication ---
+        if message.type == .system {
+            if event.isSecondaryFinish { return }
+            if isCompletionText(message.content) {
+                let alreadyHas = messages.contains { $0.type == .system && isCompletionText($0.content) }
+                if alreadyHas { return }
             }
+        }
+
+        // --- User messages ---
+        if message.type == .user {
+            messages.append(message)
+            return
         }
 
         // --- Assistant message streaming merge ---
-        if message.type == .assistant,
-           let lastIndex = messages.lastIndex(where: { $0.type == .assistant }),
-           lastIndex == messages.count - 1 {
-            messages[lastIndex] = messages[lastIndex].withContent(messages[lastIndex].content + message.content)
-        }
-        // --- Tool message lifecycle merge ---
-        else if message.type == .tool {
-            processToolMessage(message)
-        }
-        // --- Everything else: append ---
-        else {
-            messages.append(message)
+        // Only merge CONSECUTIVE assistant messages (last message in array must be assistant).
+        // Preserves correct visual order: text-before-tools → tools → text-after-tools.
+        if message.type == .assistant {
+            if let lastIndex = messages.lastIndex(where: { $0.type == .assistant }),
+               lastIndex == messages.count - 1 {
+                messages[lastIndex] = messages[lastIndex].withContent(
+                    messages[lastIndex].content + message.content
+                )
+            } else {
+                messages.append(message)
+            }
+            return
         }
 
-        // @Observable handles change tracking automatically
-        logEvent(event)
+        // Reasoning is transient (handled via currentReasoningText), skip if it arrives here
+        if message.type == .reasoning {
+            return
+        }
+
+        // --- Tool message merge ---
+        if message.type == .tool {
+            processToolMessage(message)
+            return
+        }
+
+        // --- Everything else: append ---
+        messages.append(message)
     }
 
     /// Process tool messages with proper lifecycle: running -> completed
@@ -591,7 +654,7 @@ extension AppState {
         // Strategy 1: Merge by toolCallId (most reliable)
         if let toolCallId = message.toolCallId,
            let idx = messages.lastIndex(where: { $0.type == .tool && $0.toolCallId == toolCallId }) {
-            Log.debug("Tool merge [callId]: \(messages[idx].toolName ?? "?") \(messages[idx].status.rawValue) → \(message.toolOutput != nil ? "completed" : messages[idx].status.rawValue)")
+            Log.debug("Tool merge [callId]: \(messages[idx].toolName ?? "?") \(messages[idx].status.rawValue) -> \(message.toolOutput != nil ? "completed" : messages[idx].status.rawValue)")
             messages[idx] = messages[idx].mergingToolData(from: message)
         }
         // Strategy 2: Merge consecutive tool messages (fallback for missing toolCallId)
@@ -600,7 +663,7 @@ extension AppState {
                 messages[lastIdx].toolOutput == nil,
                 message.toolOutput != nil,
                 (message.toolName == "Result" || message.toolName == messages[lastIdx].toolName) {
-            Log.debug("Tool merge [consecutive]: \(messages[lastIdx].toolName ?? "?") → completed")
+            Log.debug("Tool merge [consecutive]: \(messages[lastIdx].toolName ?? "?") -> completed")
             messages[lastIdx] = messages[lastIdx].mergingToolData(from: message)
         }
         // No merge target — append as new message
@@ -621,36 +684,29 @@ extension AppState {
 
     // MARK: - TodoWrite Handling
 
-    /// Intercept TodoWrite tool calls and create/update a dedicated todo message
     private func handleTodoWriteEvent(_ event: OpenCodeEvent) {
-        // Parse todo items from the tool input
         let todoItems = parseTodoItems(from: event)
         guard !todoItems.isEmpty else {
             Log.debug("TodoWrite: no items parsed from event")
-            // If we can't parse todos, fall back to normal tool display
             if let message = event.toMessage() {
                 processToolMessage(message)
             }
             return
         }
 
-        // Determine if we should merge with existing todo message
         let merge = parseTodoMerge(from: event)
         Log.debug("TodoWrite: \(todoItems.count) items, merge=\(merge)")
         for item in todoItems {
             Log.debug("  todo[\(item.id)]: status=\(item.status.rawValue), content=\"\(item.content.prefix(40))\"")
         }
 
-        // Find existing todo message to update
         if let existingIndex = messages.lastIndex(where: { $0.type == .todo }) {
             let existing = messages[existingIndex]
             let finalItems: [TodoItem]
             if merge, let existingItems = existing.todoItems {
-                // Merge: update existing items by ID, preserve content when new item has none
                 var itemMap = Dictionary(uniqueKeysWithValues: existingItems.map { ($0.id, $0) })
                 for item in todoItems {
                     if let existingItem = itemMap[item.id], item.content.isEmpty {
-                        // Status-only update: keep existing content, apply new status
                         itemMap[item.id] = TodoItem(id: item.id, content: existingItem.content, status: item.status)
                     } else {
                         itemMap[item.id] = item
@@ -667,61 +723,84 @@ extension AppState {
                 status: .completed, todoItems: todoItems
             ))
         }
+
+        // Mark any stale .tool messages for TodoWrite as completed so they don't
+        // stay stuck in "Processing…" state now that we have the .todo bubble.
+        finalizeTodoWriteToolMessages(event: event)
     }
 
-    /// Parse todo items from a TodoWrite event
+    /// Mark any `.tool` messages belonging to TodoWrite as `.completed`.
+    /// These messages are created as `.running` when the first TodoWrite event arrives
+    /// but are superseded by the `.todo` bubble once items are parsed.
+    private func finalizeTodoWriteToolMessages(event: OpenCodeEvent) {
+        for i in messages.indices where messages[i].type == .tool && messages[i].status == .running {
+            let matchesByCallId = event.toolCallId != nil
+                && messages[i].toolCallId == event.toolCallId
+            let matchesByName = messages[i].toolName?.isTodoWriteTool == true
+            if matchesByCallId || matchesByName {
+                Log.debug("TodoWrite: finalizing stale .tool message at index \(i)")
+                messages[i] = messages[i].withStatus(.completed)
+            }
+        }
+    }
+
     private func parseTodoItems(from event: OpenCodeEvent) -> [TodoItem] {
-        // Try toolInputDict first (parsed from tool_call)
         if let inputDict = event.toolInputDict {
             return parseTodoItemsFromDict(inputDict)
         }
 
-        // Try parsing from rawJson (fallback)
         guard let data = event.rawJson.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let part = object["part"] as? [String: Any] else {
             return []
         }
 
-        // tool_call format
-        if let input = extractInputDict(from: part) {
+        if let input = extractToolInput(from: part) {
             return parseTodoItemsFromDict(input)
         }
-
-        // tool_use format
         if let state = part["state"] as? [String: Any],
-           let input = extractInputDict(from: state) {
+           let input = extractToolInput(from: state) {
             return parseTodoItemsFromDict(input)
         }
 
         return []
     }
 
-    /// Parse the "merge" flag from a TodoWrite event
     private func parseTodoMerge(from event: OpenCodeEvent) -> Bool {
-        // Try toolInputDict first (set during event parsing)
         if let inputDict = event.toolInputDict {
             return inputDict["merge"] as? Bool ?? false
         }
-        // Fallback: parse from rawJson
         guard let data = event.rawJson.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let part = object["part"] as? [String: Any] else {
             return false
         }
-        // tool_call format
-        if let input = extractInputDict(from: part) {
+        if let input = extractToolInput(from: part) {
             return input["merge"] as? Bool ?? false
         }
-        // tool_use format
         if let state = part["state"] as? [String: Any],
-           let input = extractInputDict(from: state) {
+           let input = extractToolInput(from: state) {
             return input["merge"] as? Bool ?? false
         }
         return false
     }
 
-    /// Parse todo items from a dictionary
+    /// Extract tool input dictionary from a container (used by TodoWrite parsing).
+    private func extractToolInput(from container: [String: Any]) -> [String: Any]? {
+        let keys = ["input", "arguments", "args"]
+        for key in keys {
+            if let dict = container[key] as? [String: Any] { return dict }
+        }
+        for key in keys {
+            if let str = container[key] as? String,
+               let data = str.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return dict
+            }
+        }
+        return nil
+    }
+
     private func parseTodoItemsFromDict(_ dict: [String: Any]) -> [TodoItem] {
         guard let todosArray = dict["todos"] as? [[String: Any]] else {
             return []
@@ -729,7 +808,6 @@ extension AppState {
         return todosArray.compactMap { TodoItem(from: $0) }
     }
 
-    /// Generate a summary string for todo items
     func todoSummary(_ items: [TodoItem]) -> String {
         let completed = items.filter { $0.status == .completed }.count
         let total = items.count
@@ -738,9 +816,12 @@ extension AppState {
 
     // MARK: - Log Persistence
 
-    private func logEvent(_ event: OpenCodeEvent) {
+    func logEvent(_ event: OpenCodeEvent) {
         if let session = currentSession {
-            let entry = LogEntry(rawJson: event.rawJson, kind: event.kind.rawValue)
+            // Use toReplayJSON() to ensure bridge-created events (which have empty rawJson)
+            // are serialized into parseable JSON for session replay.
+            let json = event.toReplayJSON()
+            let entry = LogEntry(rawJson: json, kind: event.kind.rawValue)
             modelContext?.insert(entry)
             session.logs.append(entry)
         }

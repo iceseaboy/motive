@@ -3,6 +3,7 @@
 //  Motive
 //
 //  Builds optimized system prompts for the AI agent.
+//  Uses OpenCode's native question/permission system.
 //
 
 import Foundation
@@ -12,11 +13,9 @@ import Foundation
 final class SystemPromptBuilder {
     
     private let skillManager: SkillManager
-    private let filePolicy: FileOperationPolicy
     
-    init(skillManager: SkillManager = .shared, filePolicy: FileOperationPolicy = .shared) {
-        self.skillManager = skillManager
-        self.filePolicy = filePolicy
+    init(skillManager: SkillManager? = nil) {
+        self.skillManager = skillManager ?? SkillManager.shared
     }
     
     /// Build the complete system prompt
@@ -34,7 +33,6 @@ final class SystemPromptBuilder {
         
         sections.append(buildCommunicationRules())
         sections.append(buildSkillsList())
-        sections.append(buildFileOperationRules())
         sections.append(buildMCPToolInstructions())
         
         // Add capability instructions (e.g., browser automation)
@@ -72,13 +70,14 @@ final class SystemPromptBuilder {
         ## How You Communicate
         - Your text output is visible to users in the Drawer UI
         - You can chat, explain, or respond naturally - users will see it
-        - For casual conversation, just respond directly (no MCP tools needed)
-        - Only use AskUserQuestion MCP tool when you need the user to make a CHOICE
+        - For casual conversation, just respond directly (no tools needed)
+        - When you need the user to make a CHOICE, use the `question` tool (it is one of your tools, like `bash` or `read`)
         
         ## Key Principle
         Distinguish between:
         - **Conversation** → Respond directly via text output (visible in Drawer)
-        - **Decision needed** → Use AskUserQuestion MCP tool (shows modal dialog)
+        - **Decision needed** → Use the `question` tool (shows native popup with selectable options)
+        - **NEVER ask questions as numbered text** (1, 2, 3...) — always use the `question` tool
         </identity>
         """
     }
@@ -126,8 +125,7 @@ final class SystemPromptBuilder {
         
         ## Output Visibility
         - Your TEXT OUTPUT → Visible in Drawer UI (use for conversation, explanations)
-        - AskUserQuestion MCP → Shows modal dialog (use ONLY for choices/decisions)
-        - request_file_permission MCP → Shows permission dialog (required for file ops)
+        - The `question` tool → Shows native popup with selectable options (use for choices/decisions)
         
         For casual conversation, just respond with text. The user will see it.
         """
@@ -151,92 +149,31 @@ final class SystemPromptBuilder {
         Just write text - it appears in the Drawer UI.
         Use this for: greetings, explanations, status, casual chat.
         
-        ### 2. AskUserQuestion MCP (for decisions)
-        Shows a modal popup with options.
-        Use this ONLY when: you need user to CHOOSE between options to proceed.
+        ### 2. The `question` Tool (for decisions)
+        You have a tool called `question` — use it the same way you use `bash`, `read`, or `edit`.
+        It shows a native popup with selectable options for the user to choose from.
+        Use it when you need the user to CHOOSE between options to proceed.
         
-        ⛔ NEVER use the built-in "question" tool — it is DISABLED and will freeze the session.
-        ALWAYS use the MCP "AskUserQuestion" tool for any user-facing question.
+        The `question` tool is NOT a shell command. Do NOT run it via bash.
+        It is NOT a skill. Do NOT search for a SKILL.md file for it.
+        It is one of your registered tools — just use it directly.
+        
+        NEVER ask questions as numbered text (1, 2, 3...) in your text output.
+        The user cannot click on text — always use the `question` tool for choices.
         
         ## Examples
         
         User: "Hi there!"
-        ✅ CORRECT: "Hello! How can I help you today?"
-        ❌ WRONG: Call AskUserQuestion with "How can I help?"
+        ✅ CORRECT: Respond with text: "Hello! How can I help you today?"
         
         User: "Organize my Downloads folder"
-        ✅ CORRECT: Call AskUserQuestion with options (by type, by date, etc.)
-        Why: Multiple valid approaches, need user preference
+        ✅ CORRECT: Use the `question` tool with options for the user to pick from
+        ❌ WRONG: Write text "1. By type 2. By date 3. ..." — user can't click these!
+        ❌ WRONG: Run `question '...'` in bash — it's not a shell command!
         
         User: "What's the weather?"
-        ✅ CORRECT: "I don't have access to weather data, but you can check..."
-        ❌ WRONG: Call AskUserQuestion asking about weather
+        ✅ CORRECT: Respond with text explaining you don't have weather access
         </communication>
-        """
-    }
-    
-    private func buildFileOperationRules() -> String {
-        """
-        <file-operations>
-        ## File Operation Permission System
-        
-        Before ANY file operation, you MUST:
-        
-        1. Identify the operation type:
-           - `create`    → Creating a new file
-           - `delete`    → Removing a file/directory
-           - `modify`    → Editing existing file content
-           - `overwrite` → Replacing entire file
-           - `rename`    → Changing filename (same directory)
-           - `move`      → Moving to different directory
-           - `execute`   → Running scripts/binaries
-        
-        2. Call `request_file_permission` MCP tool:
-           ```json
-           {
-             "operation": "<operation_type>",
-             "filePath": "/path/to/file",
-             "reason": "Brief explanation"
-           }
-           ```
-        
-        3. Wait for response:
-           - `"allowed"` → Proceed with operation
-           - `"denied"`  → STOP, do not perform operation
-        
-        ## Batch Operations
-        
-        For multiple files, use single permission request:
-        ```json
-        {
-          "operation": "delete",
-          "filePaths": ["/path/one", "/path/two", "/path/three"]
-        }
-        ```
-        
-        ## Protected Paths (Auto-Denied)
-        
-        - `/System/**` - System files
-        - `/usr/**` - System binaries
-        - `/private/**` - System directories
-        
-        ## Risk Levels
-        
-        | Level    | Operations                    | Behavior              |
-        |----------|-------------------------------|-----------------------|
-        | Low      | create, modify                | May auto-allow        |
-        | Medium   | rename, move                  | Usually ask           |
-        | High     | overwrite, execute            | Always ask            |
-        | Critical | delete                        | Always ask + confirm  |
-        
-        ## NEVER Bypass Permissions
-        
-        These are FORBIDDEN workarounds:
-        - Using `echo "" > file` instead of proper overwrite
-        - Moving to temp then deleting
-        - Using obscure commands to avoid detection
-        - Claiming "cleanup" or "temporary" to justify deletion
-        </file-operations>
         """
     }
     
@@ -291,13 +228,13 @@ final class SystemPromptBuilder {
            - Don't over-confirm obvious things
         
         2. **Smart Communication**
-           - Casual chat → Respond directly (text output, no MCP tool)
-           - Need user to choose → Use AskUserQuestion MCP tool
+           - Casual chat → Respond directly (text output, no tools)
+           - Need user to choose → Use the `question` tool (NOT text with numbered options!)
            - Status updates → Text output is fine
         
         3. **Minimal Interruption**
            - Don't pop up dialogs for things that don't need decisions
-           - Batch multiple questions into one if you must ask
+           - Batch multiple questions into one `question` tool call if you must ask
            - Skip confirmation for low-risk, reversible actions
         
         ## Progressive Clarification (Minimize Asking)
@@ -305,10 +242,10 @@ final class SystemPromptBuilder {
         Only ask when necessary. Default to action when clear.
         
         Use staged clarification for ambiguous tasks:
-        - Phase 1 (coarse): ask for high-level constraints that narrow the search space.
+        - Phase 1 (coarse): use the `question` tool for high-level constraints that narrow the search space.
           Examples: goal, priority, budget/time range, scope, preference direction.
         - Phase 2 (concrete): AFTER you have real candidates (from files, web pages, tool output),
-          ask the user to choose among those concrete options.
+          use the `question` tool to let the user choose among those concrete options.
         
         Do NOT ask for concrete choices before candidates exist.
         
@@ -317,7 +254,7 @@ final class SystemPromptBuilder {
            - Follow existing project patterns
            - Prefer standard approaches
         
-        ## When to Use AskUserQuestion MCP Tool
+        ## When to Use the `question` Tool
         
         ✅ USE when:
         - Multiple valid approaches exist and user preference matters
@@ -370,50 +307,19 @@ final class SystemPromptBuilder {
         <examples>
         ## Example: User says "Clean up my Downloads folder"
         
-        WRONG approach:
-        ```
-        I'll help you clean up your Downloads folder. First, let me ask - 
-        how would you like me to organize the files? By type? By date?
-        Also, should I delete duplicates? What about files older than 30 days?
-        ```
-        (User can't see any of this text!)
+        ❌ WRONG (text — user can't click):
+        "请问您希望怎么整理？ 1. 按类型 2. 按日期 3. 删重复"
         
-        CORRECT approach:
-        ```
-        1. Call AskUserQuestion with options:
-           - "By file type (Documents, Images, Videos, etc.)"
-           - "By date (Monthly folders)"
-           - "Just remove duplicates and trash"
-           - "Let me specify..."
+        ❌ WRONG (bash — it's not a shell command):
+        bash: question '{"questions": [...]}'
         
-        2. Wait for response
-        
-        3. For deletions, call request_file_permission with file list
-        
-        4. Execute silently
-        
-        5. (Optional) If user wanted notification, call AskUserQuestion 
-           with completion summary
-        ```
+        ✅ CORRECT: Use the `question` tool (it's one of your tools) with options.
+        Then wait for user response, execute the chosen approach, report via text.
         
         ## Example: User says "Fix the bug in auth.swift"
         
-        WRONG approach:
-        ```
-        Let me look at the auth.swift file...
-        I found the issue! The token validation is incorrect.
-        Here's what I'll do to fix it...
-        [explains changes]
-        ```
-        
-        CORRECT approach:
-        ```
-        1. Read auth.swift (no permission needed)
-        2. Identify bug
-        3. Call request_file_permission for modify operation
-        4. If allowed, apply fix silently
-        5. (Done - no need to announce unless there's an issue)
-        ```
+        ✅ CORRECT:
+        Read auth.swift → Identify bug → Apply fix → Done (no need to announce)
         </examples>
         """
     }
@@ -424,9 +330,7 @@ final class SystemPromptBuilder {
 extension ConfigManager {
     /// Generate the complete system prompt for OpenCode
     var systemPrompt: String {
-        get async {
-            let builder = await SystemPromptBuilder()
-            return await builder.build(workingDirectory: nil)
-        }
+        let builder = SystemPromptBuilder()
+        return builder.build(workingDirectory: nil)
     }
 }

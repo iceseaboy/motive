@@ -54,7 +54,7 @@ struct CommandBarCompletedView: View {
             }
             
             VStack(alignment: .leading, spacing: AuroraSpacing.space1) {
-                Text("Completed")
+                Text(L10n.CommandBar.completed)
                     .font(.Aurora.bodySmall.weight(.semibold))
                     .foregroundColor(Color.Aurora.textPrimary)
                 
@@ -70,7 +70,7 @@ struct CommandBarCompletedView: View {
                 HStack(spacing: AuroraSpacing.space2) {
                     Image(systemName: "rectangle.expand.vertical")
                         .font(.system(size: 11, weight: .medium))
-                    Text("Drawer")
+                    Text(L10n.CommandBar.drawer)
                         .font(.Aurora.caption.weight(.medium))
                 }
                 .foregroundColor(Color.Aurora.textSecondary)
@@ -104,7 +104,7 @@ struct CommandBarCompletedView: View {
                 // Show modified files if any
                 if !modifiedFiles.isEmpty {
                     VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
-                        Text("Modified files:")
+                        Text(L10n.CommandBar.modifiedFiles)
                             .font(.Aurora.caption.weight(.medium))
                             .foregroundColor(Color.Aurora.textSecondary)
                         
@@ -123,7 +123,7 @@ struct CommandBarCompletedView: View {
                         }
                         
                         if modifiedFiles.count > 5 {
-                            Text("+\(modifiedFiles.count - 5) more files")
+                            Text(String(format: L10n.CommandBar.moreFiles, modifiedFiles.count - 5))
                                 .font(.Aurora.caption)
                                 .foregroundColor(Color.Aurora.textMuted)
                         }
@@ -143,7 +143,7 @@ struct CommandBarCompletedView: View {
     
     private var followUpInputView: some View {
         HStack(spacing: AuroraSpacing.space3) {
-            TextField("Follow up…", text: $followUpText)
+            TextField(L10n.CommandBar.followUp, text: $followUpText)
                 .textFieldStyle(.plain)
                 .font(.Aurora.body)
                 .foregroundColor(Color.Aurora.textPrimary)
@@ -176,9 +176,9 @@ struct CommandBarCompletedView: View {
     private var completionSummary: String {
         let toolCount = messages.filter { $0.type == .tool }.count
         if toolCount > 0 {
-            return "\(toolCount) tool\(toolCount > 1 ? "s" : "") executed"
+            return String(format: L10n.CommandBar.toolsExecuted, toolCount)
         }
-        return "Task finished"
+        return L10n.CommandBar.taskFinished
     }
     
     private var lastAssistantMessage: ConversationMessage? {

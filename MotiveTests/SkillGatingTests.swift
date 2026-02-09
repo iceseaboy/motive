@@ -14,9 +14,9 @@ struct SkillGatingTests {
     }
 
     @Test func allowBundledBlocksWhenNotListed() async throws {
-        let entry = makeEntry(name: "ask-user-question", source: .bundled)
+        let entry = makeEntry(name: "some-skill", source: .bundled)
         var config = SkillsConfig()
-        config.allowBundled = ["file-permission"]
+        config.allowBundled = ["another-skill"]
 
         let result = await SkillGating.evaluate(entry: entry, config: config, environment: [:])
         #expect(result.isEligible == false)

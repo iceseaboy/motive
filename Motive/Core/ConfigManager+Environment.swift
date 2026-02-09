@@ -22,7 +22,9 @@ extension ConfigManager {
         environment["NO_COLOR"] = "1"
         environment["FORCE_COLOR"] = "0"
         environment["CI"] = "1"
-        environment["OPENCODE_NO_INTERACTIVE"] = "1"
+        // Register as desktop client so OpenCode enables the built-in `question` tool.
+        // Without this, the AI cannot show native question popups and falls back to text.
+        environment["OPENCODE_CLIENT"] = "desktop"
         
         // Sync API keys to OpenCode's auth.json
         syncToOpenCodeAuth()
