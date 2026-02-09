@@ -120,7 +120,7 @@ extension Color {
         static var textSecondary: Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 appearance.isDark
-                    ? NSColor.secondaryLabelColor.resolvedColor(for: appearance)
+                    ? NSColor.secondaryLabelColor
                     : NSColor(hex: "6B6B6B")
             })
         }
@@ -129,7 +129,7 @@ extension Color {
         static var textMuted: Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 appearance.isDark
-                    ? NSColor.tertiaryLabelColor.resolvedColor(for: appearance)
+                    ? NSColor.tertiaryLabelColor
                     : NSColor(hex: "8A8A8A")
             })
         }
@@ -138,7 +138,7 @@ extension Color {
         static var textDisabled: Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 appearance.isDark
-                    ? NSColor.quaternaryLabelColor.resolvedColor(for: appearance)
+                    ? NSColor.quaternaryLabelColor
                     : NSColor(hex: "ABABAB")
             })
         }
@@ -541,6 +541,7 @@ struct AuroraStatusIndicator: View {
         case .idle: return Color.Aurora.textMuted
         case .reasoning: return Color.Aurora.primary
         case .executing: return Color.Aurora.primaryLight
+        case .responding: return Color.Aurora.primaryLight
         }
     }
 }

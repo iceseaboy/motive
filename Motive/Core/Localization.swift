@@ -289,6 +289,7 @@ enum L10n {
         static let skillsBlocked = "settings.skills.blocked".localized
         static let skillsDisabled = "settings.skills.disabled".localized
         static let skillsEnabled = "settings.skills.enabled".localized
+        static let skillsRestartPending = "settings.skills.restart_pending".localized
         
         // About
         static let poweredBy = "settings.about.powered_by".localized

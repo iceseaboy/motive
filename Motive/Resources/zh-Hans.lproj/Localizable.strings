@@ -278,6 +278,7 @@
 "settings.skills.blocked" = "已屏蔽";
 "settings.skills.disabled" = "已禁用";
 "settings.skills.enabled" = "已启用";
+"settings.skills.restart_pending" = "技能变更将在当前任务完成后自动生效。";
 
 // About
 "settings.about.powered_by" = "技术支持";

@@ -15,7 +15,9 @@ final class SkillsSettingsViewModel: ObservableObject {
     @Published var installMessages: [String: SkillInstallMessage] = [:]
     @Published var isLoading: Bool = false
     @Published var error: String? = nil
-    @Published var needsRestart: Bool = false  // Indicates agent restart is needed
+    
+    /// Called when a config change requires an agent restart.
+    var onRestartNeeded: (() -> Void)?
     
     struct SkillInstallMessage: Equatable {
         var kind: MessageKind
@@ -120,13 +122,7 @@ final class SkillsSettingsViewModel: ObservableObject {
         // This uses whitelist approach: deny all, only allow enabled skills
         configManager.generateOpenCodeConfig()
         
-        // Mark that restart is needed for changes to take effect
-        needsRestart = true
-    }
-    
-    /// Clear the restart needed flag (called after agent is restarted)
-    func clearRestartNeeded() {
-        needsRestart = false
+        onRestartNeeded?()
     }
     
     func install(_ entry: SkillEntry, option: SkillInstallOption) async {
@@ -191,8 +187,7 @@ final class SkillsSettingsViewModel: ObservableObject {
         // Regenerate OpenCode config so updated environment variables are applied
         configManager.generateOpenCodeConfig()
         
-        // Mark that restart is needed for changes to take effect
-        needsRestart = true
+        onRestartNeeded?()
     }
     
     private func findInstallSpec(entry: SkillEntry, optionId: String) -> SkillInstallSpec? {

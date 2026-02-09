@@ -70,6 +70,10 @@ final class AppState: ObservableObject {
     var pendingQuestionMessageId: UUID?
     
     var cancellables = Set<AnyCancellable>()
+    
+    /// When true, the agent will auto-restart as soon as the current task finishes.
+    @Published var pendingAgentRestart = false
+    private var restartObserver: AnyCancellable?
 
     var configManagerRef: ConfigManager { configManager }
     var commandBarWindowRef: NSWindow? { commandBarController?.getWindow() }
@@ -77,6 +81,36 @@ final class AppState: ObservableObject {
 
     init(configManager: ConfigManager) {
         self.configManager = configManager
+    }
+    
+    /// Schedule an agent restart that respects running tasks.
+    /// - If no task is running (`menuBarState == .idle`), restarts immediately.
+    /// - If a task is running, defers the restart until it finishes.
+    func scheduleAgentRestart() {
+        guard menuBarState == .idle else {
+            // Task is running — defer restart
+            pendingAgentRestart = true
+            installRestartObserver()
+            return
+        }
+        // Idle — restart immediately
+        pendingAgentRestart = false
+        restartAgent()
+    }
+    
+    /// Observe menuBarState transitions to .idle and auto-restart when pending.
+    private func installRestartObserver() {
+        // Avoid duplicate observers
+        guard restartObserver == nil else { return }
+        restartObserver = $menuBarState
+            .removeDuplicates()
+            .filter { $0 == .idle }
+            .sink { [weak self] _ in
+                guard let self, self.pendingAgentRestart else { return }
+                self.pendingAgentRestart = false
+                self.restartObserver = nil
+                self.restartAgent()
+            }
     }
 
     func resetUsageDeduplication() {

@@ -20,6 +20,10 @@ extension AppState {
         guard !hasStarted else { return }
         hasStarted = true
 
+        // Detect and reset stale UserDefaults if user deleted data directories
+        // MUST run BEFORE ensureDefaultProjectDirectory() which creates ~/.motive/
+        configManager.detectAndResetStaleState()
+        
         // Ensure workspace exists (creates bootstrap files for fresh install)
         Task { @MainActor in
             do {

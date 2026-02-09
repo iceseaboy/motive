@@ -70,6 +70,9 @@ struct SkillsSettingsView: View {
         }
         .onAppear {
             viewModel.setConfigManager(configManager)
+            viewModel.onRestartNeeded = { [weak appState] in
+                appState?.scheduleAgentRestart()
+            }
             if selectedSkillId == nil, let first = viewModel.statusEntries.first {
                 selectedSkillId = first.entry.name
                 loadMarkdown(for: first.entry)
@@ -91,79 +94,46 @@ struct SkillsSettingsView: View {
             }
             loadMarkdown(for: entry)
         }
-        // Auto-restart agent when skill config changes
-        .onChange(of: viewModel.needsRestart) { _, needsRestart in
-            if needsRestart {
-                // Small delay to let UI update first
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
-                    appState.restartAgent()
-                    viewModel.clearRestartNeeded()
-                }
-            }
-        }
+        // Skill changes use scheduleAgentRestart() which waits for
+        // any running task to finish before restarting the agent.
     }
     
     // MARK: - Controls Bar
     
     private var controlsBar: some View {
-        HStack(spacing: 12) {
-            // Enable toggle
-            HStack(spacing: 8) {
-                Toggle("", isOn: $configManager.skillsSystemEnabled)
-                    .toggleStyle(.switch)
-                    .tint(Color.Aurora.primary)
-                    .scaleEffect(0.85)
-                    .controlSize(.small)
-                    .onChange(of: configManager.skillsSystemEnabled) { _, _ in
-                        viewModel.refresh()
-                    }
-                
-                Text(L10n.Settings.skillsEnable)
-                    .font(.system(size: 13))
-                    .foregroundColor(Color.Aurora.textSecondary)
-            }
-            
-            Spacer()
-            
-            // Search field
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.Aurora.textMuted)
-                
-                TextField(L10n.Settings.skillsSearch, text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .frame(width: 120)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.Aurora.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
-            )
-            
-            // Refresh button
-            Button {
-                viewModel.refresh()
-            } label: {
-                Group {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 12, height: 12)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12))
-                    }
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Enable toggle
+                HStack(spacing: 8) {
+                    Toggle("", isOn: $configManager.skillsSystemEnabled)
+                        .toggleStyle(.switch)
+                        .tint(Color.Aurora.primary)
+                        .scaleEffect(0.85)
+                        .controlSize(.small)
+                        .onChange(of: configManager.skillsSystemEnabled) { _, _ in
+                            viewModel.refresh()
+                        }
+                    
+                    Text(L10n.Settings.skillsEnable)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.Aurora.textSecondary)
                 }
-                .foregroundColor(Color.Aurora.textSecondary)
-                .frame(width: 28, height: 28)
+                
+                Spacer()
+                
+                // Search field
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.Aurora.textMuted)
+                    
+                    TextField(L10n.Settings.skillsSearch, text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .frame(width: 120)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.Aurora.surface)
@@ -172,10 +142,63 @@ struct SkillsSettingsView: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.Aurora.border, lineWidth: 1)
                 )
+                
+                // Refresh button
+                Button {
+                    viewModel.refresh()
+                } label: {
+                    Group {
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .foregroundColor(Color.Aurora.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.Aurora.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.Aurora.border, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isLoading)
+                .accessibilityLabel(L10n.Settings.skillsRefreshA11y)
             }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isLoading)
-            .accessibilityLabel(L10n.Settings.skillsRefreshA11y)
+            
+            // Pending-restart banner — shown when restart is deferred until task finishes
+            if appState.pendingAgentRestart {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 12, height: 12)
+                    
+                    Text(L10n.Settings.skillsRestartPending)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.Aurora.textSecondary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.Aurora.info.opacity(0.1))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.Aurora.info.opacity(0.3), lineWidth: 1)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.auroraFast, value: appState.pendingAgentRestart)
+            }
         }
         .padding(.bottom, 12)
     }

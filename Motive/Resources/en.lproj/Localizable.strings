@@ -278,6 +278,7 @@
 "settings.skills.blocked" = "Blocked";
 "settings.skills.disabled" = "Disabled";
 "settings.skills.enabled" = "Enabled";
+"settings.skills.restart_pending" = "Skill changes will apply after the current task finishes.";
 
 // About
 "settings.about.powered_by" = "POWERED BY";

@@ -368,6 +368,45 @@ final class ConfigManager: ObservableObject {
     @AppStorage("openCodeConfigPath") var openCodeConfigPath: String = ""
     @AppStorage("openCodeConfigDir") var openCodeConfigDir: String = ""
 
+    // MARK: - Stale State Detection
+    
+    /// Detect and reset stale UserDefaults when data directories were deleted.
+    ///
+    /// UserDefaults (plist at ~/Library/Preferences/) survives even when users
+    /// delete ~/.motive/ and ~/Library/Application Support/Motive/.
+    /// This causes stale project paths, usage stats, and skill configs to persist
+    /// after a "clean reinstall", leading to confusing behavior.
+    ///
+    /// Detection: if ~/.motive/ doesn't exist but hasCompletedOnboarding is true,
+    /// the user deleted data directories and expects a fresh start.
+    func detectAndResetStaleState() {
+        let workspaceDir = WorkspaceManager.defaultWorkspaceURL
+        let workspaceExists = FileManager.default.fileExists(atPath: workspaceDir.path)
+        
+        guard !workspaceExists && hasCompletedOnboarding else {
+            return // Normal state: workspace exists, or first-ever launch
+        }
+        
+        Log.config("Detected stale UserDefaults: ~/.motive/ missing but onboarding completed. Resetting data-dependent state.")
+        
+        // Reset data-tied state (these reference deleted directories or sessions)
+        currentProjectPath = ""
+        recentProjectsJSON = "[]"
+        tokenUsageTotalsJSON = "{}"
+        
+        // Reset onboarding so user goes through setup again
+        hasCompletedOnboarding = false
+        
+        // Note: we intentionally KEEP user preferences:
+        // - provider, model, baseURL (user's AI configuration)
+        // - skillsConfigJSON (user's skill enable/disable choices)
+        // - hotkey, appearanceMode, language (UI preferences)
+        // - browserUseEnabled, trustLevel (feature preferences)
+        // - API keys (stored in Keychain, not affected by plist)
+        
+        Log.config("Stale state reset complete. User will see onboarding on next launch.")
+    }
+    
     // MARK: - Errors
     
     enum BinaryError: LocalizedError {

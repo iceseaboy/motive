@@ -99,8 +99,15 @@ extension ConfigManager {
         return environment
     }
     
-    /// Build extended PATH with common Node.js installation paths
-    /// This is needed because /bin/sh doesn't load user's shell config (.zshrc etc)
+    /// Build extended PATH for OpenCode's runtime environment.
+    ///
+    /// Uses `CommandRunner.effectivePaths()` as the single source of truth,
+    /// then adds additional paths specific to this context (app bundle resources,
+    /// NVM versions, and Node.js version managers).
+    ///
+    /// IMPORTANT: `CommandRunner.effectivePaths()` is also used by `SkillGating.hasBinary()`
+    /// to check skill eligibility. Both MUST share the same base paths so that a skill
+    /// marked "ready" can actually find its binaries at runtime.
     func buildExtendedPath(base: String?) -> String {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         var pathParts: [String] = []
@@ -116,7 +123,6 @@ extension ConfigManager {
             let sortedVersions = versions
                 .filter { $0.hasPrefix("v") }
                 .sorted { v1, v2 in
-                    // Sort by version (descending - newest first)
                     let parse: (String) -> Int = { v in
                         let parts = v.dropFirst().split(separator: ".").compactMap { Int($0) }
                         let major = parts.count > 0 ? parts[0] : 0
@@ -134,22 +140,26 @@ extension ConfigManager {
             }
         }
         
-        // Common Node.js paths
-        let commonPaths = [
-            "/opt/homebrew/bin",           // Apple Silicon Homebrew
-            "/usr/local/bin",              // Intel Mac / general
+        // Node.js version manager paths (not covered by CommandRunner.effectivePaths)
+        let nodeManagerPaths = [
             "\(homeDir)/.volta/bin",       // Volta
             "\(homeDir)/.asdf/shims",      // asdf
             "\(homeDir)/.fnm/current/bin", // fnm
             "\(homeDir)/.nodenv/shims",    // nodenv
-            "\(homeDir)/.local/bin",       // pip/pipx style
             "/opt/local/bin",              // MacPorts
         ]
-        
-        for path in commonPaths {
+        for path in nodeManagerPaths {
             if FileManager.default.fileExists(atPath: path) && !pathParts.contains(path) {
                 pathParts.append(path)
             }
+        }
+        
+        // Add all paths from CommandRunner.effectivePaths() — the single source of truth
+        // for binary discovery (Go, Cargo, Python, Homebrew, pnpm, etc.)
+        // This ensures that any binary found by SkillGating.hasBinary() is also
+        // available in OpenCode's runtime environment.
+        for path in CommandRunner.effectivePaths() where !pathParts.contains(path) {
+            pathParts.append(path)
         }
         
         // Add system PATH from path_helper
