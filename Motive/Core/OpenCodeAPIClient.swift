@@ -70,8 +70,8 @@ actor OpenCodeAPIClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 300
+        config.timeoutIntervalForRequest = MotiveConstants.Timeouts.apiRequest
+        config.timeoutIntervalForResource = MotiveConstants.Timeouts.apiResource
         self.session = URLSession(configuration: config)
     }
 
@@ -254,3 +254,7 @@ actor OpenCodeAPIClient {
         return data
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension OpenCodeAPIClient: OpenCodeAPIClientProtocol {}

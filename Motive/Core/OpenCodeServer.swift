@@ -66,9 +66,9 @@ actor OpenCodeServer {
     private var monitorTask: Task<Void, Never>?
     private var stdoutDrainTask: Task<Void, Never>?
     private var restartCount: Int = 0
-    private static let maxRestartAttempts = 3
-    private static let portDetectionTimeoutSeconds: TimeInterval = 30
-    private static let gracefulShutdownSeconds: TimeInterval = 2
+    private static let maxRestartAttempts = MotiveConstants.Limits.maxServerRestartAttempts
+    private static let portDetectionTimeoutSeconds: TimeInterval = MotiveConstants.Timeouts.portDetection
+    private static let gracefulShutdownSeconds: TimeInterval = MotiveConstants.Timeouts.gracefulShutdown
 
     /// Called when the server restarts on a new URL after a crash.
     /// The Bridge uses this to update SSE and API client URLs.
@@ -346,3 +346,7 @@ actor OpenCodeServer {
         }
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension OpenCodeServer: OpenCodeServerProtocol {}

@@ -831,3 +831,7 @@ private final class SSESessionDelegate: NSObject, URLSessionDataDelegate, @unche
         }
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension SSEClient: SSEClientProtocol {}

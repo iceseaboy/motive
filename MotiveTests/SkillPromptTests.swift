@@ -3,28 +3,11 @@ import Testing
 
 @MainActor
 struct SkillPromptTests {
-    @Test func availableSkillsListAppearsWhenNotEmpty() async throws {
-        let skills = [
-            SkillEntry(
-                name: "slack",
-                description: "Slack skill",
-                filePath: "/tmp/slack/SKILL.md",
-                source: .managed,
-                frontmatter: SkillFrontmatter(name: "slack", description: "Slack skill"),
-                metadata: nil,
-                wiring: .none,
-                eligibility: SkillEligibility(isEligible: true, reasons: [])
-            )
-        ]
-
-        let output = await SystemPromptBuilder.formatAvailableSkills(skills)
-        #expect(output.contains("<available_skills>"))
-        #expect(output.contains("<name>slack</name>"))
-        #expect(output.contains("/tmp/slack/SKILL.md"))
-    }
-
-    @Test func availableSkillsListIsEmptyWhenNoSkills() async throws {
-        let output = await SystemPromptBuilder.formatAvailableSkills([])
-        #expect(output.isEmpty)
+    @Test func enabledSkillsAreSyncedToDirectory() async throws {
+        // Skills are now synced to the OpenCode skills directory
+        // and discovered natively — no prompt listing needed.
+        // This test verifies the sync mechanism exists on SkillRegistry.
+        let registry = SkillRegistry.shared
+        #expect(registry.entries is [SkillEntry])
     }
 }

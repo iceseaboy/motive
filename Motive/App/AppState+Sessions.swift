@@ -130,7 +130,7 @@ extension AppState {
         // Load the saved messages snapshot (identical to what was displayed live)
         if let data = session.messagesData,
            let saved = ConversationMessage.deserializeMessages(data) {
-            messages = saved 
+            messages = saved
         } else {
             // No snapshot — show empty (old sessions before this feature)
             messages = [ConversationMessage(type: .user, content: session.intent, timestamp: session.createdAt)]

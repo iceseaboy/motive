@@ -73,12 +73,6 @@ final class SkillRegistry: ObservableObject {
         entries.filter { $0.eligibility.isEligible }
     }
 
-    func promptEntries() -> [SkillEntry] {
-        eligibleEntries().filter { entry in
-            isSkillEnabled(entry) && !shouldExcludeFromPrompt(entry) && !isSystemToolEntry(entry)
-        }
-    }
-
     /// Check if a skill is enabled using the same logic as the permission whitelist:
     /// 1. User explicit config > 2. metadata.defaultEnabled > 3. false
     func isSkillEnabled(_ entry: SkillEntry) -> Bool {
@@ -90,14 +84,6 @@ final class SkillRegistry: ObservableObject {
             return explicitEnabled
         }
         return entry.metadata?.defaultEnabled ?? false
-    }
-    
-    /// Internal configuration: which skills should NOT appear in the prompt
-    private func shouldExcludeFromPrompt(_ entry: SkillEntry) -> Bool {
-        let excludedSkills: Set<String> = [
-            "browser-automation",   // Capability (external binary)
-        ]
-        return excludedSkills.contains(entry.name)
     }
 
     func mcpEntries() -> [SkillEntry] {
@@ -129,6 +115,71 @@ final class SkillRegistry: ObservableObject {
             }
         }
         return overrides
+    }
+
+    /// Sync enabled skills to OpenCode's skills directory so they are natively discovered.
+    ///
+    /// OpenCode scans `$OPENCODE_CONFIG_DIR/skills/<name>/SKILL.md` to register skills.
+    /// This method:
+    ///   1. Copies SKILL.md for every enabled skill into the target directory
+    ///   2. Removes directories for skills that are not enabled (prevents phantom tools)
+    ///   3. Skips skills already managed by SkillManager (browser-automation etc.)
+    ///
+    /// After this call, OpenCode's native `skill` tool can find skills by name.
+    func syncSkillsToDirectory(_ skillsDir: URL) {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+
+        // Names managed by SkillManager.writeSkillFiles() — don't touch those
+        let managedBySkillManager = Set(SkillManager.shared.skills.map { $0.id })
+
+        // Enabled skill names — the ground truth for what should exist on disk
+        let enabledNames = Set(
+            entries.filter { isSkillEnabled($0) && !managedBySkillManager.contains($0.name) }
+                   .map { $0.name }
+        )
+
+        // 1. Write / update enabled skills
+        for entry in entries where enabledNames.contains(entry.name) {
+            let destDir = skillsDir.appendingPathComponent(entry.name)
+            let destFile = destDir.appendingPathComponent("SKILL.md")
+
+            // Read source SKILL.md content
+            guard let content = try? String(contentsOfFile: entry.filePath, encoding: .utf8) else {
+                continue
+            }
+
+            do {
+                try fm.createDirectory(at: destDir, withIntermediateDirectories: true)
+                try content.write(to: destFile, atomically: true, encoding: .utf8)
+            } catch {
+                Log.debug("Failed to sync skill '\(entry.name)': \(error)")
+            }
+        }
+
+        // 2. Remove directories for disabled / non-existent skills
+        let existingDirs = (try? fm.contentsOfDirectory(atPath: skillsDir.path)) ?? []
+        for dirname in existingDirs {
+            // Skip SkillManager-managed skills
+            guard !managedBySkillManager.contains(dirname) else { continue }
+            // Skip currently enabled skills
+            guard !enabledNames.contains(dirname) else { continue }
+            // Skip hidden files
+            guard !dirname.hasPrefix(".") else { continue }
+
+            let dirURL = skillsDir.appendingPathComponent(dirname)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: dirURL.path, isDirectory: &isDir), isDir.boolValue else { continue }
+
+            do {
+                try fm.removeItem(at: dirURL)
+                Log.debug("Removed disabled skill directory: \(dirname)")
+            } catch {
+                Log.debug("Failed to remove skill directory '\(dirname)': \(error)")
+            }
+        }
+
+        Log.config(" Synced \(enabledNames.count) skills to \(skillsDir.path)")
     }
 
     func buildMcpConfigEntries() -> [String: Any] {
@@ -227,10 +278,6 @@ final class SkillRegistry: ObservableObject {
     private func bumpSnapshot(reason: String) {
         snapshotVersion = Int(Date().timeIntervalSince1970 * 1000)
         Log.debug("Skills snapshot updated (\(reason)) -> \(snapshotVersion)")
-    }
-
-    private func isSystemToolEntry(_ entry: SkillEntry) -> Bool {
-        return false
     }
 
     private static func resolveUserPath(_ path: String) -> URL {

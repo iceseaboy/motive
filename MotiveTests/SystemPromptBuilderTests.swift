@@ -161,11 +161,6 @@ struct SystemPromptBuilderTests {
                 "Prompt should not include working directory placeholder when nil")
     }
 
-    // MARK: - Skill List Integration
-
-    @Test("formatAvailableSkills returns empty for no skills")
-    func emptySkillsList() {
-        let result = SystemPromptBuilder.formatAvailableSkills([])
-        #expect(result.isEmpty, "Should return empty string for no skills")
-    }
+    // Skills are now synced to OpenCode's skill directory and discovered
+    // natively — no system prompt listing or formatAvailableSkills needed.
 }

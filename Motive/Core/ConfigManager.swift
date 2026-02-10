@@ -282,6 +282,8 @@ final class ConfigManager: ObservableObject {
         }
     }
 
+    let providerConfigStore = ProviderConfigStore()
+
     let keychainService = "com.velvet.motive"
     
     // Cache API keys per provider

@@ -17,7 +17,7 @@ extension ConfigManager {
     }
     
     /// Maximum number of recent projects to keep
-    static let maxRecentProjects = 10
+    static let maxRecentProjects = MotiveConstants.Limits.maxRecentProjects
     
     /// Get the current project directory URL
     /// Returns ~/.motive if not configured

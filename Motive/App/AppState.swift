@@ -19,16 +19,12 @@ final class AppState: ObservableObject {
         case responding   // Model is outputting response text (not thinking)
     }
 
-    enum SessionStatus: String, Sendable {
-        case idle
-        case running
-        case completed
-        case failed
-        case interrupted
-    }
-
     @Published var menuBarState: MenuBarState = .idle
-    @Published var messages: [ConversationMessage] = []
+    let messageStore = MessageStore()
+    var messages: [ConversationMessage] {
+        get { messageStore.messages }
+        set { messageStore.messages = newValue }
+    }
     @Published var sessionStatus: SessionStatus = .idle
     @Published var lastErrorMessage: String?
     @Published var currentToolName: String?
@@ -60,11 +56,14 @@ final class AppState: ObservableObject {
     // CloudKit for remote commands from iOS
     lazy var cloudKitManager: CloudKitManager = CloudKitManager()
     var currentRemoteCommandId: String?
+
+    // Native question/permission handler (extracted from AppState+Bridge)
+    lazy var nativePromptHandler: NativePromptHandler = NativePromptHandler(appState: self)
     
     /// UI-level session activity timeout
     /// If sessionStatus stays .running with no events for this duration, show a warning
     var sessionTimeoutTask: Task<Void, Never>?
-    static let sessionTimeoutSeconds: TimeInterval = 120  // 2 minutes
+    static let sessionTimeoutSeconds: TimeInterval = MotiveConstants.Timeouts.sessionActivity
     
     /// Tracks the message ID for the current question/permission so we can update it with the user's response
     var pendingQuestionMessageId: UUID?
@@ -81,6 +80,10 @@ final class AppState: ObservableObject {
 
     init(configManager: ConfigManager) {
         self.configManager = configManager
+        // Forward messageStore changes to AppState's objectWillChange
+        messageStore.$messages
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
     
     /// Schedule an agent restart that respects running tasks.

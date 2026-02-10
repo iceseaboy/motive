@@ -64,7 +64,8 @@ struct OpenCodeBridgeTests {
             binaryURL: URL(fileURLWithPath: "/usr/local/bin/opencode"),
             environment: ["HOME": "/Users/test"],
             model: "anthropic/claude-sonnet-4-5-20250929",
-            debugMode: false
+            debugMode: false,
+            projectDirectory: "/Users/test/project"
         )
 
         await bridge.updateConfiguration(config)

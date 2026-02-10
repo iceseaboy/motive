@@ -32,7 +32,6 @@ final class SystemPromptBuilder {
         }
         
         sections.append(buildCommunicationRules())
-        sections.append(buildSkillsList())
         sections.append(buildMCPToolInstructions())
         
         // Add capability instructions (e.g., browser automation)
@@ -272,35 +271,8 @@ final class SystemPromptBuilder {
         """
     }
 
-    private func buildSkillsList() -> String {
-        let skills = SkillRegistry.shared.promptEntries()
-        return Self.formatAvailableSkills(skills)
-    }
-
-    static func formatAvailableSkills(_ skills: [SkillEntry]) -> String {
-        guard !skills.isEmpty else { return "" }
-
-        var content: [String] = []
-        content.append("## Skills (mandatory)")
-        content.append("Before replying: scan <available_skills> <description> entries.")
-        content.append("- If exactly one skill clearly applies: read its SKILL.md at <location> with `Read`, then follow it.")
-        content.append("- If multiple could apply: choose the most specific one, then read/follow it.")
-        content.append("- If none clearly apply: do not read any SKILL.md.")
-        content.append("Constraints: never read more than one skill up front; only read after selecting.")
-        content.append("")
-        content.append("<available_skills>")
-
-        for skill in skills {
-            content.append("<skill>")
-            content.append("<name>\(skill.name)</name>")
-            content.append("<description>\(skill.description)</description>")
-            content.append("<location>\(skill.filePath)</location>")
-            content.append("</skill>")
-        }
-
-        content.append("</available_skills>")
-        return content.joined(separator: "\n")
-    }
+    // Skills are synced to $OPENCODE_CONFIG_DIR/skills/<name>/SKILL.md
+    // and discovered by OpenCode's native `skill` tool — no system prompt listing needed.
     
     private func buildExamples() -> String {
         """

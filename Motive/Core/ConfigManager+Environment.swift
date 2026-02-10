@@ -3,102 +3,26 @@ import Foundation
 @MainActor
 extension ConfigManager {
     func makeEnvironment() -> [String: String] {
-        var environment = ProcessInfo.processInfo.environment
-        let apiKeyValue = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Remove proxy environment variables to avoid SOCKS proxy errors with browser-use
-        // browser-use uses httpx which doesn't have socksio installed by default
-        let proxyKeys = ["ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy",
-                         "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy",
-                         "SOCKS_PROXY", "socks_proxy"]
-        for key in proxyKeys {
-            environment.removeValue(forKey: key)
-        }
-        
-        // Extend PATH with common Node.js installation paths
-        // This is critical because /bin/sh doesn't load user's shell config
-        environment["PATH"] = buildExtendedPath(base: environment["PATH"])
-        environment["TERM"] = "dumb"
-        environment["NO_COLOR"] = "1"
-        environment["FORCE_COLOR"] = "0"
-        environment["CI"] = "1"
-        // Register as desktop client so OpenCode enables the built-in `question` tool.
-        // Without this, the AI cannot show native question popups and falls back to text.
-        environment["OPENCODE_CLIENT"] = "desktop"
-        
-        // Sync API keys to OpenCode's auth.json
+        // Sync and config generation (side effects - kept in ConfigManager)
         syncToOpenCodeAuth()
-        
-        // ALWAYS generate config (sets permission: "allow" to avoid blocking)
         generateOpenCodeConfig()
-        
-        if provider.requiresAPIKey {
-            if !apiKeyValue.isEmpty {
-                // Set environment variable for the provider
-                let envKeyName = provider.envKeyName
-                environment[envKeyName] = apiKeyValue
-                Log.config(" Using \(provider.displayName) API key (\(envKeyName)): \(apiKeyValue.prefix(10))...")
-            } else {
-                Log.config(" WARNING - No API key configured for \(provider.displayName)!")
-            }
-        } else {
-            Log.config(" Using \(provider.displayName) (no API key needed)")
-        }
-        
-        // Note: baseURL is configured via opencode.json provider.options.baseURL
-        // Environment variables are not needed as OpenCode reads from config file
-        
-        if debugMode {
-            environment["DEBUG"] = "1"
-        }
 
-        // Inject skill-specific environment overrides (OpenClaw-style)
-        if skillsSystemEnabled {
-            let overrides = SkillRegistry.shared.environmentOverrides()
-            for (key, value) in overrides {
-                if environment[key]?.isEmpty ?? true {
-                    environment[key] = value
-                }
-            }
-        }
-        
-        // Set Browser Agent API key for browser-use-sidecar agent_task
-        // Only use cached value to avoid triggering additional Keychain prompts
-        if browserUseEnabled, let cachedKey = cachedBrowserAgentAPIKey, !cachedKey.isEmpty {
-            let envKeyName = browserAgentProvider.envKeyName
-            environment[envKeyName] = cachedKey
-            Log.config(" Browser Agent API key (\(envKeyName)): \(cachedKey.prefix(10))...")
-            
-            // Set base URL if configured
-            if let baseUrlEnvName = browserAgentProvider.baseUrlEnvName, !browserAgentBaseUrl.isEmpty {
-                environment[baseUrlEnvName] = browserAgentBaseUrl
-                Log.config(" Browser Agent Base URL (\(baseUrlEnvName)): \(browserAgentBaseUrl)")
-            }
-        }
-        
-        // Set OPENCODE_CONFIG if we generated a config file
-        if !openCodeConfigPath.isEmpty {
-            environment["OPENCODE_CONFIG"] = openCodeConfigPath
-            Log.config(" Using OpenCode config: \(openCodeConfigPath)")
-            
-            // Verify the config file exists
-            if FileManager.default.fileExists(atPath: openCodeConfigPath) {
-                Log.config(" Config file verified at: \(openCodeConfigPath)")
-            } else {
-                Log.config(" WARNING - Config file NOT found at: \(openCodeConfigPath)")
-            }
-            
-            if !openCodeConfigDir.isEmpty {
-                environment["OPENCODE_CONFIG_DIR"] = openCodeConfigDir
-                Log.config(" Using OpenCode config dir: \(openCodeConfigDir)")
-            }
-        } else {
-            Log.config(" WARNING - openCodeConfigPath is empty!")
-        }
-        
-        return environment
+        let inputs = EnvironmentBuilder.Inputs(
+            provider: provider,
+            apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            debugMode: debugMode,
+            skillsSystemEnabled: skillsSystemEnabled,
+            browserUseEnabled: browserUseEnabled,
+            browserAgentProvider: browserAgentProvider,
+            cachedBrowserAgentAPIKey: cachedBrowserAgentAPIKey,
+            browserAgentBaseUrl: browserAgentBaseUrl,
+            openCodeConfigPath: openCodeConfigPath,
+            openCodeConfigDir: openCodeConfigDir
+        )
+        return EnvironmentBuilder.build(from: inputs)
     }
-    
+
     /// Build extended PATH for OpenCode's runtime environment.
     ///
     /// Uses `CommandRunner.effectivePaths()` as the single source of truth,
@@ -109,109 +33,11 @@ extension ConfigManager {
     /// to check skill eligibility. Both MUST share the same base paths so that a skill
     /// marked "ready" can actually find its binaries at runtime.
     func buildExtendedPath(base: String?) -> String {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        var pathParts: [String] = []
-        
-        // Add App Bundle Resources path for bundled binaries (browser-use-sidecar)
-        if let resourcesPath = Bundle.main.resourcePath {
-            pathParts.append(resourcesPath)
-        }
-        
-        // NVM paths (dynamic - check all installed versions)
-        let nvmVersionsDir = "\(homeDir)/.nvm/versions/node"
-        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvmVersionsDir) {
-            let sortedVersions = versions
-                .filter { $0.hasPrefix("v") }
-                .sorted { v1, v2 in
-                    let parse: (String) -> Int = { v in
-                        let parts = v.dropFirst().split(separator: ".").compactMap { Int($0) }
-                        let major = parts.count > 0 ? parts[0] : 0
-                        let minor = parts.count > 1 ? parts[1] : 0
-                        let patch = parts.count > 2 ? parts[2] : 0
-                        return major * 10000 + minor * 100 + patch
-                    }
-                    return parse(v1) > parse(v2)
-                }
-            for version in sortedVersions {
-                let binPath = "\(nvmVersionsDir)/\(version)/bin"
-                if FileManager.default.fileExists(atPath: binPath) {
-                    pathParts.append(binPath)
-                }
-            }
-        }
-        
-        // Node.js version manager paths (not covered by CommandRunner.effectivePaths)
-        let nodeManagerPaths = [
-            "\(homeDir)/.volta/bin",       // Volta
-            "\(homeDir)/.asdf/shims",      // asdf
-            "\(homeDir)/.fnm/current/bin", // fnm
-            "\(homeDir)/.nodenv/shims",    // nodenv
-            "/opt/local/bin",              // MacPorts
-        ]
-        for path in nodeManagerPaths {
-            if FileManager.default.fileExists(atPath: path) && !pathParts.contains(path) {
-                pathParts.append(path)
-            }
-        }
-        
-        // Add all paths from CommandRunner.effectivePaths() — the single source of truth
-        // for binary discovery (Go, Cargo, Python, Homebrew, pnpm, etc.)
-        // This ensures that any binary found by SkillGating.hasBinary() is also
-        // available in OpenCode's runtime environment.
-        for path in CommandRunner.effectivePaths() where !pathParts.contains(path) {
-            pathParts.append(path)
-        }
-        
-        // Add system PATH from path_helper
-        if let systemPath = getSystemPath() {
-            for path in systemPath.split(separator: ":").map(String.init) {
-                if !pathParts.contains(path) {
-                    pathParts.append(path)
-                }
-            }
-        }
-        
-        // Add base PATH
-        if let base = base {
-            for path in base.split(separator: ":").map(String.init) {
-                if !pathParts.contains(path) {
-                    pathParts.append(path)
-                }
-            }
-        }
-        
-        let result = pathParts.joined(separator: ":")
-        Log.config(" Extended PATH: \(result.prefix(200))...")
-        return result
+        PathBuilder.buildExtendedPath(base: base)
     }
-    
+
     /// Get system PATH from macOS path_helper utility
     func getSystemPath() -> String? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/libexec/path_helper")
-        task.arguments = ["-s"]
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                // Parse: PATH="..."; export PATH;
-                if let match = output.range(of: #"PATH="([^"]+)""#, options: .regularExpression) {
-                    let pathValue = output[match]
-                        .dropFirst(6) // Remove PATH="
-                        .dropLast(1)  // Remove trailing "
-                    return String(pathValue)
-                }
-            }
-        } catch {
-            Log.config(" path_helper failed: \(error)")
-        }
-        
-        return nil
+        PathBuilder.getSystemPath()
     }
 }
