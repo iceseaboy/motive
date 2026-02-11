@@ -200,6 +200,9 @@ final class WorkspaceManager {
 
         // Create memory files
         try ensureMemoryFiles()
+
+        // Deploy memory plugin from app bundle
+        ensureMemoryPlugin()
     }
     
     /// Create bootstrap files if they don't exist
