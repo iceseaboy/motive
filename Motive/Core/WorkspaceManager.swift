@@ -265,10 +265,23 @@ final class WorkspaceManager {
                 }
                 try fm.copyItem(at: item, to: dest)
             }
-            Log.config("Deployed motive-memory plugin to \(pluginDir.path)")
+            let entry = deployedMemoryPluginEntryURL()
+            if fm.fileExists(atPath: entry.path) {
+                Log.config("Deployed motive-memory plugin to \(pluginDir.path)")
+            } else {
+                Log.config("Memory plugin deployed but missing entry at \(entry.path)")
+            }
         } catch {
             Log.config("Failed to deploy motive-memory plugin: \(error)")
         }
+    }
+
+    func deployedMemoryPluginEntryURL() -> URL {
+        workspaceURL.appendingPathComponent("plugins/motive-memory/src/index.ts")
+    }
+
+    func hasDeployedMemoryPlugin() -> Bool {
+        FileManager.default.fileExists(atPath: deployedMemoryPluginEntryURL().path)
     }
     
     /// Load template content from bundle or fallback

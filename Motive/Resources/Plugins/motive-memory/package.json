@@ -1,0 +1,9 @@
+{
+  "name": "motive-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.1.0"
+  }
+}

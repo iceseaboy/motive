@@ -304,6 +304,10 @@
 "settings.memory.no_memories" = "No memories yet.";
 "settings.memory.never" = "Never";
 "settings.memory.not_indexed" = "Not indexed";
+"settings.memory.plugin_status" = "Plugin Status";
+"settings.memory.plugin_status.desc" = "Runtime availability of motive-memory tools";
+"settings.memory.plugin_available" = "Available";
+"settings.memory.plugin_missing" = "Missing plugin";
 
 // About
 "settings.about.powered_by" = "POWERED BY";

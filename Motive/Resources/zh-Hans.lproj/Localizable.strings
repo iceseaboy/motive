@@ -304,6 +304,10 @@
 "settings.memory.no_memories" = "暂无记忆。";
 "settings.memory.never" = "从未";
 "settings.memory.not_indexed" = "未建立索引";
+"settings.memory.plugin_status" = "插件状态";
+"settings.memory.plugin_status.desc" = "motive-memory 工具的运行时可用性";
+"settings.memory.plugin_available" = "可用";
+"settings.memory.plugin_missing" = "插件缺失";
 
 // About
 "settings.about.powered_by" = "技术支持";

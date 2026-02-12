@@ -304,6 +304,10 @@
 "settings.memory.no_memories" = "まだメモリはありません。";
 "settings.memory.never" = "未実行";
 "settings.memory.not_indexed" = "未インデックス";
+"settings.memory.plugin_status" = "プラグイン状態";
+"settings.memory.plugin_status.desc" = "motive-memory ツールの実行時可用性";
+"settings.memory.plugin_available" = "利用可能";
+"settings.memory.plugin_missing" = "プラグイン未検出";
 
 // About
 "settings.about.powered_by" = "技術提供";

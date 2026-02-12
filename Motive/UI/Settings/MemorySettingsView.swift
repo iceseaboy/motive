@@ -15,6 +15,7 @@ struct MemorySettingsView: View {
     @State private var indexLastSync: String = L10n.Settings.memoryNever
     @State private var memoryPreview: String = ""
     @State private var isRebuildingIndex: Bool = false
+    @State private var memoryPluginAvailable: Bool = false
 
     private var workspaceURL: URL {
         WorkspaceManager.defaultWorkspaceURL
@@ -44,9 +45,20 @@ struct MemorySettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: 140)
                     .controlSize(.small)
+                    .onChange(of: configManager.memoryEmbeddingProvider) { _, _ in
+                        appState.scheduleAgentRestart()
+                    }
                 }
             }
-// PLACEHOLDER_MEMORY_SETTINGS_CONTINUE
+
+            SettingSection(L10n.Settings.memoryPluginStatus) {
+                SettingRow(L10n.Settings.memoryPluginStatus, description: L10n.Settings.memoryPluginStatusDesc, showDivider: false) {
+                    Text(memoryPluginAvailable ? L10n.Settings.memoryPluginAvailable : L10n.Settings.memoryPluginMissing)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(memoryPluginAvailable ? Color.Aurora.success : Color.Aurora.warning)
+                        .lineLimit(1)
+                }
+            }
 
             // Index Status
             if configManager.memoryEnabled {
@@ -81,7 +93,7 @@ struct MemorySettingsView: View {
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isRebuildingIndex)
+                        .disabled(isRebuildingIndex || !memoryPluginAvailable)
                     }
                 }
 
@@ -123,6 +135,7 @@ struct MemorySettingsView: View {
             }
         }
         .onAppear {
+            loadPluginStatus()
             loadIndexStatus()
             loadMemoryPreview()
         }
@@ -131,8 +144,15 @@ struct MemorySettingsView: View {
     // MARK: - Actions
 
     private func loadIndexStatus() {
+        loadPluginStatus()
         let dbPath = workspaceURL.appendingPathComponent("memory/index.sqlite")
         let fm = FileManager.default
+
+        if !memoryPluginAvailable {
+            indexFileCount = 0
+            indexLastSync = L10n.Settings.memoryPluginMissing
+            return
+        }
 
         if fm.fileExists(atPath: dbPath.path) {
             let memoryDir = workspaceURL.appendingPathComponent("memory")
@@ -157,6 +177,7 @@ struct MemorySettingsView: View {
     }
 
     private func rebuildIndex() {
+        guard memoryPluginAvailable else { return }
         isRebuildingIndex = true
         let memoryDir = workspaceURL.appendingPathComponent("memory")
         let markerPath = memoryDir.appendingPathComponent(".rebuild")
@@ -172,5 +193,9 @@ struct MemorySettingsView: View {
     private func openMemoryFile() {
         let memoryPath = workspaceURL.appendingPathComponent("MEMORY.md")
         NSWorkspace.shared.open(memoryPath)
+    }
+
+    private func loadPluginStatus() {
+        memoryPluginAvailable = WorkspaceManager.shared.hasDeployedMemoryPlugin()
     }
 }

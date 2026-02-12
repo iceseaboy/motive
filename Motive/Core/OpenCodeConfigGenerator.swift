@@ -105,13 +105,17 @@ struct OpenCodeConfigGenerator {
 
         // Memory plugin configuration — only inject if the plugin file actually exists
         if inputs.memoryEnabled {
-            let pluginPath = inputs.workspaceDirectory
-                .appendingPathComponent("plugins/motive-memory/src/index.ts").path
+            let pluginEntry = inputs.workspaceDirectory
+                .appendingPathComponent("plugins/motive-memory/src/index.ts")
+            let pluginPath = pluginEntry.path
             if FileManager.default.fileExists(atPath: pluginPath) {
                 config["plugin"] = ["file://\(pluginPath)"]
+                Log.config("Memory plugin enabled from \(pluginPath)")
             } else {
                 Log.config("Memory enabled but plugin not found at \(pluginPath) — skipping plugin config")
             }
+        } else {
+            Log.config("Memory disabled — skipping memory plugin injection")
         }
 
         // Native instructions: point to persona files so OpenCode auto-injects them

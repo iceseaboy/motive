@@ -315,6 +315,10 @@ enum L10n {
         static let memoryNoMemories = "settings.memory.no_memories".localized
         static let memoryNever = "settings.memory.never".localized
         static let memoryNotIndexed = "settings.memory.not_indexed".localized
+        static let memoryPluginStatus = "settings.memory.plugin_status".localized
+        static let memoryPluginStatusDesc = "settings.memory.plugin_status.desc".localized
+        static let memoryPluginAvailable = "settings.memory.plugin_available".localized
+        static let memoryPluginMissing = "settings.memory.plugin_missing".localized
         
         // About
         static let poweredBy = "settings.about.powered_by".localized

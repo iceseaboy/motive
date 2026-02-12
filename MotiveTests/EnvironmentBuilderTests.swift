@@ -173,6 +173,30 @@ final class EnvironmentBuilderTests: XCTestCase {
                      "OPENCODE_CONFIG_DIR should not be set when openCodeConfigDir is empty")
     }
 
+    // MARK: - Memory Environment
+
+    func testMemoryEnvironmentSetWhenEnabled() {
+        let inputs = makeInputs(
+            memoryEnabled: true,
+            memoryEmbeddingProvider: "openai",
+            workspaceDirectory: "/tmp/motive-workspace"
+        )
+        let env = EnvironmentBuilder.build(from: inputs, baseEnvironment: emptyBase)
+        XCTAssertEqual(env["MOTIVE_WORKSPACE"], "/tmp/motive-workspace")
+        XCTAssertEqual(env["MOTIVE_EMBEDDING_PROVIDER"], "openai")
+    }
+
+    func testMemoryEnvironmentNotSetWhenDisabled() {
+        let inputs = makeInputs(
+            memoryEnabled: false,
+            memoryEmbeddingProvider: "openai",
+            workspaceDirectory: "/tmp/motive-workspace"
+        )
+        let env = EnvironmentBuilder.build(from: inputs, baseEnvironment: emptyBase)
+        XCTAssertNil(env["MOTIVE_WORKSPACE"])
+        XCTAssertNil(env["MOTIVE_EMBEDDING_PROVIDER"])
+    }
+
     // MARK: - Proxy Variables Cleared
 
     func testProxyVariablesRemovedFromBaseEnvironment() {
