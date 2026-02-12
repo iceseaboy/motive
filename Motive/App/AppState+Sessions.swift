@@ -160,7 +160,7 @@ extension AppState {
         restoreProjectDirectory(for: session)
 
         // Load messages: running buffer first, or persisted snapshot
-        let ocId = session.openCodeSessionId 
+        let ocId = session.openCodeSessionId  
         if let ocId {
             currentPlanFilePath = sessionPlanFilePaths[ocId]
         } else {

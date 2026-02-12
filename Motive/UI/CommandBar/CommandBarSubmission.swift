@@ -53,7 +53,9 @@ extension CommandBarView {
 
     /// Handle submit in modes mode — switch agent/plan.
     private func submitModeSelection() {
-        let modeName = selectedModeIndex == 0 ? "agent" : "plan"
+        let modes = availableModeChoices
+        guard selectedModeIndex >= 0, selectedModeIndex < modes.count else { return }
+        let modeName = modes[selectedModeIndex].value
         configManager.currentAgent = modeName
         configManager.generateOpenCodeConfig()
         appState.reconfigureBridge()
@@ -98,7 +100,7 @@ extension CommandBarView {
             inputText = ""
             mode = .modes(fromSession: wasFromSession)
             // Pre-select the current mode
-            selectedModeIndex = configManager.currentAgent == "plan" ? 1 : 0
+            selectedModeIndex = availableModeChoices.firstIndex(where: { $0.value == configManager.currentAgent }) ?? 0
         case "project":
             inputText = ""
             configManager.ensureCurrentProjectInRecents()

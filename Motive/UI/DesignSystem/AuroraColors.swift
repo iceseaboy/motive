@@ -109,6 +109,9 @@ extension Color {
         /// Info
         static let info = Color(nsColor: .systemBlue)
 
+        /// Plan mode accent color
+        static let planAccent = Color(hex: "F5A623")
+
         // MARK: - Text Colors (Adaptive)
 
         /// Primary text

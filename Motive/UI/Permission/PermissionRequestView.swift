@@ -72,7 +72,7 @@ struct PermissionRequestView: View {
             .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
             )
             .shadow(color: Color.Aurora.accentMid.opacity(isDark ? 0.1 : 0.05), radius: 30, y: 10)
             .shadow(color: Color.black.opacity(isDark ? 0.3 : 0.15), radius: 20, y: 10)
@@ -224,7 +224,7 @@ struct PermissionRequestView: View {
                 .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 0.5)
+                        .stroke(AuroraPromptStyle.subtleBorderColor, lineWidth: AuroraPromptStyle.subtleBorderWidth)
                 )
             }
             
@@ -374,8 +374,8 @@ private struct AuroraOptionButton: View {
                     .stroke(
                         isSelected
                             ? Color.Aurora.accent.opacity(0.3)
-                            : Color.Aurora.border,
-                        lineWidth: isSelected ? 1.5 : 0.5
+                            : AuroraPromptStyle.subtleBorderColor,
+                        lineWidth: isSelected ? AuroraPromptStyle.emphasisBorderWidth : AuroraPromptStyle.subtleBorderWidth
                     )
             )
         }
@@ -440,7 +440,7 @@ private struct AuroraPermissionButtonStyle: ButtonStyle {
     private var overlay: some View {
         if style == .secondary {
             RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .stroke(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
         }
     }
 }

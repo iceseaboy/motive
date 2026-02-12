@@ -44,6 +44,24 @@ enum AuroraRadius {
     static let full: CGFloat = 9999 // pills, avatars
 }
 
+// MARK: - Aurora Border & Prompt Styling
+
+enum AuroraStroke {
+    static let hairline: CGFloat = 0.5
+    static let soft: CGFloat = 0.75
+    static let regular: CGFloat = 1
+    static let emphasis: CGFloat = 1.25
+}
+
+enum AuroraPromptStyle {
+    static var borderColor: Color { Color.Aurora.border.opacity(0.45) }
+    static var subtleBorderColor: Color { Color.Aurora.border.opacity(0.35) }
+    static var dividerColor: Color { Color.Aurora.glassOverlay.opacity(0.10) }
+    static let borderWidth: CGFloat = AuroraStroke.soft
+    static let subtleBorderWidth: CGFloat = AuroraStroke.hairline
+    static let emphasisBorderWidth: CGFloat = AuroraStroke.regular
+}
+
 // Legacy CornerRadius namespace
 enum CornerRadius {
     static let small: CGFloat = AuroraRadius.sm

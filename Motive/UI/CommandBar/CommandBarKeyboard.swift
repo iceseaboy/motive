@@ -68,7 +68,8 @@ extension CommandBarView {
                 selectedProjectIndex += 1
             }
         } else if mode.isModes {
-            if selectedModeIndex < 1 {  // 2 modes: agent(0), plan(1)
+            let maxIndex = max(availableModeChoices.count - 1, 0)
+            if selectedModeIndex < maxIndex {
                 selectedModeIndex += 1
             }
         }

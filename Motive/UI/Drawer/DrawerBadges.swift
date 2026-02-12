@@ -13,13 +13,8 @@ struct SessionStatusBadge: View {
     let status: SessionStatus
     let currentTool: String?
     let isThinking: Bool
-    /// Current agent mode (e.g. "plan"). When in plan mode, "Completed" shows as "Planning" instead.
+    /// Current agent mode (e.g. "plan").
     var agent: String = "agent"
-
-    /// Whether the session finished in plan mode (awaiting user input / plan review).
-    private var isPlanWaiting: Bool {
-        agent == "plan" && (status == .completed || status == .idle)
-    }
 
     var body: some View {
         HStack(spacing: AuroraSpacing.space1) {
@@ -44,28 +39,21 @@ struct SessionStatusBadge: View {
 
     @ViewBuilder
     private var statusIcon: some View {
-        if isPlanWaiting {
-            Image(systemName: "text.bubble")
-        } else {
-            switch status {
-            case .idle:
-                Image(systemName: "circle")
-            case .running:
-                Image(systemName: "circle.fill")
-            case .completed:
-                Image(systemName: "checkmark.circle.fill")
-            case .failed:
-                Image(systemName: "xmark.circle.fill")
-            case .interrupted:
-                Image(systemName: "pause.circle.fill")
-            }
+        switch status {
+        case .idle:
+            Image(systemName: "circle")
+        case .running:
+            Image(systemName: "circle.fill")
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+        case .interrupted:
+            Image(systemName: "pause.circle.fill")
         }
     }
 
     private var statusText: String {
-        if isPlanWaiting {
-            return "Planning"
-        }
         switch status {
         case .idle:
             return L10n.StatusBar.idle
@@ -81,9 +69,6 @@ struct SessionStatusBadge: View {
     }
 
     private var foregroundColor: Color {
-        if isPlanWaiting {
-            return Color.Aurora.info
-        }
         switch status {
         case .idle: return Color.Aurora.textMuted
         case .running: return Color.Aurora.primary
@@ -106,49 +91,82 @@ struct AgentModeToggle: View {
     let isRunning: Bool
     let onChange: (String) -> Void
 
-    private var isPlan: Bool { currentAgent == "plan" }
+    private struct ModeOption: Hashable {
+        let value: String
+        let label: String
+        let icon: String
+    }
+
+    private var modeOptions: [ModeOption] {
+        var base: [ModeOption] = [
+            ModeOption(value: "agent", label: "Agent", icon: "sparkle"),
+            ModeOption(value: "plan", label: "Plan", icon: "checklist"),
+        ]
+        if !base.contains(where: { $0.value == currentAgent }) {
+            base.append(
+                ModeOption(
+                    value: currentAgent,
+                    label: modeDisplayName(currentAgent),
+                    icon: "circle.hexagongrid.fill"
+                )
+            )
+        }
+        return base
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            modeButton(label: "Agent", icon: "bolt.fill", isActive: !isPlan, value: "agent")
-            modeButton(label: "Plan", icon: "doc.text.magnifyingglass", isActive: isPlan, value: "plan")
+        Menu {
+            ForEach(modeOptions, id: \.value) { option in
+                Button {
+                    onChange(option.value)
+                } label: {
+                    Label(option.label, systemImage: option.icon)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: iconForMode(currentAgent))
+                    .font(.system(size: 9, weight: .semibold))
+                    .frame(width: 10, height: 10)
+                Text(modeDisplayName(currentAgent))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(Color.Aurora.textMuted)
+            }
+            .foregroundColor(activeColor(for: currentAgent))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                    .fill(activeColor(for: currentAgent).opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                    .stroke(activeColor(for: currentAgent).opacity(0.25), lineWidth: 0.5)
+            )
+            .frame(height: 20)
         }
-        .background(
-            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .fill(Color.Aurora.glassOverlay.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .strokeBorder(Color.Aurora.glassOverlay.opacity(0.12), lineWidth: 0.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
+        .menuStyle(.borderlessButton)
         .disabled(isRunning)
         .opacity(isRunning ? 0.5 : 1.0)
     }
 
-    private func modeButton(label: String, icon: String, isActive: Bool, value: String) -> some View {
-        Button(action: { onChange(value) }) {
-            HStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.system(size: 8, weight: .bold))
-                Text(label)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-            }
-            .foregroundColor(isActive ? activeColor(for: value) : Color.Aurora.textMuted)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                isActive
-                    ? RoundedRectangle(cornerRadius: AuroraRadius.xs - 1, style: .continuous)
-                        .fill(activeColor(for: value).opacity(0.12))
-                    : nil
-            )
+    private func iconForMode(_ value: String) -> String {
+        switch value {
+        case "plan": return "checklist"
+        case "agent": return "sparkle"
+        default: return "circle.hexagongrid.fill"
         }
-        .buttonStyle(.plain)
+    }
+
+    private func modeDisplayName(_ value: String) -> String {
+        guard !value.isEmpty else { return "Agent" }
+        return value.prefix(1).uppercased() + String(value.dropFirst())
     }
 
     private func activeColor(for value: String) -> Color {
-        value == "plan" ? Color.Aurora.info : Color.Aurora.primary
+        value == "plan" ? Color.Aurora.planAccent : Color.Aurora.primary
     }
 }
 
@@ -158,24 +176,31 @@ struct AgentModeToggle: View {
 struct AgentModeBadge: View {
     let agent: String
 
+    private var displayName: String {
+        guard !agent.isEmpty else { return "Agent" }
+        return agent.prefix(1).uppercased() + String(agent.dropFirst())
+    }
+
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "doc.text.magnifyingglass")
+            Image(systemName: "checklist")
                 .font(.system(size: 9, weight: .bold))
-            Text(agent)
+                .frame(width: 10, height: 10)
+            Text(displayName)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
         }
-        .foregroundColor(Color.Aurora.info)
+        .foregroundColor(Color.Aurora.planAccent)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .fill(Color.Aurora.info.opacity(0.12))
+                .fill(Color.Aurora.planAccent.opacity(0.12))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .strokeBorder(Color.Aurora.info.opacity(0.25), lineWidth: 0.5)
+                .strokeBorder(Color.Aurora.planAccent.opacity(0.25), lineWidth: 0.5)
         )
+        .frame(height: 20)
     }
 }
 
@@ -183,21 +208,50 @@ struct AgentModeBadge: View {
 
 struct ContextSizeBadge: View {
     let tokens: Int
+    private let softCapTokens: Double = 120_000
+
+    private var usageRatio: Double {
+        min(max(Double(tokens) / softCapTokens, 0), 1)
+    }
+
+    private var fillColor: Color {
+        if usageRatio > 0.9 { return Color.Aurora.error }
+        if usageRatio > 0.75 { return Color.Aurora.warning }
+        return Color.Aurora.primary
+    }
+
+    private var formattedTokens: String {
+        TokenUsageFormatter.formatTokens(tokens)
+    }
 
     var body: some View {
-        HStack(spacing: AuroraSpacing.space1) {
-            Image(systemName: "square.stack.3d.up")
-                .font(.system(size: 10, weight: .bold))
+        ZStack {
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.Aurora.glassOverlay.opacity(0.10))
+                    Capsule(style: .continuous)
+                        .fill(fillColor)
+                        .frame(width: width * usageRatio)
+                }
+            }
+            .frame(width: 46, height: 8)
 
-            Text("CTX \(TokenUsageFormatter.formatTokens(tokens))")
-                .font(.Aurora.micro.weight(.semibold))
+            Text(formattedTokens)
+                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                .foregroundColor(Color.Aurora.textPrimary.opacity(0.9))
         }
-        .foregroundColor(Color.Aurora.textSecondary)
-        .padding(.horizontal, AuroraSpacing.space2)
-        .padding(.vertical, AuroraSpacing.space1)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
         .background(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .fill(Color.Aurora.glassOverlay.opacity(0.08))
+                .fill(Color.Aurora.glassOverlay.opacity(0.04))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                .strokeBorder(Color.Aurora.glassOverlay.opacity(0.08), lineWidth: 0.5)
+        )
+        .accessibilityLabel("Context tokens \(formattedTokens)")
     }
 }

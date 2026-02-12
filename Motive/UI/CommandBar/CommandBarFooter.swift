@@ -179,16 +179,21 @@ private struct AgentIndicator: View {
         configManager.currentAgent
     }
 
+    private var displayName: String {
+        guard !agentName.isEmpty else { return "Agent" }
+        return agentName.prefix(1).uppercased() + String(agentName.dropFirst())
+    }
+
     private var agentIcon: String {
         switch agentName {
-        case "plan": return "doc.text.magnifyingglass"
+        case "plan": return "checklist"
         default: return "sparkle"
         }
     }
 
     private var agentColor: Color {
         switch agentName {
-        case "plan": return Color.Aurora.info
+        case "plan": return Color.Aurora.planAccent
         default: return Color.Aurora.primary
         }
     }
@@ -197,7 +202,8 @@ private struct AgentIndicator: View {
         HStack(spacing: 4) {
             Image(systemName: agentIcon)
                 .font(.system(size: 9, weight: .semibold))
-            Text(agentName)
+                .frame(width: 10, height: 10)
+            Text(displayName)
                 .font(.system(size: 10, weight: .medium))
         }
         .foregroundColor(agentColor)
@@ -207,6 +213,7 @@ private struct AgentIndicator: View {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(agentColor.opacity(0.12))
         )
-        .help("Current mode: \(agentName) (use /mode to switch)")
+        .frame(height: 20)
+        .help("Current mode: \(displayName) (use /mode to switch)")
     }
 }

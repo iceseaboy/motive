@@ -21,12 +21,12 @@ struct QuickConfirmView: View {
         VStack(alignment: .leading, spacing: 14) {
             headerView
             Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
-                .frame(height: 0.5)
+                .fill(AuroraPromptStyle.dividerColor)
+                .frame(height: AuroraPromptStyle.subtleBorderWidth)
             contentView
             Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
-                .frame(height: 0.5)
+                .fill(AuroraPromptStyle.dividerColor)
+                .frame(height: AuroraPromptStyle.subtleBorderWidth)
             actionButtons
         }
         .padding(20)
@@ -35,7 +35,7 @@ struct QuickConfirmView: View {
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous)
-                .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.1 : 0.15), lineWidth: 0.5)
+                .strokeBorder(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
         )
         .shadow(color: Color.black.opacity(isDark ? 0.25 : 0.12), radius: 18, y: 10)
     }
@@ -178,8 +178,8 @@ struct QuickConfirmView: View {
                     .stroke(
                         isPlanExecute
                             ? Color.Aurora.success.opacity(0.4)
-                            : (isSelected ? accentColor.opacity(0.3) : Color.Aurora.glassOverlay.opacity(0.12)),
-                        lineWidth: isPlanExecute ? 1 : 0.5
+                            : (isSelected ? accentColor.opacity(0.3) : AuroraPromptStyle.subtleBorderColor),
+                        lineWidth: isPlanExecute ? AuroraPromptStyle.emphasisBorderWidth : AuroraPromptStyle.subtleBorderWidth
                     )
             )
         }
@@ -385,7 +385,7 @@ private struct AuroraQuickConfirmButtonStyle: ButtonStyle {
     private var overlay: some View {
         if style == .secondary {
             RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .stroke(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
         }
     }
 }
@@ -417,7 +417,7 @@ struct DiffView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .stroke(Color.Aurora.border.opacity(0.5), lineWidth: 0.5)
+                .stroke(AuroraPromptStyle.subtleBorderColor, lineWidth: AuroraPromptStyle.subtleBorderWidth)
         )
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
     }

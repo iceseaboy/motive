@@ -7,7 +7,43 @@
 
 import SwiftUI
 
+struct ModeChoice {
+    let value: String
+    let name: String
+    let icon: String
+    let description: String
+}
+
 extension CommandBarView {
+    var availableModeChoices: [ModeChoice] {
+        var choices: [ModeChoice] = [
+            ModeChoice(
+                value: "agent",
+                name: "Agent",
+                icon: "sparkle",
+                description: "Default mode - full tool access"
+            ),
+            ModeChoice(
+                value: "plan",
+                name: "Plan",
+                icon: "checklist",
+                description: "Read-only analysis and planning"
+            ),
+        ]
+        if !choices.contains(where: { $0.value == configManager.currentAgent }) {
+            let value = configManager.currentAgent
+            choices.append(
+                ModeChoice(
+                    value: value,
+                    name: value.prefix(1).uppercased() + String(value.dropFirst()),
+                    icon: "circle.hexagongrid.fill",
+                    description: "Custom mode from OpenCode config"
+                )
+            )
+        }
+        return choices
+    }
+
     // MARK: - Histories List (below input)
 
     var historiesListView: some View {
@@ -80,27 +116,18 @@ extension CommandBarView {
     var modesListView: some View {
         ScrollView {
             VStack(spacing: 2) {
-                ModeListItem(
-                    name: "Agent",
-                    icon: "sparkle",
-                    description: "Default mode — full tool access",
-                    isSelected: selectedModeIndex == 0,
-                    isCurrent: configManager.currentAgent == "agent"
-                ) {
-                    selectMode("agent")
+                ForEach(Array(availableModeChoices.enumerated()), id: \.offset) { index, modeChoice in
+                    ModeListItem(
+                        name: modeChoice.name,
+                        icon: modeChoice.icon,
+                        description: modeChoice.description,
+                        isSelected: selectedModeIndex == index,
+                        isCurrent: configManager.currentAgent == modeChoice.value
+                    ) {
+                        selectMode(modeChoice.value)
+                    }
+                    .id(index)
                 }
-                .id(0)
-
-                ModeListItem(
-                    name: "Plan",
-                    icon: "doc.text.magnifyingglass",
-                    description: "Read-only analysis and planning",
-                    isSelected: selectedModeIndex == 1,
-                    isCurrent: configManager.currentAgent == "plan"
-                ) {
-                    selectMode("plan")
-                }
-                .id(1)
             }
             .padding(.vertical, AuroraSpacing.space2)
             .padding(.horizontal, AuroraSpacing.space3)
