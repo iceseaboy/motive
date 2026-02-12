@@ -218,14 +218,7 @@ struct SkillDetail: View {
                         .buttonStyle(.plain)
                         .padding(.trailing, 8)
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.Aurora.surface)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(Color.Aurora.border, lineWidth: 1)
-                    )
+                    .settingsInputField(cornerRadius: 4)
 
                     Button {
                         saveApiKey()

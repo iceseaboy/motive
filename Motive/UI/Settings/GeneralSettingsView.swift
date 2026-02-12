@@ -132,7 +132,7 @@ struct GeneralSettingsView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
         .menuStyle(.borderlessButton)

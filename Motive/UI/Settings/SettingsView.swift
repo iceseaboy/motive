@@ -61,7 +61,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .model: return L10n.Settings.aiProvider
         case .usage: return L10n.Settings.usage
         case .skills: return L10n.Settings.skills
-        case .memory: return "Memory"
+        case .memory: return L10n.Settings.memory
         case .permissions: return L10n.Settings.permissions
         case .advanced: return L10n.Settings.advanced
         case .about: return L10n.Settings.about
@@ -75,7 +75,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .model: return L10n.Settings.aiProviderSubtitle
         case .usage: return L10n.Settings.usageSubtitle
         case .skills: return L10n.Settings.skillsSubtitle
-        case .memory: return "Persistent memory and knowledge base"
+        case .memory: return L10n.Settings.memorySubtitle
         case .permissions: return L10n.Settings.permissionsSubtitle
         case .advanced: return L10n.Settings.advancedSubtitle
         case .about: return L10n.Settings.aboutSubtitle
@@ -160,7 +160,6 @@ private struct SettingsDetailView: View {
                 } else {
                     ScrollView {
                         tab.contentView
-                            .frame(maxWidth: 560)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal, 28)
                             .padding(.bottom, 24)
@@ -202,7 +201,7 @@ struct SettingSection<Content: View>: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
     }
@@ -251,8 +250,8 @@ struct SettingRow<Content: View>: View {
             // Divider
             if showDivider {
                 Rectangle()
-                    .fill(Color.Aurora.border)
-                    .frame(height: 1)
+                    .fill(SettingsUIStyle.dividerColor)
+                    .frame(height: SettingsUIStyle.borderWidth)
                     .padding(.leading, 16)
             }
         }
@@ -320,7 +319,7 @@ struct CollapsibleSection<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 1)
+                        .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -328,3 +327,45 @@ struct CollapsibleSection<Content: View>: View {
     }
 }
 
+// MARK: - Shared Settings Styling
+
+enum SettingsUIStyle {
+    static let borderColor = Color.Aurora.border.opacity(0.45)
+    static let dividerColor = Color.Aurora.border.opacity(0.42)
+    static let borderWidth: CGFloat = 0.75
+}
+
+private struct SettingsInputFieldModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let borderColor: Color?
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var backgroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(borderColor ?? SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
+            )
+    }
+}
+
+extension View {
+    func settingsSoftBorder(cornerRadius: CGFloat) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
+        )
+    }
+
+    func settingsInputField(cornerRadius: CGFloat = 6, borderColor: Color? = nil) -> some View {
+        modifier(SettingsInputFieldModifier(cornerRadius: cornerRadius, borderColor: borderColor))
+    }
+}

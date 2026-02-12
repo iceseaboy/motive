@@ -10,13 +10,10 @@ import SwiftUI
 struct ModelConfigView: View {
     @EnvironmentObject private var configManager: ConfigManager
     @EnvironmentObject private var appState: AppState
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var showSavedFeedback = false
     @State private var showAPIKey = false
     @FocusState private var focusedField: Field?
-    
-    private var isDark: Bool { colorScheme == .dark }
     
     enum Field: Hashable {
         case baseURL, apiKey, modelName
@@ -108,13 +105,9 @@ struct ModelConfigView: View {
                             .padding(.trailing, 10)
                         }
                         .frame(width: 220)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(configManager.hasAPIKey ? Color.Aurora.success.opacity(0.5) : Color.Aurora.border, lineWidth: 1)
+                        .settingsInputField(
+                            cornerRadius: 6,
+                            borderColor: configManager.hasAPIKey ? Color.Aurora.success.opacity(0.5) : nil
                         )
                     }
                 }
@@ -127,14 +120,7 @@ struct ModelConfigView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .frame(width: 220)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.Aurora.border, lineWidth: 1)
-                        )
+                        .settingsInputField(cornerRadius: 6)
                 }
                 
                 // Model Name
@@ -145,14 +131,7 @@ struct ModelConfigView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .frame(width: 220)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.Aurora.border, lineWidth: 1)
-                        )
+                        .settingsInputField(cornerRadius: 6)
                 }
             }
 
@@ -215,7 +194,7 @@ struct ModelConfigView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
         )
     }
     
@@ -278,7 +257,10 @@ private struct CompactProviderCard: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.Aurora.primary.opacity(0.5) : Color.clear, lineWidth: 1)
+                    .stroke(
+                        isSelected ? Color.Aurora.primary.opacity(0.5) : Color.clear,
+                        lineWidth: SettingsUIStyle.borderWidth
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -335,10 +317,6 @@ struct SettingsTextField: View {
     let placeholder: String
     @Binding var text: String
     var isFocused: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
-    
-    private var isDark: Bool { colorScheme == .dark }
-    
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
@@ -346,13 +324,9 @@ struct SettingsTextField: View {
             .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(isFocused ? Color.Aurora.primary : Color.Aurora.border, lineWidth: 1)
+            .settingsInputField(
+                cornerRadius: 5,
+                borderColor: isFocused ? Color.Aurora.primary : nil
             )
     }
 }
@@ -361,10 +335,6 @@ struct SettingsSecureField: View {
     let placeholder: String
     @Binding var text: String
     var isFocused: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
-    
-    private var isDark: Bool { colorScheme == .dark }
-    
     var body: some View {
         SecureField(placeholder, text: $text)
             .textFieldStyle(.plain)
@@ -372,13 +342,9 @@ struct SettingsSecureField: View {
             .foregroundColor(Color.Aurora.textPrimary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(isFocused ? Color.Aurora.primary : Color.Aurora.border, lineWidth: 1)
+            .settingsInputField(
+                cornerRadius: 5,
+                borderColor: isFocused ? Color.Aurora.primary : nil
             )
     }
 }

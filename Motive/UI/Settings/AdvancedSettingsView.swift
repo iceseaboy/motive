@@ -192,14 +192,7 @@ struct AdvancedSettingsView: View {
                                 .padding(.trailing, 8)
                             }
                             .frame(width: 180)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.Aurora.surface)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.Aurora.border, lineWidth: 1)
-                            )
+                            .settingsInputField(cornerRadius: 6)
                         }
                         
                         if configManager.browserAgentProvider.supportsBaseUrl {
@@ -211,14 +204,7 @@ struct AdvancedSettingsView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .controlSize(.small)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(Color.Aurora.surface)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .stroke(Color.Aurora.border, lineWidth: 1)
-                                    )
+                                    .settingsInputField(cornerRadius: 6)
                                     .onChange(of: browserAgentBaseUrlInput) { _, newValue in
                                         configManager.browserAgentBaseUrl = newValue
                                         syncBrowserAgentConfig()

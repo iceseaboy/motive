@@ -82,6 +82,8 @@
 "settings.tab.usage.subtitle" = "トークン使用量と料金の概要";
 "settings.tab.skills" = "スキル";
 "settings.tab.skills.subtitle" = "スキルとツール連携の管理";
+"settings.tab.memory" = "メモリ";
+"settings.tab.memory.subtitle" = "永続メモリとナレッジベース";
 "settings.tab.about.subtitle" = "アプリ情報とコンポーネントのステータス";
 "settings.tab.permissions" = "権限";
 "settings.tab.permissions.subtitle" = "ファイル操作ポリシーと安全ルール";
@@ -278,6 +280,30 @@
 "settings.skills.blocked" = "ブロック済み";
 "settings.skills.disabled" = "無効";
 "settings.skills.enabled" = "有効";
+"settings.skills.restart_pending" = "スキルの変更は現在のタスク完了後に適用されます。";
+
+// Memory
+"settings.memory.system" = "メモリシステム";
+"settings.memory.enable" = "メモリを有効化";
+"settings.memory.enable.desc" = "motive-memory プラグインを使ってセッション間でメモリを保持します";
+"settings.memory.embedding_provider" = "埋め込みプロバイダー";
+"settings.memory.embedding_provider.desc" = "セマンティック検索に使用するモデル";
+"settings.memory.embedding.auto" = "自動";
+"settings.memory.embedding.openai" = "OpenAI";
+"settings.memory.embedding.gemini" = "Gemini";
+"settings.memory.embedding.local" = "ローカル（Ollama）";
+"settings.memory.index_status" = "インデックス状態";
+"settings.memory.indexed_files" = "インデックス済みファイル";
+"settings.memory.indexed_files.desc" = "メモリインデックス内のファイル数";
+"settings.memory.last_sync" = "最終同期";
+"settings.memory.rebuild_index" = "インデックス再構築";
+"settings.memory.rebuild_index.desc" = "すべてのメモリファイルを再インデックスします";
+"settings.memory.rebuild" = "再構築";
+"settings.memory.file_section" = "MEMORY.md";
+"settings.memory.file.desc" = "長期記憶ファイル";
+"settings.memory.no_memories" = "まだメモリはありません。";
+"settings.memory.never" = "未実行";
+"settings.memory.not_indexed" = "未インデックス";
 
 // About
 "settings.about.powered_by" = "技術提供";

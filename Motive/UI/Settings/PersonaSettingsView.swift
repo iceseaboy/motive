@@ -73,7 +73,7 @@ struct PersonaSettingsView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             
@@ -197,22 +197,15 @@ struct PersonaSettingsView: View {
                         .padding(.vertical, 8)
                 }
                 .frame(width: width)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.Aurora.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 1)
-                )
+                .settingsInputField(cornerRadius: 6)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             
             if showDivider {
                 Rectangle()
-                    .fill(Color.Aurora.border)
-                    .frame(height: 1)
+                    .fill(SettingsUIStyle.dividerColor)
+                    .frame(height: SettingsUIStyle.borderWidth)
                     .padding(.leading, 16)
             }
         }
@@ -241,14 +234,7 @@ struct PersonaSettingsView: View {
                     // Emoji display + hidden receiver for Character Palette
                     EmojiInputField(emoji: value)
                         .frame(width: 44, height: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.Aurora.surface)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.Aurora.border, lineWidth: 1)
-                        )
+                        .settingsInputField(cornerRadius: 6)
                     
                     // Emoji picker button
                     Button {
@@ -273,7 +259,7 @@ struct PersonaSettingsView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.Aurora.border, lineWidth: 1)
+                            .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
                     )
                     .help(L10n.Settings.openEmojiPicker)
                 }
@@ -282,8 +268,8 @@ struct PersonaSettingsView: View {
             .padding(.vertical, 12)
             
             Rectangle()
-                .fill(Color.Aurora.border)
-                .frame(height: 1)
+                .fill(SettingsUIStyle.dividerColor)
+                .frame(height: SettingsUIStyle.borderWidth)
                 .padding(.leading, 16)
         }
     }
@@ -533,7 +519,10 @@ private struct PersonaTabButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? Color.Aurora.primary.opacity(0.5) : Color.clear, lineWidth: 1)
+                    .stroke(
+                        isSelected ? Color.Aurora.primary.opacity(0.5) : Color.clear,
+                        lineWidth: SettingsUIStyle.borderWidth
+                    )
             )
         }
         .buttonStyle(.plain)

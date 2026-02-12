@@ -97,6 +97,8 @@ enum L10n {
         static let advancedSubtitle = "settings.tab.advanced.subtitle".localized
         static let skills = "settings.tab.skills".localized
         static let skillsSubtitle = "settings.tab.skills.subtitle".localized
+        static let memory = "settings.tab.memory".localized
+        static let memorySubtitle = "settings.tab.memory.subtitle".localized
         static let aboutSubtitle = "settings.tab.about.subtitle".localized
         
         // General
@@ -290,6 +292,29 @@ enum L10n {
         static let skillsDisabled = "settings.skills.disabled".localized
         static let skillsEnabled = "settings.skills.enabled".localized
         static let skillsRestartPending = "settings.skills.restart_pending".localized
+
+        // Memory
+        static let memorySystem = "settings.memory.system".localized
+        static let memoryEnable = "settings.memory.enable".localized
+        static let memoryEnableDesc = "settings.memory.enable.desc".localized
+        static let memoryEmbeddingProvider = "settings.memory.embedding_provider".localized
+        static let memoryEmbeddingProviderDesc = "settings.memory.embedding_provider.desc".localized
+        static let memoryEmbeddingAuto = "settings.memory.embedding.auto".localized
+        static let memoryEmbeddingOpenAI = "settings.memory.embedding.openai".localized
+        static let memoryEmbeddingGemini = "settings.memory.embedding.gemini".localized
+        static let memoryEmbeddingLocal = "settings.memory.embedding.local".localized
+        static let memoryIndexStatus = "settings.memory.index_status".localized
+        static let memoryIndexedFiles = "settings.memory.indexed_files".localized
+        static let memoryIndexedFilesDesc = "settings.memory.indexed_files.desc".localized
+        static let memoryLastSync = "settings.memory.last_sync".localized
+        static let memoryRebuildIndex = "settings.memory.rebuild_index".localized
+        static let memoryRebuildIndexDesc = "settings.memory.rebuild_index.desc".localized
+        static let memoryRebuild = "settings.memory.rebuild".localized
+        static let memoryFileSection = "settings.memory.file_section".localized
+        static let memoryFileDesc = "settings.memory.file.desc".localized
+        static let memoryNoMemories = "settings.memory.no_memories".localized
+        static let memoryNever = "settings.memory.never".localized
+        static let memoryNotIndexed = "settings.memory.not_indexed".localized
         
         // About
         static let poweredBy = "settings.about.powered_by".localized

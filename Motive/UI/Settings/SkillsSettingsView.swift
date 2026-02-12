@@ -52,8 +52,8 @@ struct SkillsSettingsView: View {
 
                 // Divider
                 Rectangle()
-                    .fill(Color.Aurora.border)
-                    .frame(width: 1)
+                    .fill(SettingsUIStyle.dividerColor)
+                    .frame(width: SettingsUIStyle.borderWidth)
 
                 // Detail panel (right)
                 detailPanel
@@ -66,7 +66,7 @@ struct SkillsSettingsView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
         .onAppear {
@@ -146,7 +146,7 @@ struct SkillsSettingsView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.Aurora.border, lineWidth: 1)
+                        .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
                 )
 
                 // Refresh button
@@ -171,7 +171,7 @@ struct SkillsSettingsView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.Aurora.border, lineWidth: 1)
+                            .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
                     )
                 }
                 .buttonStyle(.plain)
@@ -197,7 +197,7 @@ struct SkillsSettingsView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.Aurora.border, lineWidth: 1)
+                            .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
                     )
                 }
                 .buttonStyle(.plain)
@@ -224,7 +224,7 @@ struct SkillsSettingsView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.Aurora.info.opacity(0.3), lineWidth: 1)
+                        .stroke(Color.Aurora.info.opacity(0.3), lineWidth: SettingsUIStyle.borderWidth)
                 )
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .animation(.auroraFast, value: appState.pendingAgentRestart)

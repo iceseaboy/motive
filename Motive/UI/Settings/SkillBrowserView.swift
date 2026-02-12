@@ -86,7 +86,7 @@ struct SkillBrowserView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
         )
         .padding(.horizontal)
         .padding(.bottom, 8)

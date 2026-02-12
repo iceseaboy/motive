@@ -12,7 +12,7 @@ struct MemorySettingsView: View {
     @EnvironmentObject private var appState: AppState
 
     @State private var indexFileCount: Int = 0
-    @State private var indexLastSync: String = "Never"
+    @State private var indexLastSync: String = L10n.Settings.memoryNever
     @State private var memoryPreview: String = ""
     @State private var isRebuildingIndex: Bool = false
 
@@ -23,8 +23,8 @@ struct MemorySettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Enable/Disable
-            SettingSection("Memory System") {
-                SettingRow("Enable Memory", description: "Persistent memory across sessions using the motive-memory plugin") {
+            SettingSection(L10n.Settings.memorySystem) {
+                SettingRow(L10n.Settings.memoryEnable, description: L10n.Settings.memoryEnableDesc) {
                     Toggle("", isOn: $configManager.memoryEnabled)
                         .toggleStyle(.switch)
                         .tint(Color.Aurora.primary)
@@ -34,12 +34,12 @@ struct MemorySettingsView: View {
                         }
                 }
 
-                SettingRow("Embedding Provider", description: "Model used for semantic search", showDivider: false) {
+                SettingRow(L10n.Settings.memoryEmbeddingProvider, description: L10n.Settings.memoryEmbeddingProviderDesc, showDivider: false) {
                     Picker("", selection: $configManager.memoryEmbeddingProvider) {
-                        Text("Auto").tag("auto")
-                        Text("OpenAI").tag("openai")
-                        Text("Gemini").tag("gemini")
-                        Text("Local (Ollama)").tag("local")
+                        Text(L10n.Settings.memoryEmbeddingAuto).tag("auto")
+                        Text(L10n.Settings.memoryEmbeddingOpenAI).tag("openai")
+                        Text(L10n.Settings.memoryEmbeddingGemini).tag("gemini")
+                        Text(L10n.Settings.memoryEmbeddingLocal).tag("local")
                     }
                     .pickerStyle(.menu)
                     .frame(width: 140)
@@ -50,20 +50,20 @@ struct MemorySettingsView: View {
 
             // Index Status
             if configManager.memoryEnabled {
-                SettingSection("Index Status") {
-                    SettingRow("Indexed Files", description: "Number of files in the memory index") {
+                SettingSection(L10n.Settings.memoryIndexStatus) {
+                    SettingRow(L10n.Settings.memoryIndexedFiles, description: L10n.Settings.memoryIndexedFilesDesc) {
                         Text("\(indexFileCount)")
                             .font(.system(size: 13, design: .monospaced))
                             .foregroundColor(Color.Aurora.textSecondary)
                     }
 
-                    SettingRow("Last Sync") {
+                    SettingRow(L10n.Settings.memoryLastSync) {
                         Text(indexLastSync)
                             .font(.system(size: 12))
                             .foregroundColor(Color.Aurora.textMuted)
                     }
 
-                    SettingRow("Rebuild Index", description: "Re-index all memory files", showDivider: false) {
+                    SettingRow(L10n.Settings.memoryRebuildIndex, description: L10n.Settings.memoryRebuildIndexDesc, showDivider: false) {
                         Button {
                             rebuildIndex()
                         } label: {
@@ -76,7 +76,7 @@ struct MemorySettingsView: View {
                                     Image(systemName: "arrow.clockwise")
                                         .font(.system(size: 11))
                                 }
-                                Text("Rebuild")
+                                Text(L10n.Settings.memoryRebuild)
                                     .font(.system(size: 12, weight: .medium))
                             }
                         }
@@ -86,10 +86,10 @@ struct MemorySettingsView: View {
                 }
 
                 // MEMORY.md Preview
-                SettingSection("MEMORY.md") {
+                SettingSection(L10n.Settings.memoryFileSection) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Long-term memory file")
+                            Text(L10n.Settings.memoryFileDesc)
                                 .font(.system(size: 12))
                                 .foregroundColor(Color.Aurora.textMuted)
                             Spacer()
@@ -99,7 +99,7 @@ struct MemorySettingsView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "pencil")
                                         .font(.system(size: 10))
-                                    Text("Edit")
+                                    Text(L10n.edit)
                                         .font(.system(size: 11, weight: .medium))
                                 }
                             }
@@ -110,7 +110,7 @@ struct MemorySettingsView: View {
                         .padding(.top, 12)
 
                         ScrollView {
-                            Text(memoryPreview.isEmpty ? "No memories yet." : memoryPreview)
+                            Text(memoryPreview.isEmpty ? L10n.Settings.memoryNoMemories : memoryPreview)
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundColor(memoryPreview.isEmpty ? Color.Aurora.textMuted : Color.Aurora.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,7 +147,7 @@ struct MemorySettingsView: View {
             }
         } else {
             indexFileCount = 0
-            indexLastSync = "Not indexed"
+            indexLastSync = L10n.Settings.memoryNotIndexed
         }
     }
 
