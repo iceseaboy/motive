@@ -82,6 +82,8 @@
 "settings.tab.usage.subtitle" = "Token usage and cost summary";
 "settings.tab.skills" = "Skills";
 "settings.tab.skills.subtitle" = "Manage installed skills and tool wiring";
+"settings.tab.memory" = "Memory";
+"settings.tab.memory.subtitle" = "Persistent memory and knowledge base";
 "settings.tab.about.subtitle" = "Application info and component status";
 "settings.tab.permissions" = "Permissions";
 "settings.tab.permissions.subtitle" = "File operation policies and safety rules";
@@ -278,6 +280,28 @@
 "settings.skills.blocked" = "Blocked";
 "settings.skills.disabled" = "Disabled";
 "settings.skills.enabled" = "Enabled";
+"settings.skills.restart_pending" = "Skill changes will apply after the current task finishes.";
+
+// Memory
+"settings.memory.system" = "Memory System";
+"settings.memory.enable" = "Enable Memory";
+"settings.memory.enable.desc" = "Persistent memory across sessions using the motive-memory plugin";
+"settings.memory.index_status" = "Index Status";
+"settings.memory.indexed_files" = "Indexed Files";
+"settings.memory.indexed_files.desc" = "Number of files in the memory index";
+"settings.memory.last_sync" = "Last Sync";
+"settings.memory.rebuild_index" = "Rebuild Index";
+"settings.memory.rebuild_index.desc" = "Re-index all memory files";
+"settings.memory.rebuild" = "Rebuild";
+"settings.memory.file_section" = "MEMORY.md";
+"settings.memory.file.desc" = "Long-term memory file";
+"settings.memory.no_memories" = "No memories yet.";
+"settings.memory.never" = "Never";
+"settings.memory.not_indexed" = "Not indexed";
+"settings.memory.plugin_status" = "Plugin Status";
+"settings.memory.plugin_status.desc" = "Runtime availability of motive-memory tools";
+"settings.memory.plugin_available" = "Available";
+"settings.memory.plugin_missing" = "Missing plugin";
 
 // About
 "settings.about.powered_by" = "POWERED BY";

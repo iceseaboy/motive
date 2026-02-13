@@ -29,6 +29,13 @@ extension AppState {
         drawerWindowController?.hide()
     }
 
+    /// Show the Drawer (no-op if already visible)
+    func showDrawer() {
+        guard let drawerWindowController, !drawerWindowController.isVisible else { return }
+        drawerWindowController.updateStatusBarButtonFrame(statusBarController?.buttonFrame)
+        drawerWindowController.show()
+    }
+
     /// Get the Drawer window for showing alerts as sheets
     var drawerWindowRef: NSWindow? {
         drawerWindowController?.getWindow()

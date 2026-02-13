@@ -107,7 +107,7 @@ struct PermissionPolicyView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.Aurora.warning.opacity(0.3), lineWidth: 1)
+                        .stroke(Color.Aurora.warning.opacity(0.3), lineWidth: SettingsUIStyle.borderWidth)
                 )
             }
         }
@@ -147,7 +147,10 @@ struct PermissionPolicyView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isSelected ? Color.clear : Color.Aurora.border, lineWidth: 1)
+                    .stroke(
+                        isSelected ? Color.clear : SettingsUIStyle.borderColor,
+                        lineWidth: SettingsUIStyle.borderWidth
+                    )
             )
             .shadow(color: isSelected ? Color.Aurora.accentMid.opacity(0.3) : .clear, radius: 8, y: 4)
         }
@@ -173,8 +176,8 @@ struct PermissionPolicyView: View {
                     
                     if index < tools.count - 1 {
                         Rectangle()
-                            .fill(Color.Aurora.border)
-                            .frame(height: 1)
+                            .fill(SettingsUIStyle.dividerColor)
+                            .frame(height: SettingsUIStyle.borderWidth)
                             .padding(.leading, 14)
                     }
                 }
@@ -185,7 +188,7 @@ struct PermissionPolicyView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
     }
@@ -323,7 +326,7 @@ struct PermissionPolicyView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
     }

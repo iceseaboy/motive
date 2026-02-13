@@ -7,7 +7,43 @@
 
 import SwiftUI
 
+struct ModeChoice {
+    let value: String
+    let name: String
+    let icon: String
+    let description: String
+}
+
 extension CommandBarView {
+    var availableModeChoices: [ModeChoice] {
+        var choices: [ModeChoice] = [
+            ModeChoice(
+                value: "agent",
+                name: "Agent",
+                icon: "sparkle",
+                description: "Default mode - full tool access"
+            ),
+            ModeChoice(
+                value: "plan",
+                name: "Plan",
+                icon: "checklist",
+                description: "Read-only analysis and planning"
+            ),
+        ]
+        if !choices.contains(where: { $0.value == configManager.currentAgent }) {
+            let value = configManager.currentAgent
+            choices.append(
+                ModeChoice(
+                    value: value,
+                    name: value.prefix(1).uppercased() + String(value.dropFirst()),
+                    icon: "circle.hexagongrid.fill",
+                    description: "Custom mode from OpenCode config"
+                )
+            )
+        }
+        return choices
+    }
+
     // MARK: - Histories List (below input)
 
     var historiesListView: some View {
@@ -73,6 +109,39 @@ extension CommandBarView {
             }
         }
         .frame(maxHeight: .infinity)
+    }
+
+    // MARK: - Modes List (below input)
+
+    var modesListView: some View {
+        ScrollView {
+            VStack(spacing: 2) {
+                ForEach(Array(availableModeChoices.enumerated()), id: \.offset) { index, modeChoice in
+                    ModeListItem(
+                        name: modeChoice.name,
+                        icon: modeChoice.icon,
+                        description: modeChoice.description,
+                        isSelected: selectedModeIndex == index,
+                        isCurrent: configManager.currentAgent == modeChoice.value
+                    ) {
+                        selectMode(modeChoice.value)
+                    }
+                    .id(index)
+                }
+            }
+            .padding(.vertical, AuroraSpacing.space2)
+            .padding(.horizontal, AuroraSpacing.space3)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func selectMode(_ mode: String) {
+        configManager.currentAgent = mode
+        configManager.generateOpenCodeConfig()
+        appState.reconfigureBridge()
+        let wasFromSession = self.mode.isFromSession || !appState.messages.isEmpty
+        self.mode = wasFromSession ? .completed : .idle
+        inputText = ""
     }
 
     // MARK: - Command List View (Below Input)

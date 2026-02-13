@@ -11,7 +11,7 @@ import ServiceManagement
 import SwiftUI
 
 @MainActor
-final class ConfigManager: ObservableObject {
+final class ConfigManager: ObservableObject, SkillConfigProvider {
     enum Provider: String, CaseIterable, Identifiable {
         // Primary providers (most common)
         case claude
@@ -233,14 +233,23 @@ final class ConfigManager: ObservableObject {
     @AppStorage("skillsSystemEnabled") var skillsSystemEnabled: Bool = true
     @AppStorage("skillsConfigJSON") var skillsConfigJSON: String = ""
 
+    // Context compaction
+    @AppStorage("compactionEnabled") var compactionEnabled: Bool = true
+
+    // Memory system
+    @AppStorage("memoryEnabled") var memoryEnabled: Bool = true
+
+    // Multi-agent
+    @AppStorage("currentAgent") var currentAgent: String = "agent"
+
     // Trust level — controls how aggressively the AI operates
-    @AppStorage("trustLevel") var trustLevelRawValue: String = TrustLevel.careful.rawValue
+    @AppStorage("trustLevel") var trustLevelRawValue: String = TrustLevel.balanced.rawValue
 
     // Token usage totals (per model)
     @AppStorage("tokenUsageTotalsJSON") var tokenUsageTotalsJSON: String = "{}"
 
     var trustLevel: TrustLevel {
-        get { TrustLevel(rawValue: trustLevelRawValue) ?? .careful }
+        get { TrustLevel(rawValue: trustLevelRawValue) ?? .balanced }
         set {
             trustLevelRawValue = newValue.rawValue
             ToolPermissionPolicy.shared.applyTrustLevel(newValue)
@@ -282,10 +291,33 @@ final class ConfigManager: ObservableObject {
         }
     }
 
+    let providerConfigStore = ProviderConfigStore()
+
+    // MARK: - Extracted Managers
+
+    lazy var binaryManager: BinaryManager = BinaryManager(
+        getSourcePath: { [weak self] in self?.openCodeBinarySourcePath ?? "" },
+        setSourcePath: { [weak self] in self?.openCodeBinarySourcePath = $0 },
+        setBinaryStatus: { [weak self] in self?.binaryStatus = $0 }
+    )
+
+    lazy var usageTracker: UsageTracker = UsageTracker(
+        getJSON: { [weak self] in self?.tokenUsageTotalsJSON ?? "{}" },
+        setJSON: { [weak self] in self?.tokenUsageTotalsJSON = $0 }
+    )
+
+    lazy var projectManager: ProjectManager = ProjectManager(
+        getCurrentPath: { [weak self] in self?.currentProjectPath ?? "" },
+        setCurrentPath: { [weak self] in self?.currentProjectPath = $0 },
+        getRecentJSON: { [weak self] in self?.recentProjectsJSON ?? "[]" },
+        setRecentJSON: { [weak self] in self?.recentProjectsJSON = $0 }
+    )
+
     let keychainService = "com.velvet.motive"
     
-    // Cache API keys per provider
+    // Cache API keys and base URLs per provider
     var cachedAPIKeys: [Provider: String] = [:]
+    var cachedBaseURLs: [Provider: String] = [:]
     
     /// Migrate legacy per-account keychain items to unified storage
     /// This ensures only ONE authorization prompt for all API keys
@@ -306,17 +338,26 @@ final class ConfigManager: ObservableObject {
         KeychainStore.migrateToUnifiedStorage(service: keychainService, accounts: legacyAccounts)
     }
     
-    /// Preload current provider's API key into cache
-    /// Call this once at startup to trigger Keychain prompt early
-    /// Now triggers only ONE prompt thanks to unified storage
+    /// Preload current provider's API key and base URL into cache.
+    /// Call this once at startup to trigger Keychain prompt early.
+    /// Now triggers only ONE prompt thanks to unified storage.
     func preloadAPIKeys() {
         // First, migrate any legacy keychain items (one-time)
         migrateKeychainIfNeeded()
+        
+        // Migrate base URLs from UserDefaults to Keychain (one-time)
+        migrateBaseURLsIfNeeded()
         
         // Read current provider's key (single unified Keychain read)
         let account = "opencode.api.key.\(provider.rawValue)"
         let value = KeychainStore.read(service: keychainService, account: account) ?? ""
         cachedAPIKeys[provider] = value
+        
+        // Preload base URL
+        let baseURLAccount = "opencode.base.url.\(provider.rawValue)"
+        let baseURLValue = KeychainStore.read(service: keychainService, account: baseURLAccount)
+            ?? providerConfigStore.defaultBaseURL(for: provider)
+        cachedBaseURLs[provider] = baseURLValue
         
         // Read browser agent key from the same unified storage (no additional prompt)
         if browserUseEnabled {
@@ -324,6 +365,24 @@ final class ConfigManager: ObservableObject {
             let browserValue = KeychainStore.read(service: keychainService, account: browserAccount) ?? ""
             cachedBrowserAgentAPIKey = browserValue
         }
+    }
+    
+    /// One-time migration of base URLs from UserDefaults to Keychain.
+    private func migrateBaseURLsIfNeeded() {
+        let migrationKey = "baseURLMigratedToKeychain"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+        
+        for p in Provider.allCases {
+            let legacyValue = providerConfigStore.baseURL(for: p)
+            let defaultValue = providerConfigStore.defaultBaseURL(for: p)
+            // Only migrate non-default, non-empty values
+            if !legacyValue.isEmpty && legacyValue != defaultValue {
+                let account = "opencode.base.url.\(p.rawValue)"
+                KeychainStore.write(service: keychainService, account: account, value: legacyValue)
+            }
+        }
+        
+        UserDefaults.standard.set(true, forKey: migrationKey)
     }
     
     // Status for UI
@@ -367,6 +426,55 @@ final class ConfigManager: ObservableObject {
     /// Path to generated opencode.json config
     @AppStorage("openCodeConfigPath") var openCodeConfigPath: String = ""
     @AppStorage("openCodeConfigDir") var openCodeConfigDir: String = ""
+
+    // MARK: - Stale State Detection
+    
+    /// Detect and reset stale UserDefaults when data directories were deleted.
+    ///
+    /// UserDefaults (plist at ~/Library/Preferences/) survives even when users
+    /// delete ~/.motive/ and ~/Library/Application Support/Motive/.
+    /// This causes stale project paths, usage stats, and skill configs to persist
+    /// after a "clean reinstall", leading to confusing behavior.
+    ///
+    /// Detection: if ~/.motive/ doesn't exist but hasCompletedOnboarding is true,
+    /// the user deleted data directories and expects a fresh start.
+    func detectAndResetStaleState() {
+        let workspaceDir = WorkspaceManager.defaultWorkspaceURL
+        let workspaceExists = FileManager.default.fileExists(atPath: workspaceDir.path)
+        
+        guard !workspaceExists && hasCompletedOnboarding else {
+            return // Normal state: workspace exists, or first-ever launch
+        }
+        
+        Log.config("Detected stale UserDefaults: ~/.motive/ missing but onboarding completed. Resetting data-dependent state.")
+        
+        // Reset data-tied state (these reference deleted directories or sessions)
+        currentProjectPath = ""
+        recentProjectsJSON = "[]"
+        tokenUsageTotalsJSON = "{}"
+        
+        // Reset onboarding so user goes through setup again
+        hasCompletedOnboarding = false
+        
+        // Note: we intentionally KEEP user preferences:
+        // - provider, model, baseURL (user's AI configuration)
+        // - skillsConfigJSON (user's skill enable/disable choices)
+        // - hotkey, appearanceMode, language (UI preferences)
+        // - browserUseEnabled, trustLevel (feature preferences)
+        // - API keys (stored in Keychain, not affected by plist)
+        
+        Log.config("Stale state reset complete. User will see onboarding on next launch.")
+    }
+    
+    // MARK: - Migration
+
+    /// Migrate legacy "motive" agent name to "agent"
+    func migrateAgentNameIfNeeded() {
+        if currentAgent == "motive" {
+            Log.config("Migrating agent name: motive → agent")
+            currentAgent = "agent"
+        }
+    }
 
     // MARK: - Errors
     

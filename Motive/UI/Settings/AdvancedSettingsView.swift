@@ -192,14 +192,7 @@ struct AdvancedSettingsView: View {
                                 .padding(.trailing, 8)
                             }
                             .frame(width: 180)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.Aurora.surface)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .stroke(Color.Aurora.border, lineWidth: 1)
-                            )
+                            .settingsInputField(cornerRadius: 6)
                         }
                         
                         if configManager.browserAgentProvider.supportsBaseUrl {
@@ -211,14 +204,7 @@ struct AdvancedSettingsView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .controlSize(.small)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(Color.Aurora.surface)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .stroke(Color.Aurora.border, lineWidth: 1)
-                                    )
+                                    .settingsInputField(cornerRadius: 6)
                                     .onChange(of: browserAgentBaseUrlInput) { _, newValue in
                                         configManager.browserAgentBaseUrl = newValue
                                         syncBrowserAgentConfig()
@@ -245,6 +231,29 @@ struct AdvancedSettingsView: View {
                             .toggleStyle(.switch)
                             .tint(Color.Aurora.primary)
                             .controlSize(.small)
+                    }
+                }
+
+                // Context Compaction Section
+                CollapsibleSection("Context Compaction", icon: "arrow.triangle.2.circlepath") {
+                    SettingRow("Auto Compaction", description: "Automatically compress context when approaching model limits") {
+                        Toggle("", isOn: $configManager.compactionEnabled)
+                            .toggleStyle(.switch)
+                            .tint(Color.Aurora.primary)
+                            .controlSize(.small)
+                            .onChange(of: configManager.compactionEnabled) { _, _ in
+                                appState.scheduleAgentRestart()
+                            }
+                    }
+
+                    SettingRow("Memory System", description: "Enable persistent memory across sessions (requires motive-memory plugin)", showDivider: false) {
+                        Toggle("", isOn: $configManager.memoryEnabled)
+                            .toggleStyle(.switch)
+                            .tint(Color.Aurora.primary)
+                            .controlSize(.small)
+                            .onChange(of: configManager.memoryEnabled) { _, _ in
+                                appState.scheduleAgentRestart()
+                            }
                     }
                 }
             }

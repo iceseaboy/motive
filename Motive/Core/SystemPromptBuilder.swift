@@ -8,42 +8,57 @@
 
 import Foundation
 
+/// Session types for context filtering
+enum SessionType {
+    case personal  // Full persona (SOUL + USER + MEMORY + AGENTS)
+    case plan      // Read-only analysis mode
+    case project   // Project-focused (AGENTS only)
+}
+
 /// Generates comprehensive system prompts with context-aware instructions
 @MainActor
 final class SystemPromptBuilder {
-    
+
     private let skillManager: SkillManager
-    
+
     init(skillManager: SkillManager? = nil) {
         self.skillManager = skillManager ?? SkillManager.shared
     }
-    
+
     /// Build the complete system prompt
-    func build(workingDirectory: String? = nil) -> String {
+    func build(workingDirectory: String? = nil, sessionType: SessionType = .personal) -> String {
         var sections: [String] = []
-        
+
         sections.append(buildIdentity())
         sections.append(buildEnvironment(cwd: workingDirectory))
-        
+
         // Add persona context from workspace files
-        let personaSection = buildPersonaContext()
+        let personaSection = buildPersonaContext(sessionType: sessionType)
         if !personaSection.isEmpty {
             sections.append(personaSection)
         }
-        
+
         sections.append(buildCommunicationRules())
-        sections.append(buildSkillsList())
         sections.append(buildMCPToolInstructions())
-        
+
         // Add capability instructions (e.g., browser automation)
         let capabilitySection = buildCapabilityInstructions()
         if !capabilitySection.isEmpty {
             sections.append(capabilitySection)
         }
-        
+
         sections.append(buildBehavioralGuidelines())
+
+        // Add memory instructions for personal sessions
+        if sessionType == .personal {
+            let memorySection = buildMemoryInstructions()
+            if !memorySection.isEmpty {
+                sections.append(memorySection)
+            }
+        }
+
         sections.append(buildExamples())
-        
+
         return sections.joined(separator: "\n\n")
     }
     
@@ -82,37 +97,16 @@ final class SystemPromptBuilder {
         """
     }
     
-    private func buildPersonaContext() -> String {
-        let files = WorkspaceManager.shared.loadBootstrapFiles()
-        guard !files.isEmpty else { return "" }
-        
+    private func buildPersonaContext(sessionType: SessionType = .personal) -> String {
         let workspacePath = WorkspaceManager.defaultWorkspaceURL.path
-        
+
+        // Persona file contents are now loaded by OpenCode's native `instructions` system
+        // (configured in opencode.json). We only provide structural guidance here.
         var lines: [String] = ["<persona-context>"]
-        
-        // CRITICAL: Tell AI where persona files are located
         lines.append("## Motive Workspace")
-        lines.append("Your persona configuration files are located at: \(workspacePath)/")
-        lines.append("")
-        lines.append("IMPORTANT: When modifying persona files (SOUL.md, USER.md, IDENTITY.md, AGENTS.md),")
-        lines.append("ALWAYS use the full path under \(workspacePath)/, NOT files in the current project directory.")
-        lines.append("")
-        
-        // Special handling for SOUL.md (like OpenClaw)
-        if files.contains(where: { $0.name == "SOUL.md" }) {
-            lines.append("If SOUL.md is present, embody its persona and tone.")
-            lines.append("")
-        }
-        
-        for file in files {
-            // Skip IDENTITY.md (already parsed for buildIdentity) and BOOTSTRAP.md (user instructions only)
-            if file.name == "IDENTITY.md" || file.name == "BOOTSTRAP.md" { continue }
-            
-            lines.append("## \(file.name) (\(workspacePath)/\(file.name))")
-            lines.append(file.content)
-            lines.append("")
-        }
-        
+        lines.append("Your persona files at \(workspacePath)/ are loaded into your context automatically.")
+        lines.append("When modifying them, use full paths under \(workspacePath)/.")
+        lines.append("If SOUL.md is present, embody its persona and tone.")
         lines.append("</persona-context>")
         return lines.joined(separator: "\n")
     }
@@ -272,34 +266,27 @@ final class SystemPromptBuilder {
         """
     }
 
-    private func buildSkillsList() -> String {
-        let skills = SkillRegistry.shared.promptEntries()
-        return Self.formatAvailableSkills(skills)
-    }
+    // Skills are synced to $OPENCODE_CONFIG_DIR/skills/<name>/SKILL.md
+    // and discovered by OpenCode's native `skill` tool — no system prompt listing needed.
 
-    static func formatAvailableSkills(_ skills: [SkillEntry]) -> String {
-        guard !skills.isEmpty else { return "" }
+    private func buildMemoryInstructions() -> String {
+        let memoryMd = WorkspaceManager.defaultWorkspaceURL.appendingPathComponent("MEMORY.md")
 
-        var content: [String] = []
-        content.append("## Skills (mandatory)")
-        content.append("Before replying: scan <available_skills> <description> entries.")
-        content.append("- If exactly one skill clearly applies: read its SKILL.md at <location> with `Read`, then follow it.")
-        content.append("- If multiple could apply: choose the most specific one, then read/follow it.")
-        content.append("- If none clearly apply: do not read any SKILL.md.")
-        content.append("Constraints: never read more than one skill up front; only read after selecting.")
-        content.append("")
-        content.append("<available_skills>")
+        // Only include if MEMORY.md exists
+        guard FileManager.default.fileExists(atPath: memoryMd.path) else { return "" }
 
-        for skill in skills {
-            content.append("<skill>")
-            content.append("<name>\(skill.name)</name>")
-            content.append("<description>\(skill.description)</description>")
-            content.append("<location>\(skill.filePath)</location>")
-            content.append("</skill>")
-        }
-
-        content.append("</available_skills>")
-        return content.joined(separator: "\n")
+        // MEMORY.md content is loaded by OpenCode's instructions system.
+        // Memory tools are provided by the motive-memory plugin.
+        // We only provide usage guidance here.
+        return """
+        <memory>
+        ## Memory System
+        - `memory_search(query)` — Semantic + keyword search across all memory files
+        - `memory_get(path, from, lines)` — Read specific memory file range
+        - `memory_write(content, file?)` — Write to MEMORY.md or daily log
+        At session start, use memory_search for relevant context before answering.
+        </memory>
+        """
     }
     
     private func buildExamples() -> String {

@@ -10,7 +10,6 @@ set -e
 #   ./build-release.sh minor                        # Bump minor version (0.1.0 → 0.2.0)
 #   ./build-release.sh major                        # Bump major version (0.1.0 → 1.0.0)
 #   ./build-release.sh --notarize                   # Build and notarize
-#   ./build-release.sh --with-cloudkit              # Build with CloudKit/Push Notifications enabled
 #   ./build-release.sh --arm64-only                 # Build only for Apple Silicon
 #   ./build-release.sh --x86-only                   # Build only for Intel
 #
@@ -19,7 +18,6 @@ set -e
 #   TEAM_ID           - Team ID (e.g., XAA75S2V8H)
 #   APP_PASSWORD      - App-specific password for notarization
 #   MOTIVE_NOTARIZE   - Set to "1" to enable notarization by default
-#   MOTIVE_CLOUDKIT   - Set to "1" to enable CloudKit by default
 
 APP_NAME="Motive"
 SCHEME="Motive"
@@ -27,14 +25,16 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
 RELEASE_DIR="$PROJECT_DIR/release"
 PBXPROJ="$PROJECT_DIR/$APP_NAME.xcodeproj/project.pbxproj"
+STAGED_OPENCODE_PATH="$BUILD_DIR/opencode-staged"
 
-# OpenCode release URLs (from anomalyco/opencode - the correct repo)
-OPENCODE_ARM64_URL="https://github.com/anomalyco/opencode/releases/latest/download/opencode-darwin-arm64.zip"
-OPENCODE_X64_URL="https://github.com/anomalyco/opencode/releases/latest/download/opencode-darwin-x64.zip"
+# OpenCode version for release builds.
+# Pin by default to avoid runtime API drift from "latest" causing regressions.
+OPENCODE_VERSION="${OPENCODE_VERSION:-1.1.42}"
+OPENCODE_ARM64_URL="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-darwin-arm64.zip"
+OPENCODE_X64_URL="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-darwin-x64.zip"
 
 # Settings from environment variables (with defaults)
 NOTARIZE="${MOTIVE_NOTARIZE:-}"
-WITH_CLOUDKIT="${MOTIVE_CLOUDKIT:-}"
 APPLE_ID="${APPLE_ID:-}"
 TEAM_ID="${TEAM_ID:-}"
 APP_PASSWORD="${APP_PASSWORD:-}"
@@ -57,6 +57,14 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 config() { echo -e "${CYAN}[CONFIG]${NC} $1"; }
 
+cleanup_staged_opencode() {
+    if [ -f "$STAGED_OPENCODE_PATH" ]; then
+        rm -f "$STAGED_OPENCODE_PATH" || true
+    fi
+}
+
+trap cleanup_staged_opencode EXIT
+
 # Parse command line arguments
 parse_args() {
     BUMP_TYPE=""
@@ -64,10 +72,6 @@ parse_args() {
         case $1 in
             --notarize|-n)
                 NOTARIZE="1"
-                shift
-                ;;
-            --with-cloudkit|--cloudkit)
-                WITH_CLOUDKIT="1"
                 shift
                 ;;
             --arm64-only)
@@ -116,7 +120,6 @@ show_help() {
     echo "  major                     Bump major version (0.1.0 → 1.0.0)"
     echo ""
     echo "Build options:"
-    echo "  --with-cloudkit           Include CloudKit & Push Notifications (requires provisioning profile)"
     echo "  --arm64-only              Build only for Apple Silicon"
     echo "  --x86-only, --intel-only  Build only for Intel"
     echo ""
@@ -131,12 +134,10 @@ show_help() {
     echo "  TEAM_ID                   Team ID"
     echo "  APP_PASSWORD              App-specific password"
     echo "  MOTIVE_NOTARIZE=1         Enable notarization by default"
-    echo "  MOTIVE_CLOUDKIT=1         Enable CloudKit by default"
     echo ""
     echo "Examples:"
     echo "  $0                                    Build without notarization"
     echo "  $0 patch --notarize                   Bump patch and notarize"
-    echo "  $0 --notarize --with-cloudkit         Build with CloudKit and notarize"
     echo "  $0 --arm64-only --notarize            Build only arm64 and notarize"
     echo ""
     echo "Tip: Add to ~/.zshrc or ~/.bashrc for persistent config:"
@@ -151,7 +152,7 @@ show_config() {
     echo ""
     config "Build Configuration:"
     config "  Notarization:  $([ "$NOTARIZE" = "1" ] && echo "✅ Enabled" || echo "❌ Disabled")"
-    config "  CloudKit:      $([ "$WITH_CLOUDKIT" = "1" ] && echo "✅ Enabled" || echo "❌ Disabled")"
+    config "  OpenCode:      v${OPENCODE_VERSION}"
     config "  Architectures: $([ "$BUILD_ARM64" = "1" ] && echo "arm64 ")$([ "$BUILD_X86" = "1" ] && echo "x86_64")"
     if [ "$NOTARIZE" = "1" ]; then
         config "  Apple ID:      $([ -n "$APPLE_ID" ] && echo "${APPLE_ID}" || echo "(will prompt)")"
@@ -194,20 +195,24 @@ prompt_notarization_credentials() {
     fi
 }
 
-# Get entitlements path based on CloudKit setting
+# Get entitlements path
 get_entitlements_path() {
-    if [ "$WITH_CLOUDKIT" = "1" ]; then
-        echo "$PROJECT_DIR/$APP_NAME/Entitlements/MotiveReleaseCloudKit.entitlements"
-    else
-        echo "$PROJECT_DIR/$APP_NAME/Entitlements/MotiveRelease.entitlements"
-    fi
+    echo "$PROJECT_DIR/$APP_NAME/Entitlements/MotiveRelease.entitlements"
 }
 
 # Clean previous builds
 clean() {
     log "Cleaning previous builds..."
-    rm -rf "$BUILD_DIR"
-    rm -rf "$RELEASE_DIR"
+    if [ -d "$BUILD_DIR" ]; then
+        chflags -R nouchg "$BUILD_DIR" 2>/dev/null || true
+        chmod -R u+w "$BUILD_DIR" 2>/dev/null || true
+        rm -rf "$BUILD_DIR"
+    fi
+    if [ -d "$RELEASE_DIR" ]; then
+        chflags -R nouchg "$RELEASE_DIR" 2>/dev/null || true
+        chmod -R u+w "$RELEASE_DIR" 2>/dev/null || true
+        rm -rf "$RELEASE_DIR"
+    fi
     mkdir -p "$BUILD_DIR"
     mkdir -p "$RELEASE_DIR"
 }
@@ -235,9 +240,19 @@ download_opencode() {
 build_app() {
     local arch=$1
     local build_path="$BUILD_DIR/$arch"
+    local opencode_path="$BUILD_DIR/opencode-$arch"
     
     log "Building $APP_NAME for $arch..."
-    
+
+    if [ ! -f "$opencode_path" ]; then
+        error "OpenCode binary for $arch not found at $opencode_path (download step likely failed)"
+    fi
+
+    # Stage OpenCode into the path already whitelisted by Xcode script sandbox
+    # (SCRIPT_INPUT_FILE_1 = Motive/Resources/opencode).
+    cp -f "$opencode_path" "$STAGED_OPENCODE_PATH"
+    chmod +x "$STAGED_OPENCODE_PATH"
+
     xcodebuild -project "$PROJECT_DIR/$APP_NAME.xcodeproj" \
         -scheme "$SCHEME" \
         -configuration Release \
@@ -245,7 +260,8 @@ build_app() {
         -derivedDataPath "$build_path" \
         ONLY_ACTIVE_ARCH=NO \
         MACOSX_DEPLOYMENT_TARGET=15.0 \
-        clean build
+        ENABLE_USER_SCRIPT_SANDBOXING=NO \
+        build
     
     log "Build complete for $arch"
 }
@@ -255,25 +271,25 @@ inject_opencode() {
     local arch=$1
     local build_path="$BUILD_DIR/$arch"
     local app_path="$build_path/Build/Products/Release/$APP_NAME.app"
-    local resources_path="$app_path/Contents/Resources"
+    local contents_path="$app_path/Contents"
+    local bundle_opencode="$contents_path/opencode"
     local opencode_src="$BUILD_DIR/opencode-$arch"
     
-    log "Injecting OpenCode binary into $arch app bundle..."
+    log "Verifying bundled OpenCode for $arch..."
     
     if [ ! -d "$app_path" ]; then
         error "App not found at $app_path"
     fi
-    
-    mkdir -p "$resources_path"
-    cp "$opencode_src" "$resources_path/opencode"
-    chmod +x "$resources_path/opencode"
-    
-    # Sign the binary
-    log "Signing OpenCode binary..."
-    codesign --remove-signature "$resources_path/opencode" 2>/dev/null || true
-    codesign --force --sign - "$resources_path/opencode"
-    
-    log "OpenCode injected for $arch"
+
+    # Xcode Run Script should already copy opencode into Contents/opencode.
+    # Keep fallback copy for resilience when running custom build flows.
+    if [ ! -f "$bundle_opencode" ]; then
+        warn "OpenCode missing after build, applying fallback copy to Contents/opencode"
+        cp "$opencode_src" "$bundle_opencode"
+        chmod +x "$bundle_opencode"
+    fi
+
+    log "OpenCode present at $bundle_opencode"
 }
 
 # Re-sign the entire app bundle
@@ -294,14 +310,16 @@ sign_app() {
         
         # Sign all embedded binaries first (inside-out signing)
         local resources_path="$app_path/Contents/Resources"
+        local contents_path="$app_path/Contents"
         
-        # Sign OpenCode binary
-        local opencode_path="$resources_path/opencode"
-        if [ -f "$opencode_path" ]; then
-            log "Signing OpenCode binary..."
-            codesign --force --options runtime --timestamp \
-                --sign "$signing_identity" "$opencode_path"
-        fi
+        # Sign OpenCode binary (support both locations for compatibility)
+        for opencode_path in "$contents_path/opencode" "$resources_path/opencode"; do
+            if [ -f "$opencode_path" ]; then
+                log "Signing OpenCode binary at $(basename "$(dirname "$opencode_path")")/$(basename "$opencode_path")..."
+                codesign --force --options runtime --timestamp \
+                    --sign "$signing_identity" "$opencode_path"
+            fi
+        done
         
         # Sign browser-use-sidecar (Python bundle)
         # CRITICAL: Must include entitlements with disable-library-validation
@@ -354,6 +372,109 @@ sign_app() {
         codesign --force --deep --sign - "$app_path"
         log "App signed with ad-hoc signature for $arch"
     fi
+}
+
+# Smoke test bundled opencode server + async prompt path.
+smoke_test_bundled_opencode() {
+    local arch=$1
+    local build_path="$BUILD_DIR/$arch"
+    local app_path="$build_path/Build/Products/Release/$APP_NAME.app"
+    local opencode_bin="$app_path/Contents/opencode"
+    local plugin_entry="$app_path/Contents/Resources/Plugins/motive-memory/src/index.ts"
+    local smoke_root="$BUILD_DIR/smoke-$arch"
+    local smoke_workspace="$smoke_root/workspace"
+    local smoke_config="$smoke_root/opencode.json"
+    local smoke_log="$smoke_root/server.log"
+    local smoke_port
+
+    log "Running smoke test for $arch bundle..."
+
+    [ -f "$opencode_bin" ] || error "Smoke test failed: bundled opencode missing at $opencode_bin"
+    [ -f "$plugin_entry" ] || error "Smoke test failed: memory plugin entry missing at $plugin_entry"
+
+    rm -rf "$smoke_root"
+    mkdir -p "$smoke_workspace"
+    smoke_port=$([ "$arch" = "arm64" ] && echo "47100" || echo "47101")
+
+    cat > "$smoke_config" <<EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "default_agent": "agent",
+  "enabled_providers": ["openai"],
+  "permission": {
+    "bash": "allow",
+    "edit": "allow",
+    "external_directory": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "question": "allow",
+    "read": "allow",
+    "task": "allow",
+    "webfetch": "allow",
+    "websearch": "allow"
+  },
+  "agent": {
+    "agent": {
+      "description": "smoke test agent",
+      "prompt": "smoke test",
+      "mode": "primary",
+      "permission": {
+        "bash": "allow",
+        "edit": "allow",
+        "external_directory": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "question": "allow",
+        "read": "allow",
+        "task": "allow",
+        "webfetch": "allow",
+        "websearch": "allow"
+      }
+    }
+  },
+  "plugin": ["file://$plugin_entry"]
+}
+EOF
+
+    OPENCODE_CONFIG="$smoke_config" OPENCODE_CONFIG_DIR="$smoke_root" \
+        MOTIVE_WORKSPACE="$smoke_workspace" "$opencode_bin" serve --port "$smoke_port" --hostname 127.0.0.1 \
+        > "$smoke_log" 2>&1 &
+    local server_pid=$!
+
+    cleanup_smoke() {
+        kill "$server_pid" >/dev/null 2>&1 || true
+    }
+    trap cleanup_smoke RETURN
+
+    local started=""
+    for _ in $(seq 1 30); do
+        if grep -q "listening on http://127.0.0.1:$smoke_port" "$smoke_log" 2>/dev/null; then
+            started="1"
+            break
+        fi
+        sleep 0.5
+    done
+    [ -n "$started" ] || error "Smoke test failed: opencode server did not start ($smoke_log)"
+
+    python3 - <<PY || error "Smoke test failed: prompt_async hello did not return 204"
+import json
+import urllib.request
+base = "http://127.0.0.1:$smoke_port"
+headers = {"Content-Type": "application/json", "x-opencode-directory": "$smoke_workspace"}
+req = urllib.request.Request(base + "/session", data=b"{}", headers=headers, method="POST")
+with urllib.request.urlopen(req, timeout=10) as resp:
+    session = json.loads(resp.read().decode())
+sid = session["id"]
+body = json.dumps({"parts":[{"type":"text","text":"hello"}], "agent":"agent"}).encode()
+req2 = urllib.request.Request(base + f"/session/{sid}/prompt_async", data=body, headers=headers, method="POST")
+with urllib.request.urlopen(req2, timeout=20) as resp:
+    if resp.status != 204:
+        raise SystemExit(f"unexpected status {resp.status}")
+PY
+
+    log "Smoke test passed for $arch"
 }
 
 # Notarize the app
@@ -537,12 +658,6 @@ main() {
     # Prompt for notarization credentials if needed
     prompt_notarization_credentials
     
-    # CloudKit warning
-    if [ "$WITH_CLOUDKIT" = "1" ]; then
-        warn "CloudKit enabled: Make sure you have a valid provisioning profile configured"
-        warn "Without proper provisioning, the app will fail to launch with 'Error 163'"
-    fi
-    
     # Get current version
     CURRENT_VERSION=$(get_version)
     info "Current version: $CURRENT_VERSION"
@@ -573,6 +688,7 @@ main() {
         log "=== Building for Apple Silicon (arm64) ==="
         build_app "arm64"
         inject_opencode "arm64"
+        smoke_test_bundled_opencode "arm64"
         sign_app "arm64"
         notarize_app "arm64"
         create_dmg "arm64"
@@ -583,6 +699,7 @@ main() {
         log "=== Building for Intel (x86_64) ==="
         build_app "x86_64"
         inject_opencode "x86_64"
+        smoke_test_bundled_opencode "x86_64"
         sign_app "x86_64"
         notarize_app "x86_64"
         create_dmg "x86_64"
@@ -594,7 +711,6 @@ main() {
     
     echo ""
     info "Build summary:"
-    info "  CloudKit:      $([ "$WITH_CLOUDKIT" = "1" ] && echo "✅ Enabled" || echo "❌ Disabled (default)")"
     info "  Notarization:  $([ "$NOTARIZE" = "1" ] && echo "✅ Done" || echo "❌ Skipped")"
 }
 

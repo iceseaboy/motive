@@ -28,7 +28,14 @@ struct PermissionRequest: Identifiable, @unchecked Sendable {
     var permissionType: String?   // "edit", "bash", etc.
     var patterns: [String]?       // File paths or command patterns
     var diff: String?             // Diff preview for edit permissions
-    
+
+    /// Session intent for parallel prompts: "From: [intent]" so user knows which task is asking
+    var sessionIntent: String?
+
+    /// Whether this question is a plan_exit confirmation ("Execute Plan?").
+    /// When true, QuickConfirm shows plan-specific styling and language.
+    var isPlanExitConfirmation: Bool = false
+
     struct QuestionOption: Sendable {
         let label: String
         var value: String?
@@ -50,7 +57,8 @@ struct PermissionRequest: Identifiable, @unchecked Sendable {
         multiSelect: Bool? = nil,
         permissionType: String? = nil,
         patterns: [String]? = nil,
-        diff: String? = nil
+        diff: String? = nil,
+        sessionIntent: String? = nil
     ) {
         self.id = id
         self.taskId = taskId
@@ -62,6 +70,7 @@ struct PermissionRequest: Identifiable, @unchecked Sendable {
         self.permissionType = permissionType
         self.patterns = patterns
         self.diff = diff
+        self.sessionIntent = sessionIntent
     }
 }
 

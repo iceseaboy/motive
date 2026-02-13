@@ -130,4 +130,70 @@ struct ConfigManagerConfigTests {
             #expect(!json.contains("ask-user-question"))
         }
     }
+
+    // MARK: - Memory Plugin Injection
+
+    @Test @MainActor func memoryPluginIncludedWhenEntryExists() throws {
+        try withTempDirectory { tempDir in
+            let workspace = tempDir.appendingPathComponent("workspace")
+            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: workspace.appendingPathComponent("config"), withIntermediateDirectories: true)
+            let pluginEntry = workspace.appendingPathComponent("plugins/motive-memory/src/index.ts")
+            try FileManager.default.createDirectory(at: pluginEntry.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try "export default {}".write(to: pluginEntry, atomically: true, encoding: .utf8)
+
+            let inputs = OpenCodeConfigGenerator.Inputs(
+                providerName: "openai",
+                baseURL: "",
+                workspaceDirectory: workspace,
+                skillsSystemEnabled: false,
+                compactionEnabled: false,
+                memoryEnabled: true,
+                agents: [],
+                defaultAgent: "agent"
+            )
+            let result = OpenCodeConfigGenerator.generate(
+                inputs: inputs,
+                permissionPolicy: ToolPermissionPolicy.shared,
+                skillRegistry: SkillRegistry.shared,
+                skillManager: SkillManager.shared,
+                promptBuilder: SystemPromptBuilder()
+            )
+
+            let data = try Data(contentsOf: URL(fileURLWithPath: result.configPath))
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let plugin = json?["plugin"] as? [String]
+            #expect(plugin?.contains("file://\(pluginEntry.path)") == true)
+        }
+    }
+
+    @Test @MainActor func memoryPluginSkippedWhenEntryMissing() throws {
+        try withTempDirectory { tempDir in
+            let workspace = tempDir.appendingPathComponent("workspace")
+            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: workspace.appendingPathComponent("config"), withIntermediateDirectories: true)
+
+            let inputs = OpenCodeConfigGenerator.Inputs(
+                providerName: "openai",
+                baseURL: "",
+                workspaceDirectory: workspace,
+                skillsSystemEnabled: false,
+                compactionEnabled: false,
+                memoryEnabled: true,
+                agents: [],
+                defaultAgent: "agent"
+            )
+            let result = OpenCodeConfigGenerator.generate(
+                inputs: inputs,
+                permissionPolicy: ToolPermissionPolicy.shared,
+                skillRegistry: SkillRegistry.shared,
+                skillManager: SkillManager.shared,
+                promptBuilder: SystemPromptBuilder()
+            )
+
+            let data = try Data(contentsOf: URL(fileURLWithPath: result.configPath))
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            #expect(json?["plugin"] == nil)
+        }
+    }
 }

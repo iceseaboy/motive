@@ -12,20 +12,22 @@ import SwiftData
 
 /// Type-safe session status
 enum SessionStatus: String, Codable, Sendable {
+    case idle
     case running
     case completed
     case failed
     case interrupted
-    
+
     var displayName: String {
         switch self {
+        case .idle: return "Idle"
         case .running: return "Running"
         case .completed: return "Completed"
         case .failed: return "Failed"
         case .interrupted: return "Interrupted"
         }
     }
-    
+
     var isActive: Bool {
         self == .running
     }
@@ -52,7 +54,13 @@ final class Session {
     
     /// Type-safe accessor for session status
     var sessionStatus: SessionStatus {
-        get { SessionStatus(rawValue: status) ?? .completed }
+        get {
+            guard let parsed = SessionStatus(rawValue: status) else {
+                Log.warning("Invalid session status '\(status)' for session \(id), falling back to .completed")
+                return .completed
+            }
+            return parsed
+        }
         set { status = newValue.rawValue }
     }
 

@@ -20,6 +20,10 @@ extension AppState {
         guard !hasStarted else { return }
         hasStarted = true
 
+        // Detect and reset stale UserDefaults if user deleted data directories
+        // MUST run BEFORE ensureDefaultProjectDirectory() which creates ~/.motive/
+        configManager.detectAndResetStaleState()
+        
         // Ensure workspace exists (creates bootstrap files for fresh install)
         Task { @MainActor in
             do {
@@ -41,6 +45,9 @@ extension AppState {
         SkillManager.shared.setConfigManager(configManager)
         SkillRegistry.shared.setConfigManager(configManager)
 
+        // Migrate legacy "motive" agent name to "agent"
+        configManager.migrateAgentNameIfNeeded()
+
         observeMenuBarState()
         Task {
             await configureBridge()
@@ -55,33 +62,6 @@ extension AppState {
         // Configure settings window controller
         SettingsWindowController.shared.configure(configManager: configManager, appState: self)
         updateStatusBar()
-
-        // Start CloudKit listener for remote commands from iOS
-        startCloudKitListener()
-    }
-
-    /// Start listening for remote commands from iOS via CloudKit
-    private func startCloudKitListener() {
-        cloudKitManager.onCommandReceived = { [weak self] command in
-            guard let self else { return }
-            self.handleRemoteCommand(command)
-        }
-        cloudKitManager.startListening(appState: self)
-        Log.debug("CloudKit listener started for remote commands")
-    }
-
-    /// Handle a remote command received from iOS
-    private func handleRemoteCommand(_ command: RemoteCommand) {
-        Log.debug("Received remote command: \(command.instruction)")
-
-        // Store the remote command ID for status updates
-        currentRemoteCommandId = command.id
-
-        // Use the configured project directory as working directory
-        let cwd = configManager.currentProjectURL.path
-
-        // Submit the intent just like local commands
-        submitIntent(command.instruction, workingDirectory: cwd)
     }
 
     func ensureStatusBar() {
@@ -131,4 +111,5 @@ extension AppState {
         // No pre-warm needed - window uses defer:true and alpha:0
         // First show will be slightly slower but avoids visual glitches
     }
+
 }

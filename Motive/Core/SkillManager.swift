@@ -52,6 +52,7 @@ final class SkillManager {
     /// Filename for user-editable rules within a skill directory
     static let userRulesFilename = "RULES.md"
     
+    
     /// System skill IDs that must be enabled by default.
     static let systemSkillIds: Set<String> = [
         "safe-file-deletion",
@@ -155,18 +156,15 @@ final class SkillManager {
         }
     }
 
-    /// Ensure user-editable RULES.md exists for a capability skill (write-if-missing pattern)
+    /// Write default RULES.md for a capability skill. Always overwrites — these are
+    /// internal defaults managed by Motive, not user-authored content.
     private func ensureUserRulesFile(for skill: Skill, in skillDir: URL) {
         let rulesPath = skillDir.appendingPathComponent(Self.userRulesFilename)
-        guard !FileManager.default.fileExists(atPath: rulesPath.path) else { return }
-        
-        // Write default rules template based on skill ID
         let defaultContent = defaultUserRules(for: skill.id)
         do {
             try defaultContent.write(to: rulesPath, atomically: true, encoding: .utf8)
-            Log.debug("Created default RULES.md for '\(skill.id)'")
         } catch {
-            Log.debug("Failed to create RULES.md for '\(skill.id)': \(error)")
+            Log.debug("Failed to write RULES.md for '\(skill.id)': \(error)")
         }
     }
     
@@ -323,7 +321,7 @@ description: \(skill.description)\(metadataLine)
     
     private func createBrowserAutomationSkill(enabled: Bool) -> Skill {
         let headedMode = configManager?.browserUseHeadedMode ?? true
-        let headedFlag = headedMode ? "--headed " : ""
+        let headedFlag = headedMode ? "--headed " : "--headless "
         
         return Skill(
             id: "browser-automation",
@@ -396,17 +394,32 @@ description: \(skill.description)\(metadataLine)
             - `agent_continue "choice"` — Provide user's decision and resume
             - `close` — Close the browser session
             
-            ### Progressive Clarification
+            ### User Confirmation (Mandatory)
             
-            Minimize questions to the user. Only ask when genuinely necessary.
+            **Before browsing:** If the user's request is vague or under-specified, use the
+            `question` tool ONCE to ask for missing details (preferences, constraints, scope).
+            If intent is already specific and actionable, proceed directly.
             
-            - **Before browsing:** Ask only for high-level constraints (goal, budget range, preferences).
-            - **After real candidates exist:** Present concrete options for the user to choose from via the `question` tool.
-            - Never ask the user to choose between options that don't exist yet.
+            **After candidates are found:** When browsing yields multiple options (products,
+            plans, services, search results), you MUST present 3-5 representative options
+            to the user via the `question` tool with key differentiators (name, price,
+            specs/variants, ratings). NEVER auto-select on the user's behalf.
+            
+            **Before any irreversible action:** Any action that is costly, binding, or
+            hard to undo — including checkout, payment, form submission, account changes,
+            subscriptions, or data deletion — MUST be confirmed by the user via the
+            `question` tool before execution. No exceptions.
+            
+            ### Shopping & E-Commerce
+            
+            - Default action is **add to cart** — never proceed to checkout or payment.
+            - After adding items, summarize what was added (name, quantity, price, store).
+            - Only navigate to checkout when the user explicitly asks.
             
             ### Safety (Non-negotiable)
             
-            - Never complete a payment, enter passwords, or confirm transactions without explicit user approval.
+            - Never enter passwords or confirm financial transactions without explicit user approval.
+            - Never submit forms that trigger registrations, legal agreements, or account changes without confirmation.
             - If login expires, CAPTCHA appears, or anything unexpected happens — notify the user immediately.
             """,
             type: .capability,
@@ -422,33 +435,59 @@ description: \(skill.description)\(metadataLine)
     static let defaultBrowserAutomationRules = """
     # Browser Automation - Custom Rules
     
-    # This file contains your personal rules and preferences for browser automation.
-    # Edit freely — Motive will never overwrite this file.
-    # These rules are merged into the browser automation skill prompt automatically.
+    # These rules are managed by Motive and merged into the browser automation skill prompt.
+    # They are regenerated on each launch.
     
-    ## Shopping Workflow
+    ## Core Principle: Confirm Before Committing
     
-    When handling purchase or shopping tasks:
+    Browser automation often interacts with external services on the user's behalf.
+    Any action that is **irreversible, costly, or binding** (payments, submissions,
+    account changes, subscriptions, deletions) MUST be explicitly confirmed by the
+    user via the `question` tool before execution — no exceptions.
     
-    ### 1. Clarify Intent
-    - If the request is ambiguous, ask once for: category, budget range, brand preference.
-    - If intent is already specific (e.g. "buy AirPods Pro"), skip straight to search.
+    ## 1. Clarify Ambiguous Requests
     
-    ### 2. Search
-    - Launch browser agent to search. Let it browse autonomously — don't interrupt the user.
+    When the user's intent is vague or under-specified:
+    - Use the `question` tool to ask for the missing details in a single round
+      (e.g., preferences, constraints, scope, target site).
+    - If intent is already specific and actionable, proceed directly without asking.
+    - Never guess at subjective preferences (style, brand, size, tier, etc.).
     
-    ### 3. Confirm Selection
-    - When candidates are found, present full details for user confirmation:
-      brand, price, specs/SKU options, ratings if available.
-    - Never choose a product on the user's behalf, even if preferences are known.
+    ## 2. Present Options, Don't Decide
     
-    ### 4. Add to Cart
-    - After user confirms, add to cart. This is the default action.
-    - Never proceed to checkout or payment automatically.
+    When the task yields multiple candidates (products, plans, services, results):
+    - Collect a short list of representative options (3–5 when possible).
+    - Present them with key differentiators: name/title, price, variant/SKU,
+      ratings, and any other attributes relevant to the task.
+    - Let the user pick via the `question` tool. Never auto-select.
     
-    ### 5. Notify
-    - Once all items are in cart, summarize: item names, quantities, prices.
-    - Offer options: "Checkout now" / "Continue shopping" / "Done for now".
-    - Only navigate to checkout if user explicitly chooses to.
+    ## 3. Shopping & E-Commerce
+    
+    - **Default action is "add to cart"** — never proceed to checkout or payment.
+    - After adding items, summarize: names, quantities, prices, and the store.
+    - Offer clear next-step options: "Proceed to checkout" / "Continue shopping" / "Done".
+    - Only navigate to checkout or payment pages when the user explicitly requests it.
+    
+    ## 4. Form Filling & Data Entry
+    
+    - Before submitting any form, present a summary of all filled fields to the user
+      for review and confirmation.
+    - For fields with multiple valid choices (dropdowns, radio groups), ask the user
+      rather than picking the first or "most common" option.
+    - Never submit forms that trigger payments, registrations, legal agreements,
+      or account changes without explicit user approval.
+    
+    ## 5. Account & Settings Changes
+    
+    - Any action that alters account state (password, email, subscription,
+      privacy settings, data deletion) requires explicit user confirmation.
+    - Present the current value and the proposed new value side-by-side.
+    
+    ## 6. Autonomous Browsing
+    
+    - Browsing, searching, reading, and collecting information are safe to do
+      autonomously — do not interrupt the user for read-only operations.
+    - Minimize unnecessary status updates; report results when the task is complete
+      or when a decision point is reached.
     """
 }

@@ -150,6 +150,70 @@ struct NativeEventTests {
         #expect(request.questions[0].custom == true)
     }
 
+    @Test func questionRequestInfersPlanExitContextAndPath() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "type": "question.asked",
+            "properties": {
+                "id": "q-plan-exit",
+                "sessionID": "sess-1",
+                "tool": {
+                    "messageID": "msg-1",
+                    "callID": "call-1"
+                },
+                "questions": [
+                    {
+                        "question": "Plan at .opencode/plans/123-demo.md is complete. Would you like to switch to the build agent and start implementing?",
+                        "options": [{"label": "Yes"}, {"label": "No"}],
+                        "multiple": false,
+                        "custom": false
+                    }
+                ]
+            }
+        }
+        """
+
+        let event = await client.parseSSEData(json)
+        guard case .questionAsked(let request) = event else {
+            Issue.record("Expected questionAsked event")
+            return
+        }
+
+        #expect(request.toolContext == "plan_exit")
+        #expect(request.planFilePath == ".opencode/plans/123-demo.md")
+    }
+
+    @Test func questionRequestInfersPlanEnterContextAndPath() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "type": "question.asked",
+            "properties": {
+                "id": "q-plan-enter",
+                "sessionID": "sess-1",
+                "questions": [
+                    {
+                        "question": "Would you like to switch to the plan agent and create a plan saved to .opencode/plans/456-design.md?",
+                        "options": [{"label": "Yes"}, {"label": "No"}],
+                        "multiple": false,
+                        "custom": false
+                    }
+                ]
+            }
+        }
+        """
+
+        let event = await client.parseSSEData(json)
+        guard case .questionAsked(let request) = event else {
+            Issue.record("Expected questionAsked event")
+            return
+        }
+
+        #expect(request.toolContext == "plan_enter")
+        #expect(request.planFilePath == ".opencode/plans/456-design.md")
+    }
+
     // MARK: - NativePermissionRequest Parsing
 
     @Test func permissionRequestWithDiffMetadata() async throws {

@@ -89,104 +89,14 @@ extension CommandBarView {
         }
     }
 
-    // MARK: - Keyboard Navigation
-
-    func handleUpArrow() {
-        // File completion takes priority
-        if showFileCompletion && !fileCompletion.items.isEmpty {
-            if selectedFileIndex > 0 {
-                selectedFileIndex -= 1
-            }
-            return
-        }
-
-        if mode.isCommand {
-            if selectedCommandIndex > 0 {
-                selectedCommandIndex -= 1
-            }
-        } else if mode.isHistory {
-            if selectedHistoryIndex > 0 {
-                selectedHistoryIndex -= 1
-            }
-            if selectedHistoryIndex < filteredHistorySessions.count {
-                selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
-            }
-        } else if mode.isProjects {
-            if selectedProjectIndex > 0 {
-                selectedProjectIndex -= 1
-            }
-        }
-    }
-
-    func handleDownArrow() {
-        // File completion takes priority
-        if showFileCompletion && !fileCompletion.items.isEmpty {
-            if selectedFileIndex < fileCompletion.items.count - 1 {
-                selectedFileIndex += 1
-            }
-            return
-        }
-
-        if mode.isCommand {
-            if selectedCommandIndex < filteredCommands.count - 1 {
-                selectedCommandIndex += 1
-            }
-        } else if mode.isHistory {
-            if selectedHistoryIndex < filteredHistorySessions.count - 1 {
-                selectedHistoryIndex += 1
-            }
-            if selectedHistoryIndex < filteredHistorySessions.count {
-                selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
-            }
-        } else if mode.isProjects {
-            // 2 fixed items (Choose folder + Default) + recent projects
-            let totalItems = 2 + configManager.recentProjects.count
-            if selectedProjectIndex < totalItems - 1 {
-                selectedProjectIndex += 1
-            }
-        }
-    }
-
-    func handleTab() {
-        // File completion takes priority
-        if showFileCompletion && !fileCompletion.items.isEmpty {
-            if selectedFileIndex < fileCompletion.items.count {
-                selectFileCompletion(fileCompletion.items[selectedFileIndex])
-            }
-            return
-        }
-
-        // Tab completion: complete the autocomplete hint
-        if let hint = autocompleteHint {
-            inputText = hint
-        }
-    }
-
-    func handleCmdN() {
-        // Cmd+N to create new session (works in any mode)
-        appState.startNewEmptySession()
-        inputText = ""
-        mode = .completed  // Show "New Task" status
-    }
-
-    func handleCmdDelete() {
-        // Cmd+Delete to delete selected session in history mode
-        if mode.isHistory && selectedHistoryIndex < filteredHistorySessions.count {
-            deleteCandidateIndex = selectedHistoryIndex
-            deleteCandidateId = filteredHistorySessions[selectedHistoryIndex].id
-            selectedHistoryId = filteredHistorySessions[selectedHistoryIndex].id
-            showDeleteConfirmation = true
-        }
-    }
-
     // MARK: - State Handlers
 
     func handleInputChange(_ newValue: String) {
         // Always check for @ file completion
         checkForAtCompletion(newValue)
 
-        // If file completion, history/projects, or running — don't alter mode
-        guard !showFileCompletion, !mode.isHistory, !mode.isProjects, mode != .running else { return }
+        // If file completion, history/projects/modes, or running — don't alter mode
+        guard !showFileCompletion, !mode.isHistory, !mode.isProjects, !mode.isModes, mode != .running else { return }
 
         let isInSession = mode == .completed || mode == .running || mode.isFromSession
 
@@ -223,9 +133,9 @@ extension CommandBarView {
         }
     }
 
-    func handleSessionStatusChange(_ status: AppState.SessionStatus) {
-        // Don't change mode if user is browsing commands/history/projects
-        if mode.isCommand || mode.isHistory || mode.isProjects {
+    func handleSessionStatusChange(_ status: SessionStatus) {
+        // Don't change mode if user is browsing commands/history/projects/modes
+        if mode.isCommand || mode.isHistory || mode.isProjects || mode.isModes {
             return
         }
 
@@ -241,139 +151,6 @@ extension CommandBarView {
                 mode = .idle
             }
         }
-    }
-
-    func handleSubmit() {
-        // File completion takes priority
-        if showFileCompletion && !fileCompletion.items.isEmpty {
-            if selectedFileIndex < fileCompletion.items.count {
-                selectFileCompletion(fileCompletion.items[selectedFileIndex])
-            }
-            return
-        }
-
-        switch mode {
-        case .command:
-            submitCommandMode()
-        case .history:
-            if selectedHistoryIndex < filteredHistorySessions.count {
-                selectHistorySession(filteredHistorySessions[selectedHistoryIndex])
-            }
-        case .projects:
-            submitProjectSelection()
-        case .completed:
-            sendFollowUp()
-        default:
-            submitIntent()
-        }
-    }
-
-    /// Handle submit in command mode — check for inline path argument first.
-    private func submitCommandMode() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.hasPrefix("/project ") || text.hasPrefix("/p ") {
-            let pathArg = text
-                .replacingOccurrences(of: "^/p(roject)?\\s+", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !pathArg.isEmpty {
-                inputText = ""
-                mode = appState.switchProjectDirectory(pathArg) ? .idle : .error("Directory not found: \(pathArg)")
-                return
-            }
-        }
-        executeSelectedCommand()
-    }
-
-    /// Handle submit in projects mode — Choose folder / Default / Recent.
-    private func submitProjectSelection() {
-        switch selectedProjectIndex {
-        case 0:
-            appState.showProjectPicker()
-        case 1:
-            selectProject(nil)
-        default:
-            let projectIndex = selectedProjectIndex - 2
-            if projectIndex < configManager.recentProjects.count {
-                selectProject(configManager.recentProjects[projectIndex].path)
-            }
-        }
-    }
-
-    func handleEscape() {
-        // File completion: ESC closes it first
-        if showFileCompletion {
-            hideFileCompletion()
-            return
-        }
-
-        if mode.isCommand || mode.isHistory || mode.isProjects {
-            // Return to previous mode (session or idle)
-            if appState.sessionStatus == .running {
-                mode = .running
-            } else if mode.isFromSession || !appState.messages.isEmpty {
-                mode = .completed
-            } else {
-                mode = .idle
-            }
-            inputText = ""
-        } else {
-            // ESC = hide CommandBar (task continues running in background)
-            appState.hideCommandBar()
-        }
-    }
-
-    func submitIntent() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        inputText = ""
-        appState.submitIntent(text)
-        // Mode will change to .running via sessionStatus observer
-        // CommandBar stays visible - only ESC or focus loss hides it
-    }
-
-    func executeSelectedCommand() {
-        guard selectedCommandIndex < filteredCommands.count else { return }
-        executeCommand(filteredCommands[selectedCommandIndex])
-    }
-
-    func executeCommand(_ command: CommandDefinition) {
-        let wasFromSession = mode.isFromSession || !appState.messages.isEmpty
-        switch command.id {
-        case "project":
-            inputText = ""
-            configManager.ensureCurrentProjectInRecents()
-            appState.seedRecentProjectsFromSessions()
-            mode = .projects(fromSession: wasFromSession)
-            selectedProjectIndex = 0
-        case "history":
-            inputText = ""
-            showFileCompletion = false  // Ensure file completion doesn't intercept keyboard
-            mode = .history(fromSession: wasFromSession)
-            selectedHistoryIndex = 0
-        case "settings":
-            inputText = ""
-            appState.hideCommandBar()
-            SettingsWindowController.shared.show(tab: .general)
-        case "new":
-            inputText = ""
-            appState.startNewEmptySession()
-            mode = .idle
-        case "clear":
-            inputText = ""
-            appState.clearCurrentSession()
-            mode = .idle
-        default:
-            break
-        }
-    }
-
-    func sendFollowUp() {
-        // Use the main inputText for follow-up messages
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        inputText = ""
-        appState.resumeSession(with: text)
-        // CommandBar stays visible - mode will change to .running via sessionStatus observer
     }
 
     /// Re-center window and refocus input when CommandBar is shown.
@@ -417,107 +194,5 @@ extension CommandBarView {
             try? await Task.sleep(for: .milliseconds(100))
             isInputFocused = true
         }
-    }
-
-    // MARK: - Histories
-
-    func requestDeleteHistorySession(at index: Int) {
-        guard index < filteredHistorySessions.count else { return }
-        // Set the selected index to the one being deleted
-        selectedHistoryIndex = index
-        deleteCandidateIndex = index
-        deleteCandidateId = filteredHistorySessions[index].id
-        selectedHistoryId = filteredHistorySessions[index].id
-        // Show confirmation dialog
-        showDeleteConfirmation = true
-    }
-
-    var filteredHistorySessions: [Session] {
-        if inputText.isEmpty {
-            return Array(historySessions.prefix(20))
-        }
-        return historySessions.filter { $0.intent.localizedCaseInsensitiveContains(inputText) }.prefix(20).map { $0 }
-    }
-
-    func loadHistorySessions() {
-        refreshHistorySessions(preferredIndex: nil)
-    }
-
-    func refreshHistorySessions(preferredIndex: Int?) {
-        historySessions = appState.getAllSessions()
-        let list = filteredHistorySessions
-        guard !list.isEmpty else {
-            selectedHistoryIndex = 0
-            selectedHistoryId = nil
-            return
-        }
-
-        if let selectedHistoryId,
-           let index = list.firstIndex(where: { $0.id == selectedHistoryId }) {
-            selectedHistoryIndex = index
-            return
-        }
-
-        if let preferredIndex {
-            selectedHistoryIndex = min(preferredIndex, list.count - 1)
-            selectedHistoryId = list[selectedHistoryIndex].id
-            return
-        }
-
-        // Select current session if exists, otherwise default to first
-        if let currentSession = appState.currentSessionRef,
-           let index = list.firstIndex(where: { $0.id == currentSession.id }) {
-            selectedHistoryIndex = index
-            selectedHistoryId = currentSession.id
-        } else {
-            selectedHistoryIndex = 0
-            selectedHistoryId = list[0].id
-        }
-    }
-
-    func selectHistorySession(_ session: Session) {
-        appState.switchToSession(session)
-        inputText = ""
-        if let index = filteredHistorySessions.firstIndex(where: { $0.id == session.id }) {
-            selectedHistoryIndex = index
-        }
-        selectedHistoryId = session.id
-        // Stay in CommandBar, switch to appropriate mode based on session status
-        if appState.sessionStatus == .running {
-            mode = .running
-        } else {
-            mode = .completed
-        }
-    }
-
-    func deleteHistorySession(at index: Int) {
-        guard index < filteredHistorySessions.count else { return }
-        let deleteId = filteredHistorySessions[index].id
-        removeHistorySession(id: deleteId, preferredIndex: index)
-        appState.deleteSession(id: deleteId)
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
-            refreshHistorySessions(preferredIndex: selectedHistoryIndex)
-        }
-    }
-
-    func removeHistorySession(id: UUID, preferredIndex: Int) {
-        historySessions.removeAll { $0.id == id }
-        let list = filteredHistorySessions
-        if list.isEmpty {
-            selectedHistoryIndex = 0
-            selectedHistoryId = nil
-        } else {
-            selectedHistoryIndex = min(preferredIndex, list.count - 1)
-            selectedHistoryId = list[selectedHistoryIndex].id
-        }
-    }
-
-    // MARK: - Projects
-
-    func selectProject(_ path: String?) {
-        appState.switchProjectDirectory(path)
-        inputText = ""
-        mode = .idle
     }
 }

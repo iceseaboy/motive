@@ -115,6 +115,60 @@ struct SSEClientTests {
         #expect(info.output == "file contents here")
     }
 
+    @Test func parsesPlanExitCompletedAsBuildAgentChange() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "type": "message.part.updated",
+            "properties": {
+                "part": {
+                    "sessionID": "session-1",
+                    "type": "tool",
+                    "state": {
+                        "tool": "plan_exit",
+                        "status": "completed"
+                    }
+                }
+            }
+        }
+        """
+
+        let event = await client.parseSSEData(json)
+        guard case .agentChanged(let info) = event else {
+            Issue.record("Expected agentChanged event")
+            return
+        }
+        #expect(info.sessionID == "session-1")
+        #expect(info.agent == "build")
+    }
+
+    @Test func parsesPlanEnterCompletedAsPlanAgentChange() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "type": "message.part.updated",
+            "properties": {
+                "part": {
+                    "sessionID": "session-1",
+                    "type": "tool",
+                    "state": {
+                        "tool": "plan_enter",
+                        "status": "completed"
+                    }
+                }
+            }
+        }
+        """
+
+        let event = await client.parseSSEData(json)
+        guard case .agentChanged(let info) = event else {
+            Issue.record("Expected agentChanged event")
+            return
+        }
+        #expect(info.sessionID == "session-1")
+        #expect(info.agent == "plan")
+    }
+
     @Test func parsesSessionIdleEvent() async throws {
         let client = SSEClient()
         let json = """
@@ -223,6 +277,49 @@ struct SSEClientTests {
         let event = await client.parseSSEData(json)
         guard case .heartbeat = event else {
             Issue.record("Expected heartbeat event")
+            return
+        }
+    }
+
+    @Test func parsesGlobalEnvelopeWithDirectory() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "directory": "/Users/geezerrrr/Workspace/OpenSources/motive-web",
+            "payload": {
+                "type": "session.status",
+                "properties": {
+                    "sessionID": "session-1",
+                    "status": {"type": "idle"}
+                }
+            }
+        }
+        """
+
+        let scoped = await client.parseGlobalSSEData(json)
+        #expect(scoped?.directory == "/Users/geezerrrr/Workspace/OpenSources/motive-web")
+        guard case .sessionIdle(let sessionID) = scoped?.event else {
+            Issue.record("Expected sessionIdle event inside global envelope")
+            return
+        }
+        #expect(sessionID == "session-1")
+    }
+
+    @Test func parsesGlobalEnvelopeWithoutDirectory() async throws {
+        let client = SSEClient()
+        let json = """
+        {
+            "payload": {
+                "type": "server.connected",
+                "properties": {}
+            }
+        }
+        """
+
+        let scoped = await client.parseGlobalSSEData(json)
+        #expect(scoped?.directory == nil)
+        guard case .connected = scoped?.event else {
+            Issue.record("Expected connected event inside global envelope")
             return
         }
     }

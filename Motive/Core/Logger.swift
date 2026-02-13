@@ -13,18 +13,21 @@
 import Foundation
 import os.log
 
-/// Logger that outputs in DEBUG builds or when user enables Debug Mode in Settings
-enum Log {
+/// Logger that outputs in DEBUG builds or when user enables Debug Mode in Settings.
+/// Marked nonisolated to allow calling from any actor context (UserDefaults is thread-safe).
+nonisolated enum Log: Sendable {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.velvet.motive"
-    
+
     private static let appLogger = os.Logger(subsystem: subsystem, category: "App")
     private static let bridgeLogger = os.Logger(subsystem: subsystem, category: "Bridge")
     private static let permissionLogger = os.Logger(subsystem: subsystem, category: "Permission")
     private static let configLogger = os.Logger(subsystem: subsystem, category: "Config")
     private static let skillsLogger = os.Logger(subsystem: subsystem, category: "Skills")
     private static let sessionLogger = os.Logger(subsystem: subsystem, category: "Session")
-    
-    /// Check if debug logging is enabled (DEBUG build or user setting)
+    private static let sseLogger = os.Logger(subsystem: subsystem, category: "SSE")
+
+    /// Check if debug logging is enabled (DEBUG build or user setting).
+    /// UserDefaults is thread-safe, so this is safe to call from any isolation domain.
     private static var isDebugEnabled: Bool {
         #if DEBUG
         return true
@@ -121,6 +124,14 @@ enum Log {
         sessionLogger.info("\(context, privacy: .public): \(sessionId, privacy: .sensitive)")
     }
     
+    // MARK: - SSE Logging
+
+    /// Log SSE-related messages
+    static func sse(_ message: String) {
+        guard isDebugEnabled else { return }
+        sseLogger.info("\(message, privacy: .public)")
+    }
+
     // MARK: - Error and Warning (Always Logged)
     
     /// Log errors (always logged, even in release)

@@ -15,6 +15,7 @@ struct CommandBarTextField: NSViewRepresentable {
     var onSubmit: () -> Void
     var onCmdDelete: () -> Void
     var onCmdN: (() -> Void)?
+    var onCmdReturn: (() -> Void)?
     var onEscape: (() -> Void)?
 
     func makeNSView(context: Context) -> NSTextField {
@@ -79,6 +80,7 @@ struct CommandBarTextField: NSViewRepresentable {
         // Update callbacks
         context.coordinator.onCmdDelete = onCmdDelete
         context.coordinator.onCmdN = onCmdN
+        context.coordinator.onCmdReturn = onCmdReturn
         context.coordinator.onEscape = onEscape
     }
 
@@ -94,6 +96,7 @@ struct CommandBarTextField: NSViewRepresentable {
         var parent: CommandBarTextField
         var onCmdDelete: (() -> Void)?
         var onCmdN: (() -> Void)?
+        var onCmdReturn: (() -> Void)?
         var onEscape: (() -> Void)?
         private var keyboardMonitor: Any?
 
@@ -101,6 +104,7 @@ struct CommandBarTextField: NSViewRepresentable {
             self.parent = parent
             self.onCmdDelete = parent.onCmdDelete
             self.onCmdN = parent.onCmdN
+            self.onCmdReturn = parent.onCmdReturn
             self.onEscape = parent.onEscape
         }
 
@@ -126,6 +130,12 @@ struct CommandBarTextField: NSViewRepresentable {
                 // Cmd+N (keyCode 45)
                 if event.keyCode == 45 {
                     self.onCmdN?()
+                    return nil  // Consume the event
+                }
+
+                // Cmd+Return (keyCode 36)
+                if event.keyCode == 36 {
+                    self.onCmdReturn?()
                     return nil  // Consume the event
                 }
 

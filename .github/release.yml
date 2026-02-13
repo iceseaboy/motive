@@ -2,23 +2,19 @@ changelog:
   exclude:
     labels:
       - ignore
+    authors:
+      - bot-account
   categories:
-    - title: "🚀 Features"
+    - title: "🚀 New Features"
       labels:
-        - enhancement
         - feature
+        - enhancement
     - title: "🐛 Bug Fixes"
       labels:
         - bug
         - fix
-    - title: "🧰 Maintenance"
+    - title: "🛠 Refactor"
       labels:
-        - maintenance
-        - chore
-    - title: "🔄 Updates"
-      labels:
-        - update
-        - documentation
-    - title: "🔒 Security"
-      labels:
-        - security
+        - refactor
+    - title: "📝 Others"
+      collapse: true

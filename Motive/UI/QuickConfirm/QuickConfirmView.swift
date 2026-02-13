@@ -21,12 +21,12 @@ struct QuickConfirmView: View {
         VStack(alignment: .leading, spacing: 14) {
             headerView
             Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
-                .frame(height: 0.5)
+                .fill(AuroraPromptStyle.dividerColor)
+                .frame(height: AuroraPromptStyle.subtleBorderWidth)
             contentView
             Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
-                .frame(height: 0.5)
+                .fill(AuroraPromptStyle.dividerColor)
+                .frame(height: AuroraPromptStyle.subtleBorderWidth)
             actionButtons
         }
         .padding(20)
@@ -35,7 +35,7 @@ struct QuickConfirmView: View {
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous)
-                .strokeBorder(Color.Aurora.glassOverlay.opacity(isDark ? 0.1 : 0.15), lineWidth: 0.5)
+                .strokeBorder(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
         )
         .shadow(color: Color.black.opacity(isDark ? 0.25 : 0.12), radius: 18, y: 10)
     }
@@ -46,7 +46,7 @@ struct QuickConfirmView: View {
         HStack(spacing: 12) {
             Image(systemName: iconName)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Color.Aurora.primary)
+                .foregroundColor(request.isPlanExitConfirmation ? Color.Aurora.success : Color.Aurora.primary)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(headerTitle)
@@ -122,7 +122,11 @@ struct QuickConfirmView: View {
         let optionValue = option.effectiveValue
         let isSelected = selectedOptions.contains(optionValue)
         let isMultiSelect = request.multiSelect == true
-        
+
+        // Plan exit: "Execute Plan" gets prominent green styling
+        let isPlanExecute = request.isPlanExitConfirmation && option.label == "Execute Plan"
+        let accentColor = isPlanExecute ? Color.Aurora.success : Color.Aurora.primary
+
         return Button {
             if isMultiSelect {
                 if isSelected {
@@ -138,30 +142,45 @@ struct QuickConfirmView: View {
                 if isMultiSelect {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 13))
-                        .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
+                        .foregroundColor(isSelected ? accentColor : Color.Aurora.textSecondary)
                 }
-                
+
+                if isPlanExecute {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color.Aurora.success)
+                }
+
                 Text(option.label)
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundColor(Color.Aurora.textPrimary)
+                    .font(.system(size: 13, weight: isPlanExecute || isSelected ? .semibold : .regular))
+                    .foregroundColor(isPlanExecute ? Color.Aurora.success : Color.Aurora.textPrimary)
                 
                 Spacer()
                 
                 if !isMultiSelect {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: isPlanExecute ? "arrow.right" : "chevron.right")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(Color.Aurora.textMuted)
+                        .foregroundColor(isPlanExecute ? Color.Aurora.success : Color.Aurora.textMuted)
                 }
             }
             .padding(.horizontal, AuroraSpacing.space3)
             .padding(.vertical, AuroraSpacing.space3)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.1) : Color.Aurora.glassOverlay.opacity(0.06))
+                    .fill(
+                        isPlanExecute
+                            ? Color.Aurora.success.opacity(0.1)
+                            : (isSelected ? accentColor.opacity(0.1) : Color.Aurora.glassOverlay.opacity(0.06))
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .stroke(isSelected ? Color.Aurora.primary.opacity(0.3) : Color.Aurora.glassOverlay.opacity(0.12), lineWidth: 0.5)
+                    .stroke(
+                        isPlanExecute
+                            ? Color.Aurora.success.opacity(0.4)
+                            : (isSelected ? accentColor.opacity(0.3) : AuroraPromptStyle.subtleBorderColor),
+                        lineWidth: isPlanExecute ? AuroraPromptStyle.emphasisBorderWidth : AuroraPromptStyle.subtleBorderWidth
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -274,6 +293,9 @@ struct QuickConfirmView: View {
     // MARK: - Helpers
     
     private var iconName: String {
+        if request.isPlanExitConfirmation {
+            return "doc.badge.gearshape"
+        }
         switch request.type {
         case .question: return "hand.raised"
         case .permission: return "lock.shield"
@@ -290,6 +312,10 @@ struct QuickConfirmView: View {
     }
     
     private var headerSubtitle: String? {
+        if let intent = request.sessionIntent, !intent.isEmpty {
+            let truncated = intent.count > 40 ? String(intent.prefix(40)) + "…" : intent
+            return "From: \(truncated)"
+        }
         switch request.type {
         case .question:
             return nil
@@ -359,7 +385,7 @@ private struct AuroraQuickConfirmButtonStyle: ButtonStyle {
     private var overlay: some View {
         if style == .secondary {
             RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                .stroke(Color.Aurora.border, lineWidth: 1)
+                .stroke(AuroraPromptStyle.borderColor, lineWidth: AuroraPromptStyle.borderWidth)
         }
     }
 }
@@ -391,7 +417,7 @@ struct DiffView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .stroke(Color.Aurora.border.opacity(0.5), lineWidth: 0.5)
+                .stroke(AuroraPromptStyle.subtleBorderColor, lineWidth: AuroraPromptStyle.subtleBorderWidth)
         )
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous))
     }

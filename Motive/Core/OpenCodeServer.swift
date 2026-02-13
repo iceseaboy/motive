@@ -65,10 +65,11 @@ actor OpenCodeServer {
     private var state: State = .stopped
     private var monitorTask: Task<Void, Never>?
     private var stdoutDrainTask: Task<Void, Never>?
+    private var stderrDrainTask: Task<Void, Never>?
     private var restartCount: Int = 0
-    private static let maxRestartAttempts = 3
-    private static let portDetectionTimeoutSeconds: TimeInterval = 30
-    private static let gracefulShutdownSeconds: TimeInterval = 2
+    private static let maxRestartAttempts = MotiveConstants.Limits.maxServerRestartAttempts
+    private static let portDetectionTimeoutSeconds: TimeInterval = MotiveConstants.Timeouts.portDetection
+    private static let gracefulShutdownSeconds: TimeInterval = MotiveConstants.Timeouts.gracefulShutdown
 
     /// Called when the server restarts on a new URL after a crash.
     /// The Bridge uses this to update SSE and API client URLs.
@@ -127,6 +128,8 @@ actor OpenCodeServer {
         monitorTask = nil
         stdoutDrainTask?.cancel()
         stdoutDrainTask = nil
+        stderrDrainTask?.cancel()
+        stderrDrainTask = nil
 
         guard let process else {
             state = .stopped
@@ -141,7 +144,7 @@ actor OpenCodeServer {
         // Wait for graceful shutdown (poll instead of blocking)
         let deadline = Date().addingTimeInterval(Self.gracefulShutdownSeconds)
         while process.isRunning && Date() < deadline {
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try? await Task.sleep(nanoseconds: UInt64(MotiveConstants.Timeouts.serverStartupPoll * 1_000_000_000))
         }
 
         // Force kill if still running
@@ -196,7 +199,7 @@ actor OpenCodeServer {
         }
         proc.environment = env
 
-        // Create pipes for stdout (stderr goes to /dev/null to keep things clean)
+        // Create pipes for stdout (stderr logged via separate pipe for diagnostics)
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = FileHandle.nullDevice
@@ -209,7 +212,7 @@ actor OpenCodeServer {
 
         self.process = proc
         self.stdoutPipe = pipe
-        logger.info("Spawned opencode serve (PID: \(proc.processIdentifier))")
+        logger.info("Spawned opencode serve (PID: \(proc.processIdentifier)) binary: \(configuration.binaryURL.path)")
 
         // Read lines until we find the port announcement
         return try await detectPort(from: pipe.fileHandleForReading)
@@ -252,22 +255,46 @@ actor OpenCodeServer {
     }
 
     /// Continuously drain stdout to prevent buffer fill-up.
+    /// Uses Task.detached to avoid competing with actor-isolated work.
     private func startStdoutDrain(fileHandle: FileHandle) {
         stdoutDrainTask?.cancel()
-        stdoutDrainTask = Task { [weak self] in
-            guard let self else { return }
+        let log = self.logger
+        stdoutDrainTask = Task.detached {
             do {
                 let lines = fileHandle.bytes.lines
                 for try await line in lines {
                     guard !Task.isCancelled else { break }
                     let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
-                        await self.logger.debug("Server output: \(trimmed)")
+                        log.debug("Server output: \(trimmed)")
                     }
                 }
             } catch {
                 if !Task.isCancelled {
-                    await self.logger.debug("Server stdout drain ended: \(error.localizedDescription)")
+                    log.debug("Server stdout drain ended: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Continuously drain stderr and log for diagnostics.
+    /// Uses Task.detached to avoid competing with detectPort for actor execution.
+    private func startStderrDrain(fileHandle: FileHandle) {
+        stderrDrainTask?.cancel()
+        let log = self.logger
+        stderrDrainTask = Task.detached {
+            do {
+                let lines = fileHandle.bytes.lines
+                for try await line in lines {
+                    guard !Task.isCancelled else { break }
+                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        log.warning("Server stderr: \(trimmed)")
+                    }
+                }
+            } catch {
+                if !Task.isCancelled {
+                    log.debug("Server stderr drain ended: \(error.localizedDescription)")
                 }
             }
         }
@@ -293,19 +320,20 @@ actor OpenCodeServer {
     /// Monitor the server process and auto-restart on crash.
     private func startMonitor(configuration: Configuration) {
         monitorTask?.cancel()
+        let log = self.logger
         monitorTask = Task { [weak self] in
             guard let self else { return }
 
             // Poll isRunning instead of blocking
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                try? await Task.sleep(nanoseconds: UInt64(MotiveConstants.Timeouts.serverHealthCheck * 1_000_000_000))
                 guard !Task.isCancelled else { return }
 
                 guard let process = await self.process else { return }
                 if !process.isRunning {
                     guard !Task.isCancelled else { return }
                     let exitCode = process.terminationStatus
-                    await self.logger.error("OpenCode server exited unexpectedly (code: \(exitCode))")
+                    log.error("OpenCode server exited unexpectedly (code: \(exitCode))")
                     await self.handleCrash(configuration: configuration)
                     return
                 }
@@ -317,6 +345,8 @@ actor OpenCodeServer {
     private func handleCrash(configuration: Configuration) async {
         stdoutDrainTask?.cancel()
         stdoutDrainTask = nil
+        stderrDrainTask?.cancel()
+        stderrDrainTask = nil
         process = nil
         stdoutPipe = nil
         state = .crashed
@@ -346,3 +376,7 @@ actor OpenCodeServer {
         }
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension OpenCodeServer: OpenCodeServerProtocol {}

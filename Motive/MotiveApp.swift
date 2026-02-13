@@ -21,7 +21,6 @@ struct MotiveApp: App {
         let container: ModelContainer
         
         // Use local-only storage in Application Support/Motive/
-        // Our CloudKit usage is separate (CKRecord for remote commands)
         // Schema Version: 1.0 - Session (id, intent, createdAt, openCodeSessionId, status, projectPath, logs)
         //                     - LogEntry (id, rawJson, kind, createdAt)
         let schema = Schema([Session.self, LogEntry.self])
@@ -34,14 +33,14 @@ struct MotiveApp: App {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             url: storeURL,
-            cloudKitDatabase: .none  // Explicitly disable CloudKit sync
+            cloudKitDatabase: .none
         )
         
         do {
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             // Schema mismatch or corrupted database - delete and retry
-            print("[Motive] ModelContainer failed: \(error). Recreating database...")
+            Log.fault("ModelContainer failed: \(error). Recreating database...")
             Self.deleteCorruptedDatabase()
             do {
                 container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -82,7 +81,7 @@ struct MotiveApp: App {
         for url in filesToDelete {
             try? FileManager.default.removeItem(at: url)
         }
-        print("[Motive] Deleted corrupted database files at \(storeURL.path)")
+        Log.warning("Deleted corrupted database files at \(storeURL.path)")
     }
     
     /// Show a fatal error dialog and exit the application gracefully

@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import os
 
 actor OpenCodeBridge {
 
@@ -17,6 +16,7 @@ actor OpenCodeBridge {
         let binaryURL: URL
         let environment: [String: String]
         let model: String?  // e.g., "openai/gpt-4o" or "anthropic/claude-sonnet-4-5-20250929"
+        let agent: String?  // e.g., "motive", "plan" — per-message agent override
         let debugMode: Bool
         let projectDirectory: String  // Current project directory for server CWD
     }
@@ -27,26 +27,32 @@ actor OpenCodeBridge {
     private let server = OpenCodeServer()
     private let sseClient = SSEClient()
     private let apiClient = OpenCodeAPIClient()
-
     private var eventTask: Task<Void, Never>?
+
     private var currentSessionId: String?
     private var activeSessions: Set<String> = []  // Multi-session ready
 
-    /// The directory currently used for SSE and API calls.
-    /// Must be kept in sync so that SSE subscribes to the same
-    /// OpenCode instance that handles prompts.
-    private var sseDirectory: String?
+    /// SessionID -> directory mapping for deterministic routing.
+    private var sessionDirectory: [String: String] = [:]
+    /// Request ID -> directory for question/permission reply routing.
+    private var questionDirectory: [String: String] = [:]
+    private var permissionDirectory: [String: String] = [:]
 
-    /// Text delta accumulation buffer (per session)
-    private var textBuffer: [String: String] = [:]
+    /// Last reported agent per session (deduplication for message.updated floods)
+    private var lastReportedAgent: [String: String] = [:]
 
-    private let eventHandler: @Sendable (OpenCodeEvent) async -> Void
-    private let logger = Logger(subsystem: "com.velvet.motive", category: "Bridge")
+    /// Health check task: after global SSE reconnects, checks active sessions.
+    private var reconnectHealthTask: Task<Void, Never>?
+
+    /// Non-blocking event channel to AppState.
+    /// `yield()` never blocks the bridge actor; AppState consumes on MainActor.
+    /// AsyncStream preserves FIFO ordering, so events arrive in correct sequence.
+    private let eventContinuation: AsyncStream<OpenCodeEvent>.Continuation
 
     // MARK: - Init
 
-    init(eventHandler: @escaping @Sendable (OpenCodeEvent) async -> Void) {
-        self.eventHandler = eventHandler
+    init(eventContinuation: AsyncStream<OpenCodeEvent>.Continuation) {
+        self.eventContinuation = eventContinuation
     }
 
     // MARK: - Configuration
@@ -60,12 +66,12 @@ actor OpenCodeBridge {
     /// Start the HTTP server and connect SSE if not already running.
     func startIfNeeded() async {
         guard let configuration else {
-            logger.error("Cannot start: no configuration")
+            Log.error("Cannot start: no configuration")
             return
         }
 
         guard await !server.isRunning else {
-            logger.info("Server already running")
+            Log.bridge("Server already running")
             return
         }
 
@@ -73,7 +79,7 @@ actor OpenCodeBridge {
             let serverConfig = OpenCodeServer.Configuration(
                 binaryURL: configuration.binaryURL,
                 environment: configuration.environment,
-                workingDirectory: await currentWorkingDirectory()
+                workingDirectory: currentWorkingDirectory()
             )
 
             // Register restart handler BEFORE starting so it's ready
@@ -84,17 +90,14 @@ actor OpenCodeBridge {
 
             let url = try await server.start(configuration: serverConfig)
             await apiClient.updateBaseURL(url)
-            await apiClient.updateDirectory(await currentWorkingDirectory())
+            await apiClient.updateDirectory(currentWorkingDirectory())
 
-            // Don't start SSE here — submitIntent will start it with the
-            // correct working directory. Starting without a directory causes
-            // a wasted connection that gets cancelled immediately when
-            // submitIntent detects the directory mismatch and reconnects.
+            // Don't start SSE here — submitIntent will lazily start global SSE.
 
-            logger.info("Bridge started with server at \(url.absoluteString)")
+            Log.bridge("Bridge started with server at \(url.absoluteString)")
         } catch {
-            logger.error("Failed to start server: \(error.localizedDescription)")
-            await eventHandler(OpenCodeEvent(
+            Log.error("Failed to start server: \(error.localizedDescription)")
+            eventContinuation.yield(OpenCodeEvent(
                 kind: .error,
                 rawJson: "",
                 text: "Failed to start OpenCode: \(error.localizedDescription)"
@@ -105,16 +108,13 @@ actor OpenCodeBridge {
     /// Called by OpenCodeServer when the server auto-restarts on a new URL.
     /// Reconnects SSE and updates the API client to point at the new port.
     private func handleServerRestart(_ newURL: URL) async {
-        logger.info("Server restarted at \(newURL.absoluteString), reconnecting SSE...")
+        Log.bridge("Server restarted at \(newURL.absoluteString), reconnecting global SSE...")
 
         // Update API client to the new URL
         await apiClient.updateBaseURL(newURL)
-
-        // Disconnect old SSE and reconnect to new URL with the same directory
         await sseClient.disconnect()
-        startEventLoop(baseURL: newURL, directory: sseDirectory)
-
-        logger.info("Reconnected to restarted server at \(newURL.absoluteString)")
+        startGlobalEventLoop(baseURL: newURL)
+        Log.bridge("Reconnected global SSE at \(newURL.absoluteString)")
     }
 
     /// Stop the server and SSE.
@@ -124,8 +124,12 @@ actor OpenCodeBridge {
         await sseClient.disconnect()
         await server.stop()
         activeSessions.removeAll()
-        textBuffer.removeAll()
-        logger.info("Bridge stopped")
+        sessionDirectory.removeAll()
+        questionDirectory.removeAll()
+        permissionDirectory.removeAll()
+        reconnectHealthTask?.cancel()
+        reconnectHealthTask = nil
+        Log.bridge("Bridge stopped")
     }
 
     /// Restart: stop everything and start fresh.
@@ -141,24 +145,42 @@ actor OpenCodeBridge {
         return currentSessionId
     }
 
-    /// Set the session ID (for switching sessions).
+    /// Set the current session ID (for switching sessions / interrupt targeting).
+    /// Does NOT remove the old session from activeSessions — background sessions
+    /// must remain tracked so their SSE events continue to flow through isTrackedSession.
     func setSessionId(_ sessionId: String?) {
-        if let old = currentSessionId {
-            activeSessions.remove(old)
-        }
         currentSessionId = sessionId
         if let sessionId {
             activeSessions.insert(sessionId)
         }
-        logger.info("Session ID set to: \(sessionId ?? "nil")")
+        Log.bridge("Session ID set to: \(sessionId ?? "nil"), active sessions: \(activeSessions.count)")
+    }
+
+    /// Remove a completed/failed session from active tracking.
+    /// Called by AppState when a session finishes or errors out.
+    /// This stops the bridge from forwarding further events for this session.
+    func removeActiveSession(_ sessionId: String) {
+        activeSessions.remove(sessionId)
+        sessionDirectory.removeValue(forKey: sessionId)
+        lastReportedAgent.removeValue(forKey: sessionId)
+        if currentSessionId == sessionId {
+            currentSessionId = nil
+        }
+        Log.bridge("Removed active session: \(sessionId), remaining: \(activeSessions.count)")
     }
 
     // MARK: - Intent Submission
 
     /// Submit a new intent (run a task).
-    func submitIntent(text: String, cwd: String) async {
+    /// - Parameter forceNewSession: If true, clears `currentSessionId` atomically before creating
+    ///   a new session. This prevents the race condition where multiple concurrent Tasks
+    ///   interleave their setSessionId(nil) + submitIntent calls on the bridge actor.
+    func submitIntent(text: String, cwd: String, agent: String? = nil, forceNewSession: Bool = false) async {
+        if forceNewSession {
+            currentSessionId = nil
+        }
         guard configuration != nil else {
-            await eventHandler(OpenCodeEvent(
+            eventContinuation.yield(OpenCodeEvent(
                 kind: .error,
                 rawJson: "",
                 text: "OpenCode not configured"
@@ -172,36 +194,15 @@ actor OpenCodeBridge {
             guard await server.isRunning else { return }
         }
 
-        // Update working directory
-        await apiClient.updateDirectory(cwd)
-
-        // Ensure SSE is connected. Reconnect if:
-        //  1. Working directory changed (different OpenCode instance)
-        //  2. SSE stream task died (connection lost, all retries exhausted)
-        //  3. SSE was never started (first intent after app launch)
         if let url = await server.serverURL {
-            let sseAlive = await sseClient.hasActiveStream
-            let needsReconnect = cwd != sseDirectory || !sseAlive
-
-            if needsReconnect {
-                if cwd != sseDirectory {
-                    logger.info("Directory changed to \(cwd), reconnecting SSE...")
-                } else if !sseAlive {
-                    logger.info("SSE stream dead, reconnecting for \(cwd)...")
-                } else {
-                    logger.info("Starting SSE for directory: \(cwd)")
-                }
-                sseDirectory = cwd
-                await sseClient.disconnect()
-                startEventLoop(baseURL: url, directory: cwd)
-            }
+            await ensureGlobalEventLoop(baseURL: url)
         }
 
         do {
-            try await submitPrompt(text: text)
+            try await submitPrompt(text: text, cwd: cwd, agentOverride: agent)
         } catch {
-            logger.error("Failed to submit intent: \(error.localizedDescription)")
-            await eventHandler(OpenCodeEvent(
+            Log.error("Failed to submit intent: \(error.localizedDescription)")
+            eventContinuation.yield(OpenCodeEvent(
                 kind: .error,
                 rawJson: "",
                 text: "Failed to submit task: \(error.localizedDescription)"
@@ -210,10 +211,11 @@ actor OpenCodeBridge {
     }
 
     /// Resume an existing session with a new message.
-    func resumeSession(sessionId: String, text: String, cwd: String) async {
+    func resumeSession(sessionId: String, text: String, cwd: String, agent: String? = nil) async {
         currentSessionId = sessionId
         activeSessions.insert(sessionId)
-        await submitIntent(text: text, cwd: cwd)
+        sessionDirectory[sessionId] = cwd
+        await submitIntent(text: text, cwd: cwd, agent: agent)
     }
 
     // MARK: - Interruption
@@ -221,210 +223,341 @@ actor OpenCodeBridge {
     /// Interrupt/abort the current session.
     func interrupt() async {
         guard let sessionId = currentSessionId else {
-            logger.warning("No active session to interrupt")
+            Log.warning("No active session to interrupt")
             return
         }
 
         do {
+            await apiClient.updateDirectory(resolveDirectory(forSessionID: sessionId))
             try await apiClient.abortSession(id: sessionId)
-            logger.info("Aborted session: \(sessionId)")
+            Log.bridge("Aborted session: \(sessionId)")
         } catch {
-            logger.error("Failed to abort session: \(error.localizedDescription)")
+            Log.error("Failed to abort session: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Native Question/Permission Replies
 
     /// Reply to a native question from OpenCode.
-    func replyToQuestion(requestID: String, answers: [[String]]) async {
+    func replyToQuestion(requestID: String, answers: [[String]], sessionID: String? = nil) async {
         do {
+            await apiClient.updateDirectory(resolveDirectory(forQuestionID: requestID, sessionID: sessionID))
             try await apiClient.replyToQuestion(requestID: requestID, answers: answers)
+            questionDirectory.removeValue(forKey: requestID)
         } catch {
-            logger.error("Failed to reply to question \(requestID): \(error.localizedDescription)")
+            Log.error("Failed to reply to question \(requestID): \(error.localizedDescription)")
         }
     }
 
     /// Reject a native question (user cancelled).
-    func rejectQuestion(requestID: String) async {
+    func rejectQuestion(requestID: String, sessionID: String? = nil) async {
         do {
+            await apiClient.updateDirectory(resolveDirectory(forQuestionID: requestID, sessionID: sessionID))
             try await apiClient.rejectQuestion(requestID: requestID)
+            questionDirectory.removeValue(forKey: requestID)
         } catch {
-            logger.error("Failed to reject question \(requestID): \(error.localizedDescription)")
+            Log.error("Failed to reject question \(requestID): \(error.localizedDescription)")
         }
     }
 
     /// Reply to a native permission request.
-    func replyToPermission(requestID: String, reply: OpenCodeAPIClient.PermissionReply) async {
+    func replyToPermission(
+        requestID: String,
+        reply: OpenCodeAPIClient.PermissionReply,
+        sessionID: String? = nil
+    ) async {
         do {
+            await apiClient.updateDirectory(resolveDirectory(forPermissionID: requestID, sessionID: sessionID))
             try await apiClient.replyToPermission(requestID: requestID, reply: reply)
+            permissionDirectory.removeValue(forKey: requestID)
         } catch {
-            logger.error("Failed to reply to permission \(requestID): \(error.localizedDescription)")
+            Log.error("Failed to reply to permission \(requestID): \(error.localizedDescription)")
         }
     }
 
     // MARK: - SSE Event Loop
 
-    private func startEventLoop(baseURL: URL, directory: String? = nil) {
-        eventTask?.cancel()
+    private func ensureGlobalEventLoop(baseURL: URL) async {
+        let sseAlive = await sseClient.hasActiveStream
+        if sseAlive { return }
+        startGlobalEventLoop(baseURL: baseURL)
+    }
 
+    private func startGlobalEventLoop(baseURL: URL) {
+        eventTask?.cancel()
         eventTask = Task { [weak self] in
             guard let self else { return }
-
-            let stream = await self.sseClient.connect(to: baseURL, directory: directory)
-
-            for await sseEvent in stream {
+            let stream = await self.sseClient.connectGlobal(to: baseURL)
+            for await scopedEvent in stream {
                 guard !Task.isCancelled else { break }
-                await self.handleSSEEvent(sseEvent)
+                await self.handleSSEEvent(scopedEvent.event, sourceDirectory: scopedEvent.directory)
             }
-
-            await self.logger.info("SSE event loop ended")
+            Log.bridge("Global SSE event loop ended")
         }
     }
 
     /// Route an SSE event to the appropriate handler.
-    private func handleSSEEvent(_ event: SSEClient.SSEEvent) async {
+    /// Most handlers are now synchronous (non-blocking yield to AsyncStream).
+    private func handleSSEEvent(_ event: SSEClient.SSEEvent, sourceDirectory: String?) {
         switch event {
         case .connected:
-            logger.info("SSE connected")
+            Log.bridge("Global SSE connected")
+            startReconnectHealthCheck()
 
         case .heartbeat:
-            break // Silent
+            break
 
         case .textDelta(let info):
-            guard isTrackedSession(info.sessionID) else {
-                logger.debug("Dropping textDelta for untracked session: \(info.sessionID)")
-                return
-            }
-            // Accumulate text and emit as assistant event
-            textBuffer[info.sessionID, default: ""] += info.delta
-            // Emit the delta for streaming display
-            await eventHandler(OpenCodeEvent(
-                kind: .assistant,
-                rawJson: "",
-                text: info.delta,
-                sessionId: info.sessionID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleTextDelta(info)
 
         case .textComplete(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            // Flush any remaining buffer
-            textBuffer.removeValue(forKey: info.sessionID)
-            // Don't emit another event — the streamed deltas are already displayed
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleTextComplete(info)
 
         case .reasoningDelta(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            await eventHandler(OpenCodeEvent(
-                kind: .thought,
-                rawJson: "",
-                text: info.delta,
-                sessionId: info.sessionID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleReasoningDelta(info)
 
         case .toolRunning(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            let inputDict = deserializeInputJSON(info.inputJSON)
-            await eventHandler(OpenCodeEvent(
-                kind: .tool,
-                rawJson: "",
-                text: info.inputSummary ?? "",
-                toolName: info.toolName,
-                toolInput: info.inputSummary,
-                toolInputDict: inputDict,
-                toolCallId: info.toolCallID,
-                sessionId: info.sessionID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleToolRunning(info)
 
         case .toolCompleted(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            let inputDict = deserializeInputJSON(info.inputJSON)
-            await eventHandler(OpenCodeEvent(
-                kind: .tool,
-                rawJson: "",
-                text: info.inputSummary ?? "",
-                toolName: info.toolName,
-                toolInput: info.inputSummary,
-                toolInputDict: inputDict,
-                toolOutput: info.output,
-                toolCallId: info.toolCallID,
-                sessionId: info.sessionID,
-                diff: info.diff
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleToolCompleted(info)
 
         case .toolError(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            await eventHandler(OpenCodeEvent(
-                kind: .tool,
-                rawJson: "",
-                text: info.error,
-                toolName: info.toolName,
-                toolOutput: "Error: \(info.error)",
-                toolCallId: info.toolCallID,
-                sessionId: info.sessionID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleToolError(info)
 
         case .usageUpdated(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            await eventHandler(OpenCodeEvent(
-                kind: .usage,
-                rawJson: "",
-                text: "",
-                sessionId: info.sessionID,
-                model: info.model,
-                usage: info.usage,
-                cost: info.cost,
-                messageId: info.messageID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleUsageUpdate(info)
 
         case .sessionIdle(let sessionID):
-            guard isTrackedSession(sessionID) else { return }
-            textBuffer.removeValue(forKey: sessionID)
-            await eventHandler(OpenCodeEvent(
-                kind: .finish,
-                rawJson: "",
-                text: "Completed",
-                sessionId: sessionID
-            ))
+            observeSessionDirectory(sessionID: sessionID, sourceDirectory: sourceDirectory)
+            handleSessionIdle(sessionID)
 
         case .sessionStatus(let info):
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
             guard isTrackedSession(info.sessionID) else { return }
-            // Ignore busy status to avoid injecting synthetic "Processing..." text.
             break
 
         case .sessionError(let info):
-            guard isTrackedSession(info.sessionID) else { return }
-            textBuffer.removeValue(forKey: info.sessionID)
-            await eventHandler(OpenCodeEvent(
-                kind: .error,
-                rawJson: "",
-                text: info.error,
-                sessionId: info.sessionID
-            ))
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleSessionError(info)
 
         case .questionAsked(let request):
-            guard isTrackedSession(request.sessionID) else { return }
-            // Forward to AppState for QuickConfirm UI
-            await eventHandler(OpenCodeEvent(
-                kind: .tool,
-                rawJson: encodeQuestionAsJSON(request),
-                text: request.questions.first?.question ?? "Question",
-                toolName: "Question",
-                toolInput: request.questions.first?.question,
-                toolInputDict: buildQuestionInputDict(request),
-                sessionId: request.sessionID
-            ))
+            handleQuestionSSEEvent(request, sourceDirectory: sourceDirectory)
 
         case .permissionAsked(let request):
-            guard isTrackedSession(request.sessionID) else { return }
-            // Forward to AppState for permission UI
-            await eventHandler(OpenCodeEvent(
-                kind: .tool,
-                rawJson: encodePermissionAsJSON(request),
-                text: "Permission: \(request.permission) for \(request.patterns.joined(separator: ", "))",
-                toolName: "Permission",
-                toolInput: request.patterns.joined(separator: ", "),
-                toolInputDict: buildPermissionInputDict(request),
-                sessionId: request.sessionID
-            ))
+            handlePermissionSSEEvent(request, sourceDirectory: sourceDirectory)
+
+        case .agentChanged(let info):
+            observeSessionDirectory(sessionID: info.sessionID, sourceDirectory: sourceDirectory)
+            handleAgentChanged(info)
+        }
+    }
+
+    // MARK: - Text Event Handlers
+
+    private func handleTextDelta(_ info: SSEClient.TextDeltaInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .assistant,
+            rawJson: "",
+            text: info.delta,
+            sessionId: info.sessionID
+        ))
+    }
+
+    private func handleTextComplete(_ info: SSEClient.TextCompleteInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        // Text completion is a lifecycle marker; no state to update.
+    }
+
+    private func handleReasoningDelta(_ info: SSEClient.ReasoningDeltaInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .thought,
+            rawJson: "",
+            text: info.delta,
+            sessionId: info.sessionID
+        ))
+    }
+
+    // MARK: - Tool Event Handlers
+
+    private func handleToolRunning(_ info: SSEClient.ToolInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        let inputDict = deserializeInputJSON(info.inputJSON)
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .tool,
+            rawJson: "",
+            text: info.inputSummary ?? "",
+            toolName: info.toolName,
+            toolInput: info.inputSummary,
+            toolInputDict: inputDict,
+            toolCallId: info.toolCallID,
+            sessionId: info.sessionID
+        ))
+    }
+
+    private func handleToolCompleted(_ info: SSEClient.ToolCompletedInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        let inputDict = deserializeInputJSON(info.inputJSON)
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .tool,
+            rawJson: "",
+            text: info.inputSummary ?? "",
+            toolName: info.toolName,
+            toolInput: info.inputSummary,
+            toolInputDict: inputDict,
+            toolOutput: info.output,
+            toolCallId: info.toolCallID,
+            sessionId: info.sessionID,
+            diff: info.diff
+        ))
+    }
+
+    private func handleToolError(_ info: SSEClient.ToolErrorInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .tool,
+            rawJson: "",
+            text: info.error,
+            toolName: info.toolName,
+            toolOutput: "Error: \(info.error)",
+            toolCallId: info.toolCallID,
+            sessionId: info.sessionID
+        ))
+    }
+
+    // MARK: - Usage Event Handler
+
+    private func handleUsageUpdate(_ info: SSEClient.UsageInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .usage,
+            rawJson: "",
+            text: "",
+            sessionId: info.sessionID,
+            model: info.model,
+            usage: info.usage,
+            cost: info.cost,
+            messageId: info.messageID
+        ))
+    }
+
+    // MARK: - Session Lifecycle Handlers
+
+    private func handleSessionIdle(_ sessionID: String) {
+        guard isTrackedSession(sessionID) else { return }
+        lastReportedAgent.removeValue(forKey: sessionID)
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .finish,
+            rawJson: "",
+            text: "Completed",
+            sessionId: sessionID
+        ))
+    }
+
+    private func handleSessionError(_ info: SSEClient.SessionErrorInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+        lastReportedAgent.removeValue(forKey: info.sessionID)
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .error,
+            rawJson: "",
+            text: info.error,
+            sessionId: info.sessionID
+        ))
+    }
+
+    // MARK: - Agent Change Handler
+
+    private func handleAgentChanged(_ info: SSEClient.AgentChangeInfo) {
+        guard isTrackedSession(info.sessionID) else { return }
+
+        // Deduplicate: message.updated fires frequently with the same agent
+        let key = info.sessionID
+        if lastReportedAgent[key] == info.agent { return }
+        lastReportedAgent[key] = info.agent
+
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .assistant,
+            rawJson: "",
+            text: "",
+            sessionId: info.sessionID,
+            agent: info.agent
+        ))
+    }
+
+    // MARK: - Native Prompt Handlers
+
+    private func handleQuestionSSEEvent(_ request: SSEClient.QuestionRequest, sourceDirectory: String?) {
+        guard isTrackedSession(request.sessionID) else { return }
+        let resolvedDirectory = sourceDirectory ?? resolveDirectory(forSessionID: request.sessionID)
+        questionDirectory[request.id] = resolvedDirectory
+        if sessionDirectory[request.sessionID] == nil {
+            sessionDirectory[request.sessionID] = resolvedDirectory
+        }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .tool,
+            rawJson: encodeQuestionAsJSON(request),
+            text: request.questions.first?.question ?? "Question",
+            toolName: "Question",
+            toolInput: request.questions.first?.question,
+            toolInputDict: buildQuestionInputDict(request),
+            sessionId: request.sessionID
+        ))
+    }
+
+    private func handlePermissionSSEEvent(_ request: SSEClient.NativePermissionRequest, sourceDirectory: String?) {
+        guard isTrackedSession(request.sessionID) else { return }
+        let resolvedDirectory = sourceDirectory ?? resolveDirectory(forSessionID: request.sessionID)
+        permissionDirectory[request.id] = resolvedDirectory
+        if sessionDirectory[request.sessionID] == nil {
+            sessionDirectory[request.sessionID] = resolvedDirectory
+        }
+        eventContinuation.yield(OpenCodeEvent(
+            kind: .tool,
+            rawJson: encodePermissionAsJSON(request),
+            text: "Permission: \(request.permission) for \(request.patterns.joined(separator: ", "))",
+            toolName: "Permission",
+            toolInput: request.patterns.joined(separator: ", "),
+            toolInputDict: buildPermissionInputDict(request),
+            sessionId: request.sessionID
+        ))
+    }
+
+    // MARK: - Reconnection Health Check
+
+    /// After global SSE reconnects, check whether active sessions keep progressing.
+    private func startReconnectHealthCheck() {
+        reconnectHealthTask?.cancel()
+        guard !activeSessions.isEmpty else { return }
+        let sessionsAtReconnect = activeSessions
+
+        reconnectHealthTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            guard !Task.isCancelled, let self else { return }
+            let currentActive = await self.getActiveSessions()
+            let stillTracked = sessionsAtReconnect.filter { currentActive.contains($0) }
+            if !stillTracked.isEmpty {
+                Log.warning("Global SSE reconnect health: \(stillTracked.count) session(s) still active after reconnect")
+            }
+        }
+    }
+
+    private func getActiveSessions() -> Set<String> {
+        activeSessions
+    }
+
+    private func observeSessionDirectory(sessionID: String, sourceDirectory: String?) {
+        guard let sourceDirectory, !sourceDirectory.isEmpty else { return }
+        if sessionDirectory[sessionID] == nil {
+            sessionDirectory[sessionID] = sourceDirectory
         }
     }
 
@@ -444,32 +577,82 @@ actor OpenCodeBridge {
         return FileManager.default.homeDirectoryForCurrentUser.path
     }
 
-    private func submitPrompt(text: String) async throws {
+    private func resolveDirectory(forSessionID sessionID: String?) -> String {
+        guard let sessionID else { return currentWorkingDirectory() }
+        return sessionDirectory[sessionID] ?? currentWorkingDirectory()
+    }
+
+    private func resolveDirectory(forQuestionID requestID: String, sessionID: String?) -> String {
+        if let sessionID {
+            return resolveDirectory(forSessionID: sessionID)
+        }
+        if let directory = questionDirectory[requestID] {
+            return directory
+        }
+        return currentWorkingDirectory()
+    }
+
+    private func resolveDirectory(forPermissionID requestID: String, sessionID: String?) -> String {
+        if let sessionID {
+            return resolveDirectory(forSessionID: sessionID)
+        }
+        if let directory = permissionDirectory[requestID] {
+            return directory
+        }
+        return currentWorkingDirectory()
+    }
+
+    private func submitPrompt(text: String, cwd: String, agentOverride: String? = nil) async throws {
         // Create or reuse session
         let sessionID: String
         if let existing = currentSessionId {
             sessionID = existing
-            logger.info("Reusing existing session: \(sessionID)")
+            Log.bridge("Reusing existing session: \(sessionID)")
         } else {
+            await apiClient.updateDirectory(cwd)
             let session = try await apiClient.createSession()
             sessionID = session.id
             currentSessionId = sessionID
             activeSessions.insert(sessionID)
-            logger.info("Created new session: \(sessionID)")
+            sessionDirectory[sessionID] = cwd
+            Log.bridge("Created new session: \(sessionID)")
+
+            // Notify AppState of the new session ID BEFORE sending the prompt.
+            // The `await` ensures the MainActor processes this binding before any
+            // SSE events can arrive, preventing stale events from corrupting the ID.
+            eventContinuation.yield(OpenCodeEvent(
+                kind: .unknown,
+                rawJson: "__session_bind__",
+                text: "",
+                sessionId: sessionID
+            ))
+        }
+
+        // Ensure directory mapping exists for reused sessions as well.
+        if sessionDirectory[sessionID] == nil {
+            sessionDirectory[sessionID] = cwd
+        }
+        let directory = resolveDirectory(forSessionID: sessionID)
+        if let url = await server.serverURL {
+            await ensureGlobalEventLoop(baseURL: url)
         }
 
         let sessionCount = activeSessions.count
         let sseAlive = await sseClient.hasActiveStream
         let sseConnected = await sseClient.connected
-        logger.info("Active sessions: \(sessionCount), SSE alive: \(sseAlive), SSE connected: \(sseConnected)")
+        Log.bridge("Active sessions: \(sessionCount), global SSE alive: \(sseAlive), connected: \(sseConnected)")
 
         // Send prompt asynchronously (results via SSE)
+        // Use explicit agent override if provided, otherwise fall back to configuration
+        let agent = agentOverride ?? configuration?.agent
+        await apiClient.updateDirectory(directory)
         try await apiClient.sendPromptAsync(
             sessionID: sessionID,
             text: text,
-            model: configuration?.model
+            model: configuration?.model,
+            agent: agent
         )
-        logger.info("Submitted intent to session \(sessionID)")
+        Log.bridge("Submitted intent to session \(sessionID)")
     }
 
     // MARK: - JSON Encoding Helpers
@@ -540,6 +723,14 @@ actor OpenCodeBridge {
                 }
                 return d
             }
+        }
+
+        // Pass tool context for plan_exit detection
+        if let toolContext = request.toolContext {
+            dict["_toolContext"] = toolContext
+        }
+        if let planFilePath = request.planFilePath, !planFilePath.isEmpty {
+            dict["_planFilePath"] = planFilePath
         }
 
         return dict

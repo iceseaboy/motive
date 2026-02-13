@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A57BF9522F2C8F7000FBBA53 /* CloudKitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57BF9512F2C8F7000FBBA53 /* CloudKitModels.swift */; };
-		A57BF9532F2C8F7000FBBA53 /* CloudKitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57BF9512F2C8F7000FBBA53 /* CloudKitModels.swift */; };
 		A5F0C0032F9A1B2C00A1B2C3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = A5F0C0022F9A1B2C00A1B2C3 /* MarkdownUI */; };
 /* End PBXBuildFile section */
 
@@ -27,41 +25,13 @@
 			remoteGlobalIDString = A51197CF2F1DE77C00DA1911;
 			remoteInfo = Motive;
 		};
-		A57BF8762F2C856E00FBBA53 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A51197C82F1DE77C00DA1911 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A57BF8662F2C856C00FBBA53;
-			remoteInfo = MotiveRemote;
-		};
-		A57BF8802F2C856E00FBBA53 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A51197C82F1DE77C00DA1911 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A57BF8662F2C856C00FBBA53;
-			remoteInfo = MotiveRemote;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A51197D02F1DE77C00DA1911 /* Motive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Motive.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A51197DF2F1DE77D00DA1911 /* MotiveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A51197E92F1DE77D00DA1911 /* MotiveUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotiveUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A57BF8672F2C856C00FBBA53 /* MotiveRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MotiveRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A57BF8752F2C856E00FBBA53 /* MotiveRemoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotiveRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A57BF87F2F2C856E00FBBA53 /* MotiveRemoteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotiveRemoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A57BF9512F2C8F7000FBBA53 /* CloudKitModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitModels.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A57BF89F2F2C87D700FBBA53 /* Exceptions for "MotiveRemote" folder in "MotiveRemote" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = A57BF8662F2C856C00FBBA53 /* MotiveRemote */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A51197D22F1DE77C00DA1911 /* Motive */ = {
@@ -77,24 +47,6 @@
 		A51197EC2F1DE77D00DA1911 /* MotiveUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MotiveUITests;
-			sourceTree = "<group>";
-		};
-		A57BF8682F2C856C00FBBA53 /* MotiveRemote */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A57BF89F2F2C87D700FBBA53 /* Exceptions for "MotiveRemote" folder in "MotiveRemote" target */,
-			);
-			path = MotiveRemote;
-			sourceTree = "<group>";
-		};
-		A57BF8782F2C856E00FBBA53 /* MotiveRemoteTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = MotiveRemoteTests;
-			sourceTree = "<group>";
-		};
-		A57BF8822F2C856E00FBBA53 /* MotiveRemoteUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = MotiveRemoteUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -122,40 +74,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A57BF8642F2C856C00FBBA53 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF8722F2C856E00FBBA53 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF87C2F2C856E00FBBA53 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		A51197C72F1DE77C00DA1911 = {
 			isa = PBXGroup;
 			children = (
-				A57BF9512F2C8F7000FBBA53 /* CloudKitModels.swift */,
 				A51197D22F1DE77C00DA1911 /* Motive */,
 				A51197E22F1DE77D00DA1911 /* MotiveTests */,
 				A51197EC2F1DE77D00DA1911 /* MotiveUITests */,
-				A57BF8682F2C856C00FBBA53 /* MotiveRemote */,
-				A57BF8782F2C856E00FBBA53 /* MotiveRemoteTests */,
-				A57BF8822F2C856E00FBBA53 /* MotiveRemoteUITests */,
 				A51197D12F1DE77C00DA1911 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -166,9 +93,6 @@
 				A51197D02F1DE77C00DA1911 /* Motive.app */,
 				A51197DF2F1DE77D00DA1911 /* MotiveTests.xctest */,
 				A51197E92F1DE77D00DA1911 /* MotiveUITests.xctest */,
-				A57BF8672F2C856C00FBBA53 /* MotiveRemote.app */,
-				A57BF8752F2C856E00FBBA53 /* MotiveRemoteTests.xctest */,
-				A57BF87F2F2C856E00FBBA53 /* MotiveRemoteUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -246,74 +170,6 @@
 			productReference = A51197E92F1DE77D00DA1911 /* MotiveUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		A57BF8662F2C856C00FBBA53 /* MotiveRemote */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A57BF8872F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemote" */;
-			buildPhases = (
-				A57BF8632F2C856C00FBBA53 /* Sources */,
-				A57BF8642F2C856C00FBBA53 /* Frameworks */,
-				A57BF8652F2C856C00FBBA53 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				A57BF8682F2C856C00FBBA53 /* MotiveRemote */,
-			);
-			name = MotiveRemote;
-			packageProductDependencies = (
-			);
-			productName = MotiveRemote;
-			productReference = A57BF8672F2C856C00FBBA53 /* MotiveRemote.app */;
-			productType = "com.apple.product-type.application";
-		};
-		A57BF8742F2C856E00FBBA53 /* MotiveRemoteTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A57BF88A2F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemoteTests" */;
-			buildPhases = (
-				A57BF8712F2C856E00FBBA53 /* Sources */,
-				A57BF8722F2C856E00FBBA53 /* Frameworks */,
-				A57BF8732F2C856E00FBBA53 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A57BF8772F2C856E00FBBA53 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				A57BF8782F2C856E00FBBA53 /* MotiveRemoteTests */,
-			);
-			name = MotiveRemoteTests;
-			packageProductDependencies = (
-			);
-			productName = MotiveRemoteTests;
-			productReference = A57BF8752F2C856E00FBBA53 /* MotiveRemoteTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		A57BF87E2F2C856E00FBBA53 /* MotiveRemoteUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A57BF88D2F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemoteUITests" */;
-			buildPhases = (
-				A57BF87B2F2C856E00FBBA53 /* Sources */,
-				A57BF87C2F2C856E00FBBA53 /* Frameworks */,
-				A57BF87D2F2C856E00FBBA53 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				A57BF8812F2C856E00FBBA53 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				A57BF8822F2C856E00FBBA53 /* MotiveRemoteUITests */,
-			);
-			name = MotiveRemoteUITests;
-			packageProductDependencies = (
-			);
-			productName = MotiveRemoteUITests;
-			productReference = A57BF87F2F2C856E00FBBA53 /* MotiveRemoteUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -334,17 +190,6 @@
 					A51197E82F1DE77D00DA1911 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = A51197CF2F1DE77C00DA1911;
-					};
-					A57BF8662F2C856C00FBBA53 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					A57BF8742F2C856E00FBBA53 = {
-						CreatedOnToolsVersion = 26.2;
-						TestTargetID = A57BF8662F2C856C00FBBA53;
-					};
-					A57BF87E2F2C856E00FBBA53 = {
-						CreatedOnToolsVersion = 26.2;
-						TestTargetID = A57BF8662F2C856C00FBBA53;
 					};
 				};
 			};
@@ -370,9 +215,6 @@
 				A51197CF2F1DE77C00DA1911 /* Motive */,
 				A51197DE2F1DE77D00DA1911 /* MotiveTests */,
 				A51197E82F1DE77D00DA1911 /* MotiveUITests */,
-				A57BF8662F2C856C00FBBA53 /* MotiveRemote */,
-				A57BF8742F2C856E00FBBA53 /* MotiveRemoteTests */,
-				A57BF87E2F2C856E00FBBA53 /* MotiveRemoteUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -399,27 +241,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A57BF8652F2C856C00FBBA53 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF8732F2C856E00FBBA53 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF87D2F2C856E00FBBA53 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -432,12 +253,26 @@
 			);
 			inputPaths = (
 				"$(PROJECT_DIR)/Scripts/copy-opencode.sh",
-				"$(PROJECT_DIR)/Motive/Resources/opencode",
+				"$(PROJECT_DIR)/build/opencode-staged",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/package.json",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/index.ts",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/tooling.ts",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/runtime.ts",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/search.ts",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/get.ts",
+				"$(PROJECT_DIR)/Motive/Resources/Plugins/motive-memory/src/write.ts",
 			);
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/opencode",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/package.json",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/index.ts",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/tooling.ts",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/runtime.ts",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/search.ts",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/get.ts",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/Plugins/motive-memory/src/write.ts",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -450,7 +285,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A57BF9522F2C8F7000FBBA53 /* CloudKitModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -462,28 +296,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A51197E52F1DE77D00DA1911 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF8632F2C856C00FBBA53 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A57BF9532F2C8F7000FBBA53 /* CloudKitModels.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF8712F2C856E00FBBA53 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		A57BF87B2F2C856E00FBBA53 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -502,16 +314,6 @@
 			isa = PBXTargetDependency;
 			target = A51197CF2F1DE77C00DA1911 /* Motive */;
 			targetProxy = A51197EA2F1DE77D00DA1911 /* PBXContainerItemProxy */;
-		};
-		A57BF8772F2C856E00FBBA53 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A57BF8662F2C856C00FBBA53 /* MotiveRemote */;
-			targetProxy = A57BF8762F2C856E00FBBA53 /* PBXContainerItemProxy */;
-		};
-		A57BF8812F2C856E00FBBA53 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A57BF8662F2C856C00FBBA53 /* MotiveRemote */;
-			targetProxy = A57BF8802F2C856E00FBBA53 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -664,7 +466,7 @@
 					"$(PROJECT_DIR)/Motive/Resources/browser-use-sidecar/_internal/rpds",
 					"$(PROJECT_DIR)/Motive/Resources/browser-use-sidecar/_internal",
 				);
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.Motive;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -707,7 +509,7 @@
 					"$(PROJECT_DIR)/Motive/Resources/browser-use-sidecar/_internal/rpds",
 					"$(PROJECT_DIR)/Motive/Resources/browser-use-sidecar/_internal",
 				);
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.Motive;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -728,7 +530,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -748,7 +550,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -766,7 +568,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -784,7 +586,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -793,171 +595,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = Motive;
-			};
-			name = Release;
-		};
-		A57BF8882F2C856E00FBBA53 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MotiveRemote/MotiveRemote.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MotiveRemote/Info.plist;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemote;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		A57BF8892F2C856E00FBBA53 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MotiveRemote/MotiveRemote.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MotiveRemote/Info.plist;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemote;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		A57BF88B2F2C856E00FBBA53 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemoteTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MotiveRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MotiveRemote";
-			};
-			name = Debug;
-		};
-		A57BF88C2F2C856E00FBBA53 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemoteTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MotiveRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MotiveRemote";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		A57BF88E2F2C856E00FBBA53 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemoteUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = MotiveRemote;
-			};
-			name = Debug;
-		};
-		A57BF88F2F2C856E00FBBA53 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XAA75S2V8H;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 0.8.0;
-				PRODUCT_BUNDLE_IDENTIFIER = velvetai.MotiveRemoteUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = MotiveRemote;
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -996,33 +633,6 @@
 			buildConfigurations = (
 				A51197FA2F1DE77D00DA1911 /* Debug */,
 				A51197FB2F1DE77D00DA1911 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A57BF8872F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemote" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A57BF8882F2C856E00FBBA53 /* Debug */,
-				A57BF8892F2C856E00FBBA53 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A57BF88A2F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemoteTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A57BF88B2F2C856E00FBBA53 /* Debug */,
-				A57BF88C2F2C856E00FBBA53 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A57BF88D2F2C856E00FBBA53 /* Build configuration list for PBXNativeTarget "MotiveRemoteUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A57BF88E2F2C856E00FBBA53 /* Debug */,
-				A57BF88F2F2C856E00FBBA53 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

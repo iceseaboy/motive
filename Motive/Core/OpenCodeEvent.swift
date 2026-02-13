@@ -34,12 +34,12 @@ extension String {
 
 // MARK: - Todo Item Model
 
-struct TodoItem: Identifiable, Sendable, Equatable {
+struct TodoItem: Identifiable, Sendable, Equatable, Codable {
     let id: String
     let content: String
     let status: Status
 
-    enum Status: String, Sendable {
+    enum Status: String, Sendable, Codable {
         case pending
         case inProgress = "in_progress"
         case completed
@@ -68,8 +68,8 @@ struct TodoItem: Identifiable, Sendable, Equatable {
 
 // MARK: - Message Type for Conversation UI
 
-struct ConversationMessage: Identifiable, Sendable {
-    enum MessageType: String, Sendable {
+struct ConversationMessage: Identifiable, Sendable, Codable {
+    enum MessageType: String, Sendable, Codable {
         case user
         case assistant
         case tool
@@ -78,7 +78,7 @@ struct ConversationMessage: Identifiable, Sendable {
         case reasoning  // Reasoning/thinking stream
     }
 
-    enum Status: String, Sendable {
+    enum Status: String, Sendable, Codable {
         case pending    // Created, not yet started
         case running    // In progress (tool executing, step processing)
         case completed  // Finished successfully
@@ -158,6 +158,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
     let diff: String?
     /// Whether this is a secondary/redundant finish event (session.idle, process exit)
     let isSecondaryFinish: Bool
+    /// Agent name from OpenCode (e.g. "plan", "build"). Extracted from message info.
+    let agent: String?
 
     init(
         id: UUID = UUID(),
@@ -175,7 +177,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
         cost: Double? = nil,
         messageId: String? = nil,
         diff: String? = nil,
-        isSecondaryFinish: Bool = false
+        isSecondaryFinish: Bool = false,
+        agent: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -193,6 +196,7 @@ struct OpenCodeEvent: Sendable, Identifiable {
         self.messageId = messageId
         self.diff = diff
         self.isSecondaryFinish = isSecondaryFinish
+        self.agent = agent
     }
 
     /// Parse OpenCode CLI JSON output
@@ -245,24 +249,8 @@ struct OpenCodeEvent: Sendable, Identifiable {
             self.init(kind: .tool, rawJson: rawJson, text: "", toolName: "Result", toolOutput: output, toolCallId: toolCallId, sessionId: sessionId)
             
         case "step_start":
-            // Step started
             self.init(kind: .thought, rawJson: rawJson, text: "Processing...", sessionId: sessionId)
-            
-        case "step_finish":
-            // Step finished — treat ALL reasons as a finish event.
-            // Previously only "stop" and "end_turn" were recognized, causing
-            // other reasons (e.g., "done", "max_tokens") to be silently dropped,
-            // leaving the UI stuck in "thinking" forever.
-            let reason = part?["reason"] as? String ?? "done"
-            let isTerminal = (reason == "stop" || reason == "end_turn" || reason == "done")
-            if isTerminal {
-                self.init(kind: .finish, rawJson: rawJson, text: "Completed", sessionId: sessionId)
-            } else {
-                // Non-terminal step_finish (e.g., "tool_use") — intermediate step, not final
-                // Still parse as thought so it doesn't prematurely end the session
-                self.init(kind: .thought, rawJson: rawJson, text: "", sessionId: sessionId)
-            }
-            
+
         case "error":
             // Error message — surface to user, not silently drop
             let errorText = object["error"] as? String
@@ -278,41 +266,61 @@ struct OpenCodeEvent: Sendable, Identifiable {
             self.init(kind: .user, rawJson: rawJson, text: userText, sessionId: sessionId)
 
         case "question.asked":
-            // Native question stored from bridge — reconstruct for replay
-            let questions = object["questions"] as? [[String: Any]] ?? []
-            let questionText = questions.first?["question"] as? String ?? "Question"
-            let questionId = object["id"] as? String
-            // Build inputDict with _isNativeQuestion for handleNativeQuestion interception
-            var inputDict: [String: Any] = ["_isNativeQuestion": true, "question": questionText]
-            if let id = questionId { inputDict["_nativeQuestionID"] = id }
-            if let q = questions.first {
-                inputDict["options"] = q["options"] ?? []
-                inputDict["multiple"] = q["multiple"] ?? false
-                inputDict["custom"] = q["custom"] ?? true
-            }
-            self.init(kind: .tool, rawJson: rawJson, text: questionText, toolName: "Question", toolInput: questionText, toolInputDict: inputDict, sessionId: sessionId)
+            self = Self.parseQuestionAsked(from: object, rawJson: rawJson, sessionId: sessionId)
 
         case "permission.asked":
-            // Native permission stored from bridge — reconstruct for replay
-            let permission = object["permission"] as? String ?? "unknown"
-            let patterns = object["patterns"] as? [String] ?? []
-            let permId = object["id"] as? String
-            let metadata = object["metadata"] as? [String: String] ?? [:]
-            var inputDict: [String: Any] = [
-                "_isNativePermission": true,
-                "permission": permission,
-                "patterns": patterns,
-                "metadata": metadata,
-            ]
-            if let id = permId { inputDict["_nativePermissionID"] = id }
-            let description = "\(permission): \(patterns.joined(separator: ", "))"
-            self.init(kind: .tool, rawJson: rawJson, text: description, toolName: "Permission", toolInput: patterns.joined(separator: ", "), toolInputDict: inputDict, sessionId: sessionId)
+            self = Self.parsePermissionAsked(from: object, rawJson: rawJson, sessionId: sessionId)
+
+        case "step_finish":
+            self = Self.parseStepFinish(from: part, rawJson: rawJson, sessionId: sessionId)
 
         default:
             // Unknown message type — log it for debugging instead of silently dropping
             let message = OpenCodeEvent.extractString(from: object, keys: ["message", "text", "content", "summary", "detail"])
             Log.bridge("⚠️ Unrecognized event type: '\(messageType)' — raw: \(rawJson.prefix(500))")
             self.init(kind: .unknown, rawJson: rawJson, text: message ?? "Unrecognized event: \(messageType)", sessionId: sessionId)
+        }
+    }
+
+    // MARK: - Extracted Parsers
+
+    private static func parseQuestionAsked(from object: [String: Any], rawJson: String, sessionId: String?) -> OpenCodeEvent {
+        let questions = object["questions"] as? [[String: Any]] ?? []
+        let questionText = questions.first?["question"] as? String ?? "Question"
+        let questionId = object["id"] as? String
+        var inputDict: [String: Any] = ["_isNativeQuestion": true, "question": questionText]
+        if let id = questionId { inputDict["_nativeQuestionID"] = id }
+        if let q = questions.first {
+            inputDict["options"] = q["options"] ?? []
+            inputDict["multiple"] = q["multiple"] ?? false
+            inputDict["custom"] = q["custom"] ?? true
+        }
+        return OpenCodeEvent(kind: .tool, rawJson: rawJson, text: questionText, toolName: "Question", toolInput: questionText, toolInputDict: inputDict, sessionId: sessionId)
+    }
+
+    private static func parsePermissionAsked(from object: [String: Any], rawJson: String, sessionId: String?) -> OpenCodeEvent {
+        let permission = object["permission"] as? String ?? "unknown"
+        let patterns = object["patterns"] as? [String] ?? []
+        let permId = object["id"] as? String
+        let metadata = object["metadata"] as? [String: String] ?? [:]
+        var inputDict: [String: Any] = [
+            "_isNativePermission": true,
+            "permission": permission,
+            "patterns": patterns,
+            "metadata": metadata,
+        ]
+        if let id = permId { inputDict["_nativePermissionID"] = id }
+        let description = "\(permission): \(patterns.joined(separator: ", "))"
+        return OpenCodeEvent(kind: .tool, rawJson: rawJson, text: description, toolName: "Permission", toolInput: patterns.joined(separator: ", "), toolInputDict: inputDict, sessionId: sessionId)
+    }
+
+    private static func parseStepFinish(from part: [String: Any]?, rawJson: String, sessionId: String?) -> OpenCodeEvent {
+        let reason = part?["reason"] as? String ?? "done"
+        let isTerminal = (reason == "stop" || reason == "end_turn" || reason == "done")
+        if isTerminal {
+            return OpenCodeEvent(kind: .finish, rawJson: rawJson, text: "Completed", sessionId: sessionId)
+        } else {
+            return OpenCodeEvent(kind: .thought, rawJson: rawJson, text: "", sessionId: sessionId)
         }
     }
 
@@ -557,46 +565,48 @@ extension ConversationMessage {
         return "Output · \(lineCount) \(lineCount == 1 ? "line" : "lines")"
     }
 
-    // MARK: - Snapshot Serialization
+    // MARK: - Snapshot Serialization (Codable)
 
-    /// Serialize a messages array to Data for persistence.
-    /// Saves exactly what the live UI displayed — no reconstruction needed for history.
+    /// Serialize a messages array to Data for persistence using Codable.
     static func serializeMessages(_ messages: [ConversationMessage]) -> Data? {
-        let dicts: [[String: Any]] = messages.compactMap { msg in
-            var dict: [String: Any] = [
-                "id": msg.id.uuidString,
-                "type": msg.type.rawValue,
-                "content": msg.content,
-                "status": msg.status.rawValue,
-                "timestamp": msg.timestamp.timeIntervalSince1970,
-            ]
-            if let v = msg.toolName { dict["toolName"] = v }
-            if let v = msg.toolInput { dict["toolInput"] = v }
-            if let v = msg.toolOutput { dict["toolOutput"] = v }
-            if let v = msg.toolCallId { dict["toolCallId"] = v }
-            if let v = msg.diffContent { dict["diffContent"] = v }
-            if let todos = msg.todoItems {
-                dict["todoItems"] = todos.map { [
-                    "id": $0.id,
-                    "content": $0.content,
-                    "status": $0.status.rawValue,
-                ] as [String: String] }
-            }
-            return dict
+        do {
+            return try JSONEncoder().encode(messages)
+        } catch {
+            Log.error("Failed to serialize \(messages.count) messages: \(error)")
+            return nil
         }
-        guard JSONSerialization.isValidJSONObject(dicts) else { return nil }
-        return try? JSONSerialization.data(withJSONObject: dicts)
     }
 
     /// Deserialize a messages array from persisted Data.
+    /// Tries Codable first, then falls back to legacy JSONSerialization format for migration.
     static func deserializeMessages(_ data: Data) -> [ConversationMessage]? {
-        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+        // Try Codable (new format)
+        if let messages = try? JSONDecoder().decode([ConversationMessage].self, from: data),
+           !messages.isEmpty {
+            return messages
+        }
+
+        // Fallback: legacy manual JSONSerialization format (migration path)
+        return deserializeMessagesLegacy(data)
+    }
+
+    /// Legacy deserialization for data saved before Codable migration.
+    private static func deserializeMessagesLegacy(_ data: Data) -> [ConversationMessage]? {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            Log.error("Failed to deserialize messages: data is not a valid JSON array")
+            return nil
+        }
+        var droppedCount = 0
         let results: [ConversationMessage] = array.compactMap { dict in
             guard let idStr = dict["id"] as? String, let id = UUID(uuidString: idStr),
                   let typeStr = dict["type"] as? String, let type = MessageType(rawValue: typeStr),
                   let content = dict["content"] as? String,
                   let statusStr = dict["status"] as? String, let status = Status(rawValue: statusStr)
-            else { return nil }
+            else {
+                droppedCount += 1
+                Log.error("Dropped message during legacy deserialization: missing required field(s) in \(dict.keys)")
+                return nil
+            }
 
             let ts = dict["timestamp"] as? TimeInterval ?? Date().timeIntervalSince1970
 
@@ -623,6 +633,9 @@ extension ConversationMessage {
                 todoItems: todoItems,
                 diffContent: dict["diffContent"] as? String
             )
+        }
+        if droppedCount > 0 {
+            Log.error("Legacy deserialization: dropped \(droppedCount) of \(array.count) messages")
         }
         return results.isEmpty ? nil : results
     }

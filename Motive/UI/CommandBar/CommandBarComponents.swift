@@ -125,6 +125,68 @@ struct ProjectListItem: View {
     }
 }
 
+struct ModeListItem: View {
+    let name: String
+    let icon: String
+    let description: String
+    let isSelected: Bool
+    let isCurrent: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AuroraSpacing.space3) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: AuroraSpacing.space2) {
+                        Text(name)
+                            .font(.Aurora.body.weight(.medium))
+                            .foregroundColor(Color.Aurora.textPrimary)
+
+                        if isCurrent {
+                            Text("current")
+                                .font(.Aurora.micro)
+                                .foregroundColor(Color.Aurora.primary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.Aurora.primary.opacity(0.15))
+                                )
+                        }
+                    }
+
+                    Text(description)
+                        .font(.Aurora.caption)
+                        .foregroundColor(Color.Aurora.textMuted)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "return")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color.Aurora.textMuted)
+                }
+            }
+            .padding(.horizontal, AuroraSpacing.space3)
+            .padding(.vertical, AuroraSpacing.space2)
+            .background(
+                RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
+                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
 struct AuroraActionPill: View {
     let icon: String
     let label: String

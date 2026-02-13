@@ -24,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Hide dock icon - we're a menu bar app
         NSApp.setActivationPolicy(.accessory)
         
+        // Create the status bar icon immediately — before anything else.
+        // This guarantees it is visible from the very first frame, regardless
+        // of whether onboarding is shown or skipped.
+        appState?.ensureStatusBar()
+        
         // Clean up any stale browser-sidecar processes from previous runs
         cleanupBrowserSidecar()
         
@@ -36,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
-        // Normal startup - Start the app state (creates status bar, etc.)
+        // Normal startup
         startNormalFlow()
     }
     
@@ -68,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Switch back to accessory app (menu bar only)
         NSApp.setActivationPolicy(.accessory)
         
-        // Start normal flow
+        // Start normal flow (status bar already exists from applicationDidFinishLaunching)
         startNormalFlow()
     }
     
@@ -76,23 +81,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startNormalFlow() {
         appState?.start()
         
-        // Retry status bar creation after launch (safety)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(200))
-            self?.appState?.ensureStatusBar()
-        }
-        
         // Observe hotkey changes from settings
         observeHotkeyChanges()
         
         // Request accessibility permission
         requestAccessibilityAndRegisterHotkey()
         
-        // Hide command bar initially - user can invoke via hotkey
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(500))
-            self?.appState?.hideCommandBar()
-        }
+        // Command bar starts hidden — user invokes via hotkey
+        appState?.hideCommandBar()
     }
     
     func applicationWillTerminate(_ notification: Notification) {

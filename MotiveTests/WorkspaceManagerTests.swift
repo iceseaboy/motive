@@ -46,6 +46,8 @@ struct WorkspaceManagerTests {
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("config").path))
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("skills").path))
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("mcp").path))
+            #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("memory").path))
+            #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("plugins").path))
         }
     }
     
@@ -58,6 +60,16 @@ struct WorkspaceManagerTests {
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("IDENTITY.md").path))
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("USER.md").path))
             #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("AGENTS.md").path))
+            #expect(FileManager.default.fileExists(atPath: tempURL.appendingPathComponent("MEMORY.md").path))
+        }
+    }
+
+    @Test func deployedMemoryPluginEntryPathUsesWorkspace() async throws {
+        try await withTempWorkspace { tempURL in
+            let manager = WorkspaceManager(workspaceURL: tempURL)
+            let expected = tempURL.appendingPathComponent("plugins/motive-memory/src/index.ts").path
+            #expect(manager.deployedMemoryPluginEntryURL().path == expected)
+            #expect(manager.hasDeployedMemoryPlugin() == false)
         }
     }
     

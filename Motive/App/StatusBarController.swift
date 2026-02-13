@@ -14,6 +14,8 @@ protocol StatusBarControllerDelegate: AnyObject {
     func statusBarDidRequestSettings()
     func statusBarDidRequestQuit()
     func statusBarDidRequestCommandBar()
+    /// Build menu for right-click (includes dynamic Running tasks when count > 0)
+    func statusBarMenu() -> NSMenu
 }
 
 /// Extended status for status bar display
@@ -73,7 +75,6 @@ final class StatusBarController {
         menu = NSMenu()
         configureStatusButton()
         configureMenu()
-        // Initial state
         updateDisplay(state: .idle)
     }
     
@@ -101,7 +102,7 @@ final class StatusBarController {
 
     func update(state: AppState.MenuBarState, toolName: String? = nil, isWaitingForInput: Bool = false, inputType: String? = nil) {
         let displayState: StatusBarDisplayState
-        
+
         if isWaitingForInput {
             displayState = .waitingForInput(type: inputType ?? "Input Required")
         } else {
@@ -116,7 +117,7 @@ final class StatusBarController {
                 displayState = .executing(tool: toolName)
             }
         }
-        
+
         updateDisplay(state: displayState)
     }
     
@@ -217,11 +218,11 @@ final class StatusBarController {
         switch state {
         case .idle:
             // Use custom logo for idle state
-            if let logoImage = NSImage(named: "status-bar-icon"),
-               let resizedLogo = logoImage.copy() as? NSImage {
-                logoImage.isTemplate = true
-                resizedLogo.size = NSSize(width: 18, height: 18)
-                button.image = resizedLogo
+            if let logoImage = NSImage(named: "status-bar-icon") {
+                let icon = logoImage.copy() as! NSImage
+                icon.size = NSSize(width: 18, height: 18)
+                icon.isTemplate = true
+                button.image = icon
             } else {
                 let image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Motive")
                 let configured = image?.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
@@ -239,7 +240,8 @@ final class StatusBarController {
         button.imagePosition = state.showText ? .imageLeading : .imageOnly
         button.contentTintColor = nil  // Let system handle color
         
-        // Configure text
+        // Configure text (always use variableLength — the system auto-sizes
+        // to the image alone when there is no title text).
         if state.showText {
             let baseText = state.text
             
@@ -250,14 +252,11 @@ final class StatusBarController {
             default:
                 setButtonTitle(baseText, button: button)
             }
-            
-            // Variable width for text
-            statusItem.length = NSStatusItem.variableLength
         } else {
             button.title = ""
-            statusItem.length = NSStatusItem.squareLength
         }
         
+        statusItem.length = NSStatusItem.variableLength
         statusItem.isVisible = true
     }
     
@@ -359,7 +358,7 @@ final class StatusBarController {
     @objc private func handleStatusButton() {
         let eventType = NSApp.currentEvent?.type
         if eventType == .rightMouseUp {
-            statusItem.menu = menu
+            statusItem.menu = delegate?.statusBarMenu() ?? menu
             statusItem.button?.performClick(nil)
             statusItem.menu = nil
         } else {
@@ -378,4 +377,5 @@ final class StatusBarController {
     @objc private func openCommandBar() {
         delegate?.statusBarDidRequestCommandBar()
     }
+
 }

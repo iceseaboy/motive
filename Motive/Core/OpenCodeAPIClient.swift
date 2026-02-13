@@ -70,8 +70,8 @@ actor OpenCodeAPIClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 300
+        config.timeoutIntervalForRequest = MotiveConstants.Timeouts.apiRequest
+        config.timeoutIntervalForResource = MotiveConstants.Timeouts.apiResource
         self.session = URLSession(configuration: config)
     }
 
@@ -123,16 +123,22 @@ actor OpenCodeAPIClient {
     ///   - text: The user's prompt text.
     ///   - model: Provider/model string (e.g. `"anthropic/claude-sonnet-4-5-20250929"`).
     ///     Split into `{ providerID, modelID }` for the server.
+    ///   - agent: Agent name to use for this prompt (e.g. `"motive"`, `"plan"`).
     func sendPromptAsync(
         sessionID: String,
         text: String,
-        model: String? = nil
+        model: String? = nil,
+        agent: String? = nil
     ) async throws {
         var body: [String: Any] = [
             "parts": [
                 ["type": "text", "text": text]
             ]
         ]
+
+        if let agent {
+            body["agent"] = agent
+        }
 
         // Server expects model as { providerID, modelID }, not a flat string
         if let model {
@@ -150,7 +156,7 @@ actor OpenCodeAPIClient {
             body: body,
             expectedStatus: 204
         )
-        logger.info("Sent prompt to session \(sessionID)")
+        logger.info("Sent prompt to session \(sessionID) (agent: \(agent ?? "default"))")
     }
 
     // MARK: - Native Question Reply
@@ -172,11 +178,7 @@ actor OpenCodeAPIClient {
 
     /// Reject a question (user cancelled).
     func rejectQuestion(requestID: String) async throws {
-        let body: [String: Any] = [
-            "answers": [] as [[String]]
-        ]
-
-        _ = try await post(path: "/question/\(requestID)/reply", body: body)
+        _ = try await post(path: "/question/\(requestID)/reject", body: [:])
         logger.info("Rejected question \(requestID)")
     }
 
@@ -254,3 +256,7 @@ actor OpenCodeAPIClient {
         return data
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension OpenCodeAPIClient: OpenCodeAPIClientProtocol {}

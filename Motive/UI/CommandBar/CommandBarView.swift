@@ -17,6 +17,7 @@ enum CommandBarMode: Equatable {
     case command(fromSession: Bool)     // User typed /, showing command suggestions
     case history(fromSession: Bool)     // Showing /history list
     case projects(fromSession: Bool)    // Showing /project list
+    case modes(fromSession: Bool)       // Showing /mode selection list
     case running                        // Task is running
     case completed                      // Task completed, showing summary
     case error(String)                  // Error occurred
@@ -37,11 +38,17 @@ enum CommandBarMode: Equatable {
         if case .projects = self { return true }
         return false
     }
+
+    var isModes: Bool {
+        if case .modes = self { return true }
+        return false
+    }
     
     /// Whether this mode was triggered from a session state (completed/running)
     var isFromSession: Bool {
         switch self {
-        case .command(let fromSession), .history(let fromSession), .projects(let fromSession):
+        case .command(let fromSession), .history(let fromSession),
+             .projects(let fromSession), .modes(let fromSession):
             return fromSession
         default:
             return false
@@ -60,6 +67,8 @@ enum CommandBarMode: Equatable {
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
         case .projects(let fromSession):
             return fromSession ? 450 : 400   // status(50) + input + footer + list(280) + padding
+        case .modes(let fromSession):
+            return fromSession ? 280 : 230   // Compact: only 2 items
         case .running, .completed, .error: 
             return 160   // status + input + footer + padding
         }
@@ -72,6 +81,7 @@ enum CommandBarMode: Equatable {
         case .command: return "command"
         case .history: return "history"
         case .projects: return "projects"
+        case .modes: return "modes"
         case .running: return "running"
         case .completed: return "completed"
         case .error: return "error"
@@ -89,6 +99,7 @@ struct CommandDefinition: Identifiable {
     let description: String
     
     static let allCommands: [CommandDefinition] = [
+        CommandDefinition(id: "mode", name: "mode", shortcut: "m", icon: "arrow.triangle.2.circlepath", description: "Switch between agent and plan modes"),
         CommandDefinition(id: "project", name: "project", shortcut: "p", icon: "folder", description: "Switch project directory"),
         CommandDefinition(id: "history", name: "history", shortcut: "h", icon: "clock.arrow.circlepath", description: "View session history"),
         CommandDefinition(id: "settings", name: "settings", shortcut: "s", icon: "gearshape", description: "Open settings"),
@@ -118,6 +129,7 @@ struct CommandBarView: View {
     @State var selectedHistoryIndex: Int = 0
     @State var historySessions: [Session] = []
     @State var selectedProjectIndex: Int = 0
+    @State var selectedModeIndex: Int = 0
     @State var showDeleteConfirmation: Bool = false
     @State var deleteCandidateIndex: Int? = nil
     @State var selectedHistoryId: UUID? = nil

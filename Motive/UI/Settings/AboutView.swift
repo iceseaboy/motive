@@ -119,7 +119,7 @@ struct AboutView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.Aurora.border, lineWidth: 1)
+                    .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
         .frame(maxWidth: 400)
@@ -250,7 +250,7 @@ private struct AboutActionButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                    .stroke(borderColor, lineWidth: SettingsUIStyle.borderWidth)
             )
         }
         .buttonStyle(.plain)
@@ -265,6 +265,6 @@ private struct AboutActionButton: View {
     }
     
     private var borderColor: Color {
-        isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.08)
+        isDark ? Color.white.opacity(0.08) : SettingsUIStyle.borderColor
     }
 }

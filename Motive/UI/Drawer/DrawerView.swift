@@ -18,56 +18,65 @@ struct DrawerView: View {
     @State private var showSessionPicker = false
     @State private var sessions: [Session] = []
     @FocusState private var isInputFocused: Bool
-    
+
     // @ file completion state
     @StateObject private var fileCompletion = FileCompletionManager()
     @State private var showFileCompletion: Bool = false
     @State private var selectedFileIndex: Int = 0
     @State private var atQueryRange: Range<String.Index>? = nil
     @State private var streamingScrollTask: Task<Void, Never>?
-    
+
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
         ZStack {
             // Premium glass background
             drawerBackground
-            
+
             VStack(spacing: 0) {
                 // Header with session dropdown
-                conversationHeader
+                DrawerHeader(showSessionPicker: $showSessionPicker, onLoadSessions: loadSessions)
                     .padding(.horizontal, AuroraSpacing.space4)
                     .padding(.top, AuroraSpacing.space4)
                     .padding(.bottom, AuroraSpacing.space3)
-                
+
                 // Subtle glass separator
                 Rectangle()
                     .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
                     .frame(height: 0.5)
-                
+
                 // Content
                 if appState.messages.isEmpty {
                     emptyState
                 } else if !appState.messages.isEmpty {
-                    conversationContent
+                    DrawerConversationContent(showContent: showContent, streamingScrollTask: $streamingScrollTask)
                 } else {
                     Spacer()
                 }
-                
+
                 // Input area (always visible)
-                chatInputArea
+                DrawerChatInput(
+                    inputText: $inputText,
+                    isInputFocused: $isInputFocused,
+                    onSubmit: handleInputSubmit,
+                    onTextChange: checkForAtCompletion
+                )
             }
-            
+
             // Session picker overlay
             if showSessionPicker {
-                sessionPickerOverlay
+                DrawerSessionPicker(
+                    sessions: sessions,
+                    showSessionPicker: $showSessionPicker,
+                    onLoadSessions: loadSessions
+                )
             }
-            
+
             // File completion overlay
             if showFileCompletion && !fileCompletion.items.isEmpty {
-                fileCompletionOverlay
+                fileCompletionView
             }
-            
+
             // Permission request overlay
             if permissionManager.isShowingRequest, let request = permissionManager.currentRequest {
                 PermissionRequestView(request: request) { response in
@@ -86,6 +95,9 @@ struct DrawerView: View {
             withAnimation(.auroraSpring.delay(0.1)) {
                 showContent = true
             }
+            loadSessions()
+        }
+        .onChange(of: appState.sessionListRefreshTrigger) {
             loadSessions()
         }
         .onKeyPress(.upArrow) {
@@ -123,13 +135,19 @@ struct DrawerView: View {
             return .ignored
         }
     }
-    
+
     private func loadSessions() {
-        sessions = appState.getAllSessions()
+        let all = appState.getAllSessions()
+        sessions = all.sorted { s1, s2 in
+            let r1 = s1.sessionStatus == .running
+            let r2 = s2.sessionStatus == .running
+            if r1 != r2 { return r1 }
+            return s1.createdAt > s2.createdAt
+        }
     }
-    
+
     // MARK: - Background
-    
+
     private var drawerBackground: some View {
         ZStack {
             // Layer 1: System vibrancy blur (primary translucency)
@@ -140,383 +158,61 @@ struct DrawerView: View {
                 cornerRadius: AuroraRadius.xl,
                 masksToBounds: true
             )
-            
+
             // Layer 2: Tint overlay — translucent to let the glass show through
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
                 .fill(Color.Aurora.background.opacity(isDark ? 0.6 : 0.7))
         }
     }
-    
-    // MARK: - Header with Session Dropdown
-    
-    private var conversationHeader: some View {
-        HStack(spacing: 10) {
-            // Session dropdown button
-            Button(action: { 
-                loadSessions()
-                withAnimation(.auroraFast) {
-                    showSessionPicker.toggle()
-                }
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color.Aurora.textSecondary)
-                    
-                    Text(currentSessionTitle)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.Aurora.textPrimary)
-                        .lineLimit(1)
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Color.Aurora.textMuted)
-                        .rotationEffect(.degrees(showSessionPicker ? 180 : 0))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                        .fill(Color.Aurora.glassOverlay.opacity(showSessionPicker ? 0.10 : 0.06))
-                )
-            }
-            .buttonStyle(.plain)
-            
-            Spacer()
 
-            // Status badge
-            SessionStatusBadge(
-                status: appState.sessionStatus,
-                currentTool: appState.currentToolName,
-                isThinking: appState.menuBarState == .reasoning
-            )
-            
-            // New chat button
-            Button(action: { 
-                appState.startNewEmptySession()
-                loadSessions()
-            }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color.Aurora.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help(L10n.Drawer.newChat)
-            .accessibilityLabel(L10n.Drawer.newChat)
-            
-            // Close button
-            Button(action: { appState.hideDrawer() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color.Aurora.textMuted)
-                    .frame(width: 28, height: 28)
-                    .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.08 : 0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help(L10n.Drawer.close)
-            .accessibilityLabel(L10n.Drawer.close)
-        }
-    }
-    
-    private var currentSessionTitle: String {
-        if appState.messages.isEmpty {
-            return L10n.Drawer.newChat
-        }
-        if let firstUser = appState.messages.first(where: { $0.type == .user }) {
-            let text = firstUser.content
-            return String(text.prefix(24)) + (text.count > 24 ? "…" : "")
-        }
-        return L10n.Drawer.conversation
-    }
-    
-    // MARK: - Session Picker Overlay
-    
-    private var sessionPickerOverlay: some View {
-        ZStack(alignment: .topLeading) {
-            // Dismiss area
-            Color.black.opacity(0.01)
-                .onTapGesture {
-                    withAnimation(.auroraFast) {
-                        showSessionPicker = false
-                    }
-                }
-            
-            // Dropdown menu
-            VStack(spacing: 0) {
-                if sessions.isEmpty {
-                    Text(L10n.Drawer.noHistory)
-                        .font(.Aurora.caption)
-                        .foregroundColor(Color.Aurora.textMuted)
-                        .padding(AuroraSpacing.space4)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            ForEach(sessions.prefix(15)) { session in
-                                SessionPickerItem(session: session) {
-                                    appState.switchToSession(session)
-                                    withAnimation(.auroraFast) {
-                                        showSessionPicker = false
-                                    }
-                                } onDelete: {
-                                    appState.deleteSession(session)
-                                    loadSessions()
-                                }
-                            }
-                        }
-                        .padding(AuroraSpacing.space2)
-                    }
-                    .frame(maxHeight: 300)
-                }
-            }
-            .frame(width: 280)
-            .background(
-                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                    .fill(Color.Aurora.surface)
-                    .shadow(color: Color.black.opacity(0.15), radius: 16, y: 8)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                    .strokeBorder(Color.Aurora.border.opacity(0.4), lineWidth: 0.5)
-            )
-            .padding(.top, 52) // Below header
-            .padding(.leading, AuroraSpacing.space4)
-        }
-        .transition(.opacity)
-    }
-    
     // MARK: - Empty State
-    
+
     private var emptyState: some View {
         VStack(spacing: AuroraSpacing.space5) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.08))
                     .frame(width: 80, height: 80)
-                
+
                 Image(systemName: "sparkles")
                     .font(.system(size: 32, weight: .light))
                     .foregroundColor(Color.Aurora.primary)
             }
-            
+
             VStack(spacing: AuroraSpacing.space2) {
                 Text(L10n.Drawer.startConversation)
                     .font(.Aurora.headline)
                     .foregroundColor(Color.Aurora.textPrimary)
-                
+
                 Text(L10n.Drawer.startHint)
                     .font(.Aurora.bodySmall)
                     .foregroundColor(Color.Aurora.textMuted)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
-            
+
             // Hint about session dropdown
             Text(L10n.Drawer.tip)
                 .font(.Aurora.caption)
                 .foregroundColor(Color.Aurora.textMuted)
-            
+
             Spacer()
         }
         .padding(AuroraSpacing.space6)
     }
-    
-    // MARK: - Conversation Content
-    
-    private var conversationContent: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: AuroraSpacing.space3) {
-                    ForEach(Array(appState.messages.enumerated()), id: \.element.id) { index, message in
-                        MessageBubble(message: message)
-                            .id(message.id)
-                            .opacity(showContent ? 1 : 0)
-                            .offset(y: showContent ? 0 : 8)
-                            .animation(
-                                .auroraSpring.delay(Double(index) * 0.02),
-                                value: showContent
-                            )
-                    }
-                    
-                    // Transient reasoning bubble — shows live thinking process,
-                    // disappears when thinking ends (tool call / assistant text / finish).
-                    if let reasoningText = appState.currentReasoningText {
-                        TransientReasoningBubble(text: reasoningText)
-                            .id("transient-reasoning")
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-                    // Thinking indicator — only show when genuinely waiting for OpenCode
-                    // with no active output (not during assistant text streaming).
-                    else if appState.sessionStatus == .running
-                                && appState.currentToolName == nil
-                                && appState.menuBarState != .responding {
-                        ThinkingIndicator()
-                            .id("thinking-indicator")
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-                    
-                    // Invisible anchor at bottom for reliable scrolling
-                    Color.clear
-                        .frame(height: 1)
-                        .id("bottom-anchor")
-                }
-                .padding(.horizontal, AuroraSpacing.space4)
-                .padding(.vertical, AuroraSpacing.space4)
-            }
-            .onAppear {
-                scrollToBottom(proxy: proxy, animated: false)
-            }
-            .onChange(of: appState.messages.count) { _, _ in
-                scrollToBottom(proxy: proxy)
-            }
-            .onChange(of: appState.messages.last?.content) { _, _ in
-                // Scroll when message content updates (streaming)
-                // Throttled to avoid animation conflicts from rapid delta updates
-                scheduleStreamingScroll(proxy: proxy)
-            }
-            .onChange(of: appState.currentReasoningText) { _, _ in
-                // Scroll when reasoning text streams in
-                scheduleStreamingScroll(proxy: proxy)
-            }
-            .onChange(of: appState.sessionStatus) { _, newStatus in
-                // Scroll when status changes (e.g., starts running)
-                if newStatus == .running {
-                    scrollToBottom(proxy: proxy)
-                }
-            }
-        }
-    }
-    
-    /// Throttle streaming scroll to avoid rapid-fire animation conflicts
-    private func scheduleStreamingScroll(proxy: ScrollViewProxy) {
-        // Cancel any pending scroll to avoid stacking animations
-        streamingScrollTask?.cancel()
-        streamingScrollTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-            scrollToBottom(proxy: proxy)
-        }
-    }
-    
-    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
-        if animated {
-            // Use a non-bouncing animation to prevent the "scroll back up" effect
-            withAnimation(.easeOut(duration: 0.15)) {
-                proxy.scrollTo("bottom-anchor", anchor: .bottom)
-            }
-        } else {
-            proxy.scrollTo("bottom-anchor", anchor: .bottom)
-        }
-    }
-    
-    // MARK: - Chat Input Area
-    
-    private var chatInputArea: some View {
-        let isRunning = appState.sessionStatus == .running
-        
-        return VStack(spacing: 0) {
-            // Project directory + context size
-            HStack(spacing: AuroraSpacing.space2) {
-                Image(systemName: "folder")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Color.Aurora.textMuted)
-                
-                Text(configManager.currentProjectShortPath)
-                    .font(.Aurora.micro)
-                    .foregroundColor(Color.Aurora.textMuted)
-                    .lineLimit(1)
-                
-                Spacer()
 
-                if let contextTokens = appState.currentContextTokens {
-                    ContextSizeBadge(tokens: contextTokens)
-                        .help(L10n.Drawer.contextHelp)
-                }
-            }
-            .padding(.horizontal, AuroraSpacing.space4)
-            .padding(.vertical, AuroraSpacing.space2)
-            
-            Rectangle()
-                .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
-                .frame(height: 0.5)
-            
-            HStack(spacing: AuroraSpacing.space3) {
-                HStack(spacing: AuroraSpacing.space2) {
-                    TextField("", text: $inputText, prompt: Text(L10n.Drawer.messagePlaceholder)
-                        .foregroundColor(Color.Aurora.textMuted))
-                        .textFieldStyle(.plain)
-                        .font(.Aurora.body)
-                        .foregroundColor(Color.Aurora.textPrimary)
-                        .focused($isInputFocused)
-                        .onSubmit(handleInputSubmit)
-                        .disabled(isRunning)
-                        .onChange(of: inputText) { _, newValue in
-                            checkForAtCompletion(newValue)
-                        }
-                    
-                    if isRunning {
-                        // Stop button when running
-                        Button(action: { appState.interruptSession() }) {
-                            Image(systemName: "stop.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 28, height: 28)
-                                .background(Color.Aurora.error)
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(L10n.Drawer.stop)
-                    } else {
-                        // Send button when not running
-                        Button(action: handleInputSubmit) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(inputText.isEmpty ? Color.Aurora.textMuted : Color.Aurora.primary)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .accessibilityLabel(L10n.CommandBar.submit)
-                    }
-                }
-                .padding(.horizontal, AuroraSpacing.space3)
-                .padding(.vertical, AuroraSpacing.space2)
-                .background(
-                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                        .fill(isDark ? Color.Aurora.glassOverlay.opacity(0.06) : Color.white.opacity(0.55))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                        .strokeBorder(
-                            isInputFocused && !isRunning
-                                ? Color.Aurora.borderFocus.opacity(0.8)
-                                : Color.Aurora.glassOverlay.opacity(isDark ? 0.1 : 0.15),
-                            lineWidth: isInputFocused && !isRunning ? 1 : 0.5
-                        )
-                )
-                .animation(.auroraFast, value: isInputFocused)
-            }
-            .padding(.horizontal, AuroraSpacing.space4)
-            .padding(.vertical, AuroraSpacing.space3)
-            .background(Color.Aurora.glassOverlay.opacity(isDark ? 0.04 : 0.08))
-        }
-    }
-    
     // MARK: - File Completion Overlay
-    
-    private var fileCompletionOverlay: some View {
+
+    private var fileCompletionView: some View {
         ZStack(alignment: .bottom) {
             // Dismiss area
             Color.black.opacity(0.01)
                 .onTapGesture {
                     hideFileCompletion()
                 }
-            
+
             // File completion popup
             VStack(spacing: 0) {
                 FileCompletionView(
@@ -542,9 +238,9 @@ struct DrawerView: View {
         }
         .transition(.opacity)
     }
-    
+
     // MARK: - Input Handling
-    
+
     private func handleInputSubmit() {
         // File completion: select item on Enter
         if showFileCompletion && !fileCompletion.items.isEmpty {
@@ -553,105 +249,81 @@ struct DrawerView: View {
             }
             return
         }
-        
+
         sendMessage()
     }
-    
+
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         inputText = ""
         hideFileCompletion()
-        
+
         if appState.messages.isEmpty {
             appState.submitIntent(text)
         } else {
             appState.resumeSession(with: text)
         }
     }
-    
+
     // MARK: - @ File Completion
-    
+
     private func checkForAtCompletion(_ text: String) {
-        guard let token = currentAtToken(in: text) else {
+        guard let token = DrawerFileCompletion.currentAtToken(in: text) else {
             hideFileCompletion()
             return
         }
-        
+
         let query = token.query
         let newRange = token.range
-        
+
         // Skip if range and query haven't changed (avoid re-loading after manual selection)
         if showFileCompletion, let oldRange = atQueryRange, oldRange == newRange {
             return
         }
-        
+
         atQueryRange = newRange
-        
+
         let baseDir = fileCompletion.getBaseDirectory(for: configManager)
         fileCompletion.loadItems(query: query, baseDir: baseDir)
-        
+
         showFileCompletion = true
         selectedFileIndex = 0
     }
-    
-    /// Find the current @ token (from @ to next whitespace)
-    private func currentAtToken(in text: String) -> (query: String, range: Range<String.Index>)? {
-        guard let atIndex = text.lastIndex(of: "@") else { return nil }
-        
-        // Require @ to be at start or preceded by whitespace
-        if atIndex > text.startIndex {
-            let beforeAt = text[text.index(before: atIndex)]
-            if !beforeAt.isWhitespace {
-                return nil
-            }
-        }
-        
-        let afterAt = text[atIndex...]
-        if let spaceIndex = afterAt.dropFirst().firstIndex(where: { $0.isWhitespace }) {
-            // Found space after @ - this means the @ token is complete
-            // Return nil to exit completion mode (user typed "@path " with space)
-            return nil
-        } else {
-            let range = atIndex..<text.endIndex
-            let query = String(text[range])
-            return (query, range)
-        }
-    }
-    
+
     private func hideFileCompletion() {
         showFileCompletion = false
         atQueryRange = nil
         fileCompletion.clear()
     }
-    
+
     private func selectFileCompletion(_ item: FileCompletionItem) {
         guard let range = atQueryRange else { return }
-        
+
         let replacement: String
         if item.isDirectory {
             replacement = "@\(item.path)/"
         } else {
             replacement = "@\(item.path) "
         }
-        
+
         // Calculate the new @ range after replacement
         let startIndex = range.lowerBound
         inputText.replaceSubrange(range, with: replacement)
-        
+
         // Reset selection index
         selectedFileIndex = 0
-        
+
         // If it's a directory, reload completions for the new path
         if item.isDirectory {
             // Update atQueryRange to point to the new @ token
             if let newEndIndex = inputText.index(startIndex, offsetBy: replacement.count, limitedBy: inputText.endIndex) {
                 atQueryRange = startIndex..<newEndIndex
-                
+
                 // Directly load items for the new directory
                 let baseDir = fileCompletion.getBaseDirectory(for: configManager)
                 fileCompletion.loadItems(query: replacement, baseDir: baseDir)
-                
+
                 // Keep completion visible
                 showFileCompletion = true
             } else {
@@ -664,110 +336,3 @@ struct DrawerView: View {
     }
 }
 
-// MARK: - Session Picker Item
-
-private struct SessionPickerItem: View {
-    let session: Session
-    let onSelect: () -> Void
-    let onDelete: () -> Void
-    @EnvironmentObject private var appState: AppState
-    
-    @State private var isHovering = false
-    
-    var body: some View {
-        HStack(spacing: AuroraSpacing.space3) {
-            // Status dot
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-
-            // Session info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(session.intent)
-                    .font(.Aurora.bodySmall.weight(.medium))
-                    .foregroundColor(Color.Aurora.textPrimary)
-                    .lineLimit(1)
-
-                Text(timeAgo)
-                    .font(.Aurora.caption)
-                    .foregroundColor(Color.Aurora.textMuted)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Delete button (separate hit target, only on hover)
-            if isHovering {
-                Button(action: {
-                    showDeleteConfirmation()
-                }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(Color.Aurora.textMuted)
-                        .frame(width: 20, height: 20)
-                        .background(Color.Aurora.glassOverlay.opacity(0.08))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.CommandBar.delete)
-                .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, AuroraSpacing.space3)
-        .padding(.vertical, AuroraSpacing.space2)
-        .contentShape(Rectangle())  // Entire row is hit-testable
-        .background(
-            RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                .fill(isHovering ? Color.Aurora.surfaceElevated : Color.clear)
-        )
-        .onTapGesture(perform: onSelect)
-        .onHover { isHovering = $0 }
-        .animation(.auroraFast, value: isHovering)
-    }
-    
-    private func showDeleteConfirmation() {
-        guard let window = appState.drawerWindowRef else { return }
-        
-        // Suppress auto-hide while alert is shown
-        appState.setDrawerAutoHideSuppressed(true)
-        
-        let alert = NSAlert()
-        alert.messageText = L10n.Alert.deleteSessionTitle
-        let sessionName = String(session.intent.prefix(50))
-        alert.informativeText = String(format: L10n.Alert.deleteSessionMessage, sessionName)
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: L10n.CommandBar.delete)
-        alert.addButton(withTitle: L10n.CommandBar.cancel)
-        
-        // Show as sheet attached to Drawer window
-        alert.beginSheetModal(for: window) { [onDelete] response in
-            if response == .alertFirstButtonReturn {
-                onDelete()
-            }
-            // Re-enable auto-hide and refocus
-            appState.setDrawerAutoHideSuppressed(false)
-            window.makeKeyAndOrderFront(nil)
-        }
-    }
-    
-    private var statusColor: Color {
-        switch session.status {
-        case "running": return Color.Aurora.primary
-        case "completed": return Color.Aurora.accent
-        case "failed": return Color.Aurora.error
-        default: return Color.Aurora.textMuted
-        }
-    }
-    
-    private var timeAgo: String {
-        let now = Date()
-        let diff = now.timeIntervalSince(session.createdAt)
-        
-        if diff < 60 { return L10n.Time.justNow }
-        if diff < 3600 { return String(format: L10n.Time.minutesAgo, Int(diff / 60)) }
-        if diff < 86400 { return String(format: L10n.Time.hoursAgo, Int(diff / 3600)) }
-        if diff < 604800 { return String(format: L10n.Time.daysAgo, Int(diff / 86400)) }
-        
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter.string(from: session.createdAt)
-    }
-}
