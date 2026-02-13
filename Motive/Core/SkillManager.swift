@@ -52,6 +52,7 @@ final class SkillManager {
     /// Filename for user-editable rules within a skill directory
     static let userRulesFilename = "RULES.md"
     
+    
     /// System skill IDs that must be enabled by default.
     static let systemSkillIds: Set<String> = [
         "safe-file-deletion",
@@ -155,18 +156,15 @@ final class SkillManager {
         }
     }
 
-    /// Ensure user-editable RULES.md exists for a capability skill (write-if-missing pattern)
+    /// Write default RULES.md for a capability skill. Always overwrites — these are
+    /// internal defaults managed by Motive, not user-authored content.
     private func ensureUserRulesFile(for skill: Skill, in skillDir: URL) {
         let rulesPath = skillDir.appendingPathComponent(Self.userRulesFilename)
-        guard !FileManager.default.fileExists(atPath: rulesPath.path) else { return }
-        
-        // Write default rules template based on skill ID
         let defaultContent = defaultUserRules(for: skill.id)
         do {
             try defaultContent.write(to: rulesPath, atomically: true, encoding: .utf8)
-            Log.debug("Created default RULES.md for '\(skill.id)'")
         } catch {
-            Log.debug("Failed to create RULES.md for '\(skill.id)': \(error)")
+            Log.debug("Failed to write RULES.md for '\(skill.id)': \(error)")
         }
     }
     
@@ -323,7 +321,7 @@ description: \(skill.description)\(metadataLine)
     
     private func createBrowserAutomationSkill(enabled: Bool) -> Skill {
         let headedMode = configManager?.browserUseHeadedMode ?? true
-        let headedFlag = headedMode ? "--headed " : ""
+        let headedFlag = headedMode ? "--headed " : "--headless "
         
         return Skill(
             id: "browser-automation",
@@ -396,17 +394,32 @@ description: \(skill.description)\(metadataLine)
             - `agent_continue "choice"` — Provide user's decision and resume
             - `close` — Close the browser session
             
-            ### Progressive Clarification
+            ### User Confirmation (Mandatory)
             
-            Minimize questions to the user. Only ask when genuinely necessary.
+            **Before browsing:** If the user's request is vague or under-specified, use the
+            `question` tool ONCE to ask for missing details (preferences, constraints, scope).
+            If intent is already specific and actionable, proceed directly.
             
-            - **Before browsing:** Ask only for high-level constraints (goal, budget range, preferences).
-            - **After real candidates exist:** Present concrete options for the user to choose from via the `question` tool.
-            - Never ask the user to choose between options that don't exist yet.
+            **After candidates are found:** When browsing yields multiple options (products,
+            plans, services, search results), you MUST present 3-5 representative options
+            to the user via the `question` tool with key differentiators (name, price,
+            specs/variants, ratings). NEVER auto-select on the user's behalf.
+            
+            **Before any irreversible action:** Any action that is costly, binding, or
+            hard to undo — including checkout, payment, form submission, account changes,
+            subscriptions, or data deletion — MUST be confirmed by the user via the
+            `question` tool before execution. No exceptions.
+            
+            ### Shopping & E-Commerce
+            
+            - Default action is **add to cart** — never proceed to checkout or payment.
+            - After adding items, summarize what was added (name, quantity, price, store).
+            - Only navigate to checkout when the user explicitly asks.
             
             ### Safety (Non-negotiable)
             
-            - Never complete a payment, enter passwords, or confirm transactions without explicit user approval.
+            - Never enter passwords or confirm financial transactions without explicit user approval.
+            - Never submit forms that trigger registrations, legal agreements, or account changes without confirmation.
             - If login expires, CAPTCHA appears, or anything unexpected happens — notify the user immediately.
             """,
             type: .capability,
@@ -422,9 +435,8 @@ description: \(skill.description)\(metadataLine)
     static let defaultBrowserAutomationRules = """
     # Browser Automation - Custom Rules
     
-    # This file contains your personal rules and preferences for browser automation.
-    # Edit freely — Motive will never overwrite this file.
-    # These rules are merged into the browser automation skill prompt automatically.
+    # These rules are managed by Motive and merged into the browser automation skill prompt.
+    # They are regenerated on each launch.
     
     ## Core Principle: Confirm Before Committing
     

@@ -15,7 +15,6 @@
 import Combine
 import Foundation
 import SwiftData
-import UserNotifications
 
 extension AppState {
     func restartAgent() {
@@ -294,16 +293,17 @@ extension AppState {
                 removeSessionFromTracking(ocId)
             }
             trySaveContext()
-            // UI state (current session)
+            // UI state
             if isCurrentSession {
                 resetEventState()
                 menuBarState = .idle
                 currentToolName = nil
                 currentToolInput = nil
-                statusBarController?.showCompleted()
-            } else {
-                sendSessionCompletionNotification(session: session, result: buffer)
+                // Auto-promote next running session to foreground after badge fades
+                scheduleAutoPromoteNextRunning()
             }
+            // Show completed popup for all sessions (foreground and background)
+            statusBarController?.showCompleted()
             updateStatusBar()
             sessionListRefreshTrigger += 1
             logEvent(event, session: session)
@@ -321,7 +321,7 @@ extension AppState {
                 removeSessionFromTracking(ocId)
             }
             trySaveContext()
-            // UI state (current session)
+            // UI state
             if isCurrentSession {
                 resetEventState()
                 lastErrorMessage = event.text
@@ -329,6 +329,8 @@ extension AppState {
                 currentToolName = nil
                 currentToolInput = nil
                 statusBarController?.showError()
+                // Auto-promote next running session after error badge fades
+                scheduleAutoPromoteNextRunning()
             }
             updateStatusBar()
             sessionListRefreshTrigger += 1
@@ -399,19 +401,32 @@ extension AppState {
         }
     }
 
-    private func sendSessionCompletionNotification(session: Session, result: [ConversationMessage]) {
-        let resultText = result.last(where: { $0.type == .assistant })?.content ?? ""
-        let content = UNMutableNotificationContent()
-        content.title = "Task Completed"
-        content.subtitle = String(session.intent.prefix(60))
-        content.body = resultText.isEmpty ? String(session.intent.prefix(80)) : String(resultText.prefix(200))
-        content.sound = .default
-        let request = UNNotificationRequest(
-            identifier: "session-\(session.id.uuidString)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
+
+    // MARK: - Auto-Promote Next Running Session
+
+    /// After the current foreground session finishes (completed/error), wait for the
+    /// status bar badge to fade, then automatically switch to the next running session.
+    /// This keeps the menubar reflecting actual running task status.
+    private func scheduleAutoPromoteNextRunning() {
+        autoPromoteTask?.cancel()
+        autoPromoteTask = Task { @MainActor [weak self] in
+            // Wait for completion/error badge to fade (matches StatusBarController timing)
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            self?.promoteNextRunningSession()
+        }
+    }
+
+    /// Switch to the next running session if any remain.
+    private func promoteNextRunningSession() {
+        // Find the first running session (most recently started)
+        guard let nextEntry = runningSessions.first(where: { $0.value.sessionStatus == .running }),
+              nextEntry.value.id != currentSession?.id else {
+            return
+        }
+        let nextSession = nextEntry.value
+        Log.debug("Auto-promoting background session to foreground: \(nextSession.intent.prefix(40))")
+        switchToSession(nextSession)
     }
 
     // MARK: - Log Persistence

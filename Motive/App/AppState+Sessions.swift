@@ -9,7 +9,6 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
-import UserNotifications
 
 extension AppState {
     func submitIntent(_ text: String) {

@@ -9,7 +9,6 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
-import UserNotifications
 
 @MainActor
 final class AppState: ObservableObject {
@@ -101,6 +100,9 @@ final class AppState: ObservableObject {
     /// When true, the agent will auto-restart as soon as the current task finishes.
     @Published var pendingAgentRestart = false
     private var restartObserver: AnyCancellable?
+    
+    /// Task for auto-promoting the next running session after the foreground task finishes.
+    var autoPromoteTask: Task<Void, Never>?
 
     var configManagerRef: ConfigManager { configManager }
     var commandBarWindowRef: NSWindow? { commandBarController?.getWindow() }
@@ -177,6 +179,8 @@ final class AppState: ObservableObject {
         reasoningDismissTask = nil
         sessionTimeoutTask?.cancel()
         sessionTimeoutTask = nil
+        autoPromoteTask?.cancel()
+        autoPromoteTask = nil
         currentToolName = nil
         currentToolInput = nil
         lastErrorMessage = nil

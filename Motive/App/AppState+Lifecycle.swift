@@ -111,4 +111,5 @@ extension AppState {
         // No pre-warm needed - window uses defer:true and alpha:0
         // First show will be slightly slower but avoids visual glitches
     }
+
 }
