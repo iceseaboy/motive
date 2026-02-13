@@ -286,12 +286,6 @@
 "settings.memory.system" = "Memory System";
 "settings.memory.enable" = "Enable Memory";
 "settings.memory.enable.desc" = "Persistent memory across sessions using the motive-memory plugin";
-"settings.memory.embedding_provider" = "Embedding Provider";
-"settings.memory.embedding_provider.desc" = "Model used for semantic search";
-"settings.memory.embedding.auto" = "Auto";
-"settings.memory.embedding.openai" = "OpenAI";
-"settings.memory.embedding.gemini" = "Gemini";
-"settings.memory.embedding.local" = "Local (Ollama)";
 "settings.memory.index_status" = "Index Status";
 "settings.memory.indexed_files" = "Indexed Files";
 "settings.memory.indexed_files.desc" = "Number of files in the memory index";

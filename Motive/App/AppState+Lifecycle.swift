@@ -62,33 +62,6 @@ extension AppState {
         // Configure settings window controller
         SettingsWindowController.shared.configure(configManager: configManager, appState: self)
         updateStatusBar()
-
-        // Start CloudKit listener for remote commands from iOS
-        startCloudKitListener()
-    }
-
-    /// Start listening for remote commands from iOS via CloudKit
-    private func startCloudKitListener() {
-        cloudKitManager.onCommandReceived = { [weak self] command in
-            guard let self else { return }
-            self.handleRemoteCommand(command)
-        }
-        cloudKitManager.startListening(appState: self)
-        Log.debug("CloudKit listener started for remote commands")
-    }
-
-    /// Handle a remote command received from iOS
-    private func handleRemoteCommand(_ command: RemoteCommand) {
-        Log.debug("Received remote command: \(command.instruction)")
-
-        // Store the remote command ID for status updates
-        currentRemoteCommandId = command.id
-
-        // Use the configured project directory as working directory
-        let cwd = configManager.currentProjectURL.path
-
-        // Submit the intent just like local commands
-        submitIntent(command.instruction, workingDirectory: cwd)
     }
 
     func ensureStatusBar() {

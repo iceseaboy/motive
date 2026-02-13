@@ -70,10 +70,6 @@ final class AppState: ObservableObject {
     var hasStarted = false
     private var seenUsageMessageIds = Set<String>()
 
-    // CloudKit for remote commands from iOS
-    lazy var cloudKitManager: CloudKitManager = CloudKitManager()
-    var currentRemoteCommandId: String?
-
     // Native question/permission handler (extracted from AppState+Bridge)
     lazy var nativePromptHandler: NativePromptHandler = NativePromptHandler(appState: self)
     

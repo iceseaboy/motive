@@ -17,7 +17,7 @@ struct AppStateEventTests {
         let configManager = ConfigManager()
         let appState = AppState(configManager: configManager)
 
-        // Create in-memory SwiftData container (must disable CloudKit like the app does)
+        // Create in-memory SwiftData container
         let schema = Schema([Session.self, LogEntry.self])
         let config = ModelConfiguration(
             schema: schema,

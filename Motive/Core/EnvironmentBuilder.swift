@@ -20,7 +20,6 @@ struct EnvironmentBuilder {
         let openCodeConfigPath: String
         let openCodeConfigDir: String
         let memoryEnabled: Bool
-        let memoryEmbeddingProvider: String
         let workspaceDirectory: String
     }
 
@@ -123,9 +122,6 @@ struct EnvironmentBuilder {
         // Motive workspace and memory plugin environment
         if inputs.memoryEnabled {
             environment["MOTIVE_WORKSPACE"] = inputs.workspaceDirectory
-            if !inputs.memoryEmbeddingProvider.isEmpty {
-                environment["MOTIVE_EMBEDDING_PROVIDER"] = inputs.memoryEmbeddingProvider
-            }
         }
 
         return environment

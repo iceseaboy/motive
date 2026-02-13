@@ -198,6 +198,14 @@ final class BinaryManager {
             }
         }
 
+        // Prefer bundled OpenCode for deterministic behavior in fresh installs.
+        // Support both Resources/opencode and Contents/opencode for compatibility.
+        if let bundledURL = resolveBundledOpenCodeURL(fileManager: fileManager) {
+            Log.config(" Using bundled OpenCode: \(bundledURL.path)")
+            setBinaryStatus(.ready(bundledURL.path))
+            return (bundledURL, nil)
+        }
+
         if let nvmPath = findNvmOpenCode() {
             Log.config(" Found nvm OpenCode at \(nvmPath.path), will import on first use")
             return (nvmPath, nil)
@@ -214,14 +222,6 @@ final class BinaryManager {
                 let url = URL(fileURLWithPath: path)
                 Log.config(" Found global OpenCode at \(path), will import on first use")
                 return (url, nil)
-            }
-        }
-
-        if let bundledURL = Bundle.main.url(forResource: "opencode", withExtension: nil) {
-            if fileManager.fileExists(atPath: bundledURL.path) {
-                Log.config(" Using bundled OpenCode: \(bundledURL.path)")
-                setBinaryStatus(.ready(bundledURL.path))
-                return (bundledURL, nil)
             }
         }
 
@@ -284,6 +284,18 @@ final class BinaryManager {
             Log.config(" Error scanning nvm directory: \(error)")
         }
 
+        return nil
+    }
+
+    private func resolveBundledOpenCodeURL(fileManager: FileManager) -> URL? {
+        if let resourceURL = Bundle.main.url(forResource: "opencode", withExtension: nil),
+           fileManager.fileExists(atPath: resourceURL.path) {
+            return resourceURL
+        }
+        let contentsURL = Bundle.main.bundleURL.appendingPathComponent("Contents/opencode")
+        if fileManager.fileExists(atPath: contentsURL.path) {
+            return contentsURL
+        }
         return nil
     }
 

@@ -286,12 +286,6 @@
 "settings.memory.system" = "メモリシステム";
 "settings.memory.enable" = "メモリを有効化";
 "settings.memory.enable.desc" = "motive-memory プラグインを使ってセッション間でメモリを保持します";
-"settings.memory.embedding_provider" = "埋め込みプロバイダー";
-"settings.memory.embedding_provider.desc" = "セマンティック検索に使用するモデル";
-"settings.memory.embedding.auto" = "自動";
-"settings.memory.embedding.openai" = "OpenAI";
-"settings.memory.embedding.gemini" = "Gemini";
-"settings.memory.embedding.local" = "ローカル（Ollama）";
 "settings.memory.index_status" = "インデックス状態";
 "settings.memory.indexed_files" = "インデックス済みファイル";
 "settings.memory.indexed_files.desc" = "メモリインデックス内のファイル数";

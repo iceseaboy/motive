@@ -23,11 +23,6 @@ extension AppState {
         // Check provider configuration
         if let configError = configManager.providerConfigurationError {
             lastErrorMessage = configError
-            // Update CloudKit if this is a remote command
-            if let commandId = currentRemoteCommandId {
-                cloudKitManager.failCommand(commandId: commandId, error: configError)
-                currentRemoteCommandId = nil
-            }
             return
         }
 
@@ -127,7 +122,7 @@ extension AppState {
 
     /// Switch to a different session.
     /// Saves current session messages if running; loads target from buffer or messagesData.
-    func switchToSession(_ session: Session) {
+    func switchToSession(_ session: Session) { 
         // Save current session's messages if running (for background event processing)
         saveCurrentSessionToBuffer()
 
@@ -158,9 +153,9 @@ extension AppState {
 
         // Restore project directory for this session
         restoreProjectDirectory(for: session)
-
+  
         // Load messages: running buffer first, or persisted snapshot
-        let ocId = session.openCodeSessionId  
+        let ocId = session.openCodeSessionId
         if let ocId {
             currentPlanFilePath = sessionPlanFilePaths[ocId]
         } else {

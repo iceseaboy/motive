@@ -26,7 +26,6 @@ final class EnvironmentBuilderTests: XCTestCase {
         openCodeConfigPath: String = "",
         openCodeConfigDir: String = "",
         memoryEnabled: Bool = false,
-        memoryEmbeddingProvider: String = "",
         workspaceDirectory: String = ""
     ) -> EnvironmentBuilder.Inputs {
         EnvironmentBuilder.Inputs(
@@ -42,7 +41,6 @@ final class EnvironmentBuilderTests: XCTestCase {
             openCodeConfigPath: openCodeConfigPath,
             openCodeConfigDir: openCodeConfigDir,
             memoryEnabled: memoryEnabled,
-            memoryEmbeddingProvider: memoryEmbeddingProvider,
             workspaceDirectory: workspaceDirectory
         )
     }
@@ -178,23 +176,19 @@ final class EnvironmentBuilderTests: XCTestCase {
     func testMemoryEnvironmentSetWhenEnabled() {
         let inputs = makeInputs(
             memoryEnabled: true,
-            memoryEmbeddingProvider: "openai",
             workspaceDirectory: "/tmp/motive-workspace"
         )
         let env = EnvironmentBuilder.build(from: inputs, baseEnvironment: emptyBase)
         XCTAssertEqual(env["MOTIVE_WORKSPACE"], "/tmp/motive-workspace")
-        XCTAssertEqual(env["MOTIVE_EMBEDDING_PROVIDER"], "openai")
     }
 
     func testMemoryEnvironmentNotSetWhenDisabled() {
         let inputs = makeInputs(
             memoryEnabled: false,
-            memoryEmbeddingProvider: "openai",
             workspaceDirectory: "/tmp/motive-workspace"
         )
         let env = EnvironmentBuilder.build(from: inputs, baseEnvironment: emptyBase)
         XCTAssertNil(env["MOTIVE_WORKSPACE"])
-        XCTAssertNil(env["MOTIVE_EMBEDDING_PROVIDER"])
     }
 
     // MARK: - Proxy Variables Cleared

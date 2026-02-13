@@ -103,7 +103,7 @@ struct OpenCodeConfigGenerator {
             ]
         }
 
-        // Memory plugin configuration — only inject if the plugin file actually exists
+        // Memory plugin configuration — inject if the deployed plugin entry exists
         if inputs.memoryEnabled {
             let pluginEntry = inputs.workspaceDirectory
                 .appendingPathComponent("plugins/motive-memory/src/index.ts")

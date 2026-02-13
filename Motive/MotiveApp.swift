@@ -21,7 +21,6 @@ struct MotiveApp: App {
         let container: ModelContainer
         
         // Use local-only storage in Application Support/Motive/
-        // Our CloudKit usage is separate (CKRecord for remote commands)
         // Schema Version: 1.0 - Session (id, intent, createdAt, openCodeSessionId, status, projectPath, logs)
         //                     - LogEntry (id, rawJson, kind, createdAt)
         let schema = Schema([Session.self, LogEntry.self])
@@ -34,7 +33,7 @@ struct MotiveApp: App {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             url: storeURL,
-            cloudKitDatabase: .none  // Explicitly disable CloudKit sync
+            cloudKitDatabase: .none
         )
         
         do {

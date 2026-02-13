@@ -24,13 +24,6 @@ nonisolated enum MotiveConstants: Sendable {
         static let serverStartupPoll: TimeInterval = 0.1
         /// Server health check interval (seconds)
         static let serverHealthCheck: TimeInterval = 0.5
-
-        /// CloudKit polling interval (seconds)
-        static let cloudKitPoll: TimeInterval = 5
-        /// CloudKit command retry delay (seconds)
-        static let cloudKitRetry: TimeInterval = 0.1
-        /// CloudKit permission poll delay (seconds)
-        static let cloudKitPermissionPoll: TimeInterval = 2
     }
     nonisolated enum SSE: Sendable {
         /// Maximum reconnection backoff delay (seconds)

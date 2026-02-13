@@ -1,4 +1,4 @@
-import { tool, type Plugin } from "@opencode-ai/plugin";
+import { tool, type Plugin } from "./tooling";
 import { runMemorySearch } from "./search";
 import { runMemoryGet } from "./get";
 import { runMemoryWrite } from "./write";

@@ -97,18 +97,6 @@ final class NativePromptHandler {
             appState?.messageStore.appendMessageIfNeeded(questionMsg)
         }
 
-        // If this is a remote command, send question to iOS via CloudKit
-        if let commandId = appState?.currentRemoteCommandId {
-            sendQuestionToRemote(
-                commandId: commandId,
-                questionID: questionID,
-                question: questionText,
-                options: optionLabels,
-                sessionID: event.sessionId
-            )
-            return
-        }
-
         // Show local QuickConfirm (or enqueue if one is already showing)
         let sessionId = event.sessionId
         let sessionIntent = sessionId.flatMap { appState?.runningSessions[$0]?.intent }
@@ -291,18 +279,6 @@ final class NativePromptHandler {
             questionText += "\n\n```diff\n\(diff)\n```"
         }
 
-        // If remote command, handle via CloudKit
-        if let commandId = appState?.currentRemoteCommandId {
-            sendPermissionToRemote(
-                commandId: commandId,
-                permissionID: permissionID,
-                question: questionText,
-                options: options.map(\.label),
-                sessionID: event.sessionId
-            )
-            return
-        }
-
         let sessionId = event.sessionId
         let sessionIntent = sessionId.flatMap { appState?.runningSessions[$0]?.intent }
             ?? appState?.currentSession?.intent
@@ -387,56 +363,4 @@ final class NativePromptHandler {
         )
     }
 
-    // MARK: - Remote (CloudKit) Helpers
-
-    /// Forward a native question to iOS via CloudKit (for remote commands).
-    func sendQuestionToRemote(commandId: String, questionID: String, question: String, options: [String], sessionID: String?) {
-        Log.debug("Sending question to iOS via CloudKit for remote command: \(commandId)")
-        Task { [weak self] in
-            let response = await self?.appState?.cloudKitManager.sendPermissionRequest(
-                commandId: commandId,
-                question: question,
-                options: options
-            )
-            Log.debug(response != nil ? "Got response from iOS: \(response!)" : "No response from iOS, sending empty response")
-            self?.appState?.messageStore.updateQuestionMessage(messageId: self?.appState?.pendingQuestionMessageId, response: response ?? "User declined to answer.")
-            self?.appState?.pendingQuestionMessageId = nil
-            await self?.appState?.bridge.replyToQuestion(
-                requestID: questionID,
-                answers: [[response ?? ""]],
-                sessionID: sessionID
-            )
-            self?.appState?.updateStatusBar()
-        }
-    }
-
-    /// Forward a native permission to iOS via CloudKit (for remote commands).
-    func sendPermissionToRemote(commandId: String, permissionID: String, question: String, options: [String], sessionID: String?) {
-        Log.debug("Sending permission to iOS via CloudKit for remote command: \(commandId)")
-        Task { [weak self] in
-            let response = await self?.appState?.cloudKitManager.sendPermissionRequest(
-                commandId: commandId,
-                question: question,
-                options: options
-            )
-            let reply: OpenCodeAPIClient.PermissionReply
-            if let response, response.lowercased().contains("always") {
-                reply = .always
-            } else if let response, (response.lowercased() == "allow" || response.lowercased() == "allow once") {
-                reply = .once
-            } else {
-                reply = .reject(nil)
-            }
-            self?.appState?.messageStore.updateQuestionMessage(messageId: self?.appState?.pendingQuestionMessageId, response: response ?? "Rejected")
-            self?.appState?.pendingQuestionMessageId = nil
-            await self?.appState?.bridge.replyToPermission(requestID: permissionID, reply: reply, sessionID: sessionID)
-            self?.appState?.updateStatusBar()
-        }
-    }
-
-    /// Update remote command status in CloudKit
-    func updateRemoteCommandStatus(toolName: String?) {
-        guard let commandId = appState?.currentRemoteCommandId else { return }
-        appState?.cloudKitManager.updateProgress(commandId: commandId, toolName: toolName)
-    }
 }

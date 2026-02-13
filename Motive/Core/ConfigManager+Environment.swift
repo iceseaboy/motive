@@ -20,7 +20,6 @@ extension ConfigManager {
             openCodeConfigPath: openCodeConfigPath,
             openCodeConfigDir: openCodeConfigDir,
             memoryEnabled: memoryEnabled,
-            memoryEmbeddingProvider: memoryEmbeddingProvider,
             workspaceDirectory: workspaceDirectory.path
         )
         return EnvironmentBuilder.build(from: inputs)

@@ -286,12 +286,6 @@
 "settings.memory.system" = "记忆系统";
 "settings.memory.enable" = "启用记忆";
 "settings.memory.enable.desc" = "使用 motive-memory 插件在会话间持久化记忆";
-"settings.memory.embedding_provider" = "向量模型提供方";
-"settings.memory.embedding_provider.desc" = "用于语义检索的模型";
-"settings.memory.embedding.auto" = "自动";
-"settings.memory.embedding.openai" = "OpenAI";
-"settings.memory.embedding.gemini" = "Gemini";
-"settings.memory.embedding.local" = "本地（Ollama）";
 "settings.memory.index_status" = "索引状态";
 "settings.memory.indexed_files" = "已索引文件";
 "settings.memory.indexed_files.desc" = "记忆索引中的文件数量";

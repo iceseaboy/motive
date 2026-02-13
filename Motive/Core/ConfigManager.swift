@@ -238,7 +238,6 @@ final class ConfigManager: ObservableObject, SkillConfigProvider {
 
     // Memory system
     @AppStorage("memoryEnabled") var memoryEnabled: Bool = true
-    @AppStorage("memoryEmbeddingProvider") var memoryEmbeddingProvider: String = "auto"
 
     // Multi-agent
     @AppStorage("currentAgent") var currentAgent: String = "agent"

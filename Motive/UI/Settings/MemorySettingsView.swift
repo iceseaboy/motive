@@ -35,20 +35,7 @@ struct MemorySettingsView: View {
                         }
                 }
 
-                SettingRow(L10n.Settings.memoryEmbeddingProvider, description: L10n.Settings.memoryEmbeddingProviderDesc, showDivider: false) {
-                    Picker("", selection: $configManager.memoryEmbeddingProvider) {
-                        Text(L10n.Settings.memoryEmbeddingAuto).tag("auto")
-                        Text(L10n.Settings.memoryEmbeddingOpenAI).tag("openai")
-                        Text(L10n.Settings.memoryEmbeddingGemini).tag("gemini")
-                        Text(L10n.Settings.memoryEmbeddingLocal).tag("local")
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 140)
-                    .controlSize(.small)
-                    .onChange(of: configManager.memoryEmbeddingProvider) { _, _ in
-                        appState.scheduleAgentRestart()
-                    }
-                }
+                // TODO: Add embedding provider picker once vector search is implemented
             }
 
             SettingSection(L10n.Settings.memoryPluginStatus) {

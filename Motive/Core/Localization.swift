@@ -297,12 +297,6 @@ enum L10n {
         static let memorySystem = "settings.memory.system".localized
         static let memoryEnable = "settings.memory.enable".localized
         static let memoryEnableDesc = "settings.memory.enable.desc".localized
-        static let memoryEmbeddingProvider = "settings.memory.embedding_provider".localized
-        static let memoryEmbeddingProviderDesc = "settings.memory.embedding_provider.desc".localized
-        static let memoryEmbeddingAuto = "settings.memory.embedding.auto".localized
-        static let memoryEmbeddingOpenAI = "settings.memory.embedding.openai".localized
-        static let memoryEmbeddingGemini = "settings.memory.embedding.gemini".localized
-        static let memoryEmbeddingLocal = "settings.memory.embedding.local".localized
         static let memoryIndexStatus = "settings.memory.index_status".localized
         static let memoryIndexedFiles = "settings.memory.indexed_files".localized
         static let memoryIndexedFilesDesc = "settings.memory.indexed_files.desc".localized

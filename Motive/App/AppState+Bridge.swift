@@ -204,7 +204,6 @@ extension AppState {
                 if !event.text.isEmpty {
                     currentReasoningText = (currentReasoningText ?? "") + event.text
                 }
-                nativePromptHandler.updateRemoteCommandStatus(toolName: "Thinking...")
             }
             logEvent(event, session: session)
             return
@@ -257,9 +256,6 @@ extension AppState {
                 logEvent(event, session: session)
                 return
             }
-            if isCurrentSession {
-                nativePromptHandler.updateRemoteCommandStatus(toolName: event.toolName)
-            }
             // Regular tool — insert
             messageStore.insertEventIntoBuffer(event, buffer: &buffer)
 
@@ -269,7 +265,6 @@ extension AppState {
                 dismissReasoningAfterDelay()
                 menuBarState = .executing
                 currentToolName = "Editing file"
-                nativePromptHandler.updateRemoteCommandStatus(toolName: "Editing file")
             }
             messageStore.insertEventIntoBuffer(event, buffer: &buffer)
 
@@ -306,11 +301,6 @@ extension AppState {
                 currentToolName = nil
                 currentToolInput = nil
                 statusBarController?.showCompleted()
-                if let commandId = currentRemoteCommandId {
-                    let resultMessage = buffer.last(where: { $0.type == .assistant })?.content ?? "Task completed"
-                    cloudKitManager.completeCommand(commandId: commandId, result: resultMessage)
-                    currentRemoteCommandId = nil
-                }
             } else {
                 sendSessionCompletionNotification(session: session, result: buffer)
             }
@@ -339,10 +329,6 @@ extension AppState {
                 currentToolName = nil
                 currentToolInput = nil
                 statusBarController?.showError()
-                if let commandId = currentRemoteCommandId {
-                    cloudKitManager.failCommand(commandId: commandId, error: event.text)
-                    currentRemoteCommandId = nil
-                }
             }
             updateStatusBar()
             sessionListRefreshTrigger += 1

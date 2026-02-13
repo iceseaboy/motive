@@ -248,7 +248,10 @@ final class WorkspaceManager {
         }
 
         do {
-            // Create plugin directory
+            // Replace directory atomically to avoid stale files from previous app versions.
+            if fm.fileExists(atPath: pluginDir.path) {
+                try fm.removeItem(at: pluginDir)
+            }
             try fm.createDirectory(at: pluginDir, withIntermediateDirectories: true)
 
             // Copy all files from bundle to plugin directory
