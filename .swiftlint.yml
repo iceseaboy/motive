@@ -55,3 +55,28 @@ opt_in_rules:
 # Analyzer rules (require `swiftlint analyze`)
 analyzer_rules:
   - unused_import
+
+custom_rules:
+  no_system_font_in_core_ui:
+    name: "No System Font In Core UI"
+    included:
+      - Motive/UI/CommandBar
+      - Motive/UI/Drawer
+      - Motive/UI/QuickConfirm
+      - Motive/UI/Settings
+      - Motive/UI/StatusNotification
+    regex: "\\.system\\(size:\\s*\\d+"
+    message: "Use Font.Aurora typography tokens instead of hardcoded .system(size:)"
+    severity: warning
+
+  no_hex_color_in_core_ui:
+    name: "No Hex Color In Core UI"
+    included:
+      - Motive/UI/CommandBar
+      - Motive/UI/Drawer
+      - Motive/UI/QuickConfirm
+      - Motive/UI/Settings
+      - Motive/UI/StatusNotification
+    regex: "(Color|NSColor)\\(hex:"
+    message: "Use Color.Aurora tokens instead of direct hex colors in core UI surfaces"
+    severity: warning
