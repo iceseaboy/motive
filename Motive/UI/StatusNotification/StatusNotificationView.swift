@@ -26,10 +26,7 @@ enum StatusNotificationType {
     }
 
     var gradientColors: [Color] {
-        switch self {
-        case .success: [Color.Aurora.success, Color(hex: "059669")]
-        case .error: [Color.Aurora.error, Color(hex: "DC2626")]
-        }
+        [color, color.opacity(0.75)]
     }
 
     var title: String {
@@ -66,7 +63,7 @@ struct StatusNotificationView: View {
                     .frame(width: 28, height: 28)
 
                 Image(systemName: type.icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.Aurora.bodySmall.weight(.medium))
                     .foregroundStyle(
                         LinearGradient(
                             colors: type.gradientColors,

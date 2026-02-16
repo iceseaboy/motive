@@ -13,6 +13,7 @@ import SwiftUI
 struct SettingsView: View {
     var initialTab: SettingsTab = .general
     @State private var selectedTab: SettingsTab? = .general
+    @State private var searchText: String = ""
     init(initialTab: SettingsTab = .general) {
         self.initialTab = initialTab
         _selectedTab = State(initialValue: initialTab)
@@ -22,14 +23,26 @@ struct SettingsView: View {
         selectedTab ?? .general
     }
 
+    private var filteredTabs: [SettingsTab] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return SettingsTab.allCases }
+        return SettingsTab.allCases.filter { tab in
+            tab.title.lowercased().contains(query) || tab.subtitle.lowercased().contains(query)
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(SettingsTab.allCases, selection: $selectedTab) { tab in
+            List(filteredTabs, selection: $selectedTab) { tab in
                 Label(tab.title, systemImage: tab.icon)
+                    .font(.Aurora.body)
                     .tag(tab)
+                    .accessibilityLabel(tab.title)
+                    .accessibilityHint("Open \(tab.title) settings")
             }
             .listStyle(.sidebar)
             .frame(minWidth: 220)
+            .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
         } detail: {
             SettingsDetailView(tab: activeTab)
         }
@@ -134,37 +147,37 @@ private struct SettingsDetailView: View {
     let tab: SettingsTab
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .leading, spacing: AuroraSpacing.space4) {
+            HStack(alignment: .center, spacing: AuroraSpacing.space2 + 2) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color.Aurora.primary)
+                    .font(.Aurora.headline.weight(.semibold))
+                    .foregroundColor(Color.Aurora.microAccent)
                 Text(tab.title)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.Aurora.title2)
                     .foregroundColor(Color.Aurora.textPrimary)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
+            .padding(.horizontal, AuroraSpacing.space7)
+            .padding(.top, AuroraSpacing.space6)
 
             Text(tab.subtitle)
-                .font(.system(size: 13))
+                .font(.Aurora.bodySmall)
                 .foregroundColor(Color.Aurora.textSecondary)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, AuroraSpacing.space7)
 
             Divider()
-                .padding(.horizontal, 28)
+                .padding(.horizontal, AuroraSpacing.space7)
 
             Group {
                 if tab == .skills || tab == .advanced {
                     tab.contentView
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 24)
+                        .padding(.horizontal, AuroraSpacing.space7)
+                        .padding(.bottom, AuroraSpacing.space6)
                 } else {
                     ScrollView {
                         tab.contentView
                             .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 28)
-                            .padding(.bottom, 24)
+                            .padding(.horizontal, AuroraSpacing.space7)
+                            .padding(.bottom, AuroraSpacing.space6)
                     }
                 }
             }
@@ -186,9 +199,9 @@ struct SettingSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AuroraSpacing.space2 + 2) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.Aurora.caption.weight(.semibold))
                 .foregroundColor(Color.Aurora.textSecondary)
                 .textCase(.uppercase)
                 .tracking(0.6)
@@ -204,6 +217,10 @@ struct SettingSection<Content: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(SettingsUIStyle.borderColor, lineWidth: SettingsUIStyle.borderWidth)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.Aurora.microAccent.opacity(0.07), lineWidth: 0.5)
             )
         }
     }
@@ -226,16 +243,16 @@ struct SettingRow<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: AuroraSpacing.space4) {
                 // Label
                 VStack(alignment: .leading, spacing: 3) {
                     Text(label)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.Aurora.bodySmall.weight(.medium))
                         .foregroundColor(Color.Aurora.textPrimary)
 
                     if let description {
                         Text(description)
-                            .font(.system(size: 12))
+                            .font(.Aurora.caption.weight(.regular))
                             .foregroundColor(Color.Aurora.textMuted)
                             .lineLimit(2)
                     }
@@ -246,15 +263,15 @@ struct SettingRow<Content: View>: View {
                 // Control
                 content
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AuroraSpacing.space4)
+            .padding(.vertical, AuroraSpacing.space3)
 
             // Divider
             if showDivider {
                 Rectangle()
                     .fill(SettingsUIStyle.dividerColor)
                     .frame(height: SettingsUIStyle.borderWidth)
-                    .padding(.leading, 16)
+                    .padding(.leading, AuroraSpacing.space4)
             }
         }
     }
@@ -287,12 +304,12 @@ struct CollapsibleSection<Content: View>: View {
                 HStack(spacing: 8) {
                     if let icon {
                         Image(systemName: icon)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color.Aurora.primary)
+                            .font(.Aurora.caption.weight(.semibold))
+                            .foregroundColor(Color.Aurora.microAccent)
                     }
 
                     Text(title)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.Aurora.caption.weight(.semibold))
                         .foregroundColor(Color.Aurora.textSecondary)
                         .textCase(.uppercase)
                         .tracking(0.5)
@@ -300,7 +317,7 @@ struct CollapsibleSection<Content: View>: View {
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.Aurora.micro.weight(.semibold))
                         .foregroundColor(Color.Aurora.textMuted)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }

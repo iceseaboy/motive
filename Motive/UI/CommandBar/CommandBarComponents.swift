@@ -18,8 +18,8 @@ struct CommandListItem: View {
         Button(action: action) {
             HStack(spacing: AuroraSpacing.space3) {
                 Image(systemName: command.icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(isSelected ? Color.Aurora.microAccent : Color.Aurora.textSecondary)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -44,7 +44,7 @@ struct CommandListItem: View {
 
                 if isSelected {
                     Image(systemName: "return")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.Aurora.micro.weight(.medium))
                         .foregroundColor(Color.Aurora.textMuted)
                 }
             }
@@ -52,11 +52,26 @@ struct CommandListItem: View {
             .padding(.vertical, AuroraSpacing.space2)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+                    .fill(
+                        isSelected
+                            ? Color.Aurora.microAccentSoft
+                            : (isHovering ? Color.Aurora.surfaceElevated : Color.clear)
+                    )
             )
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
+                        .fill(Color.Aurora.microAccent.opacity(0.9))
+                        .frame(width: 2, height: 22)
+                        .padding(.leading, 1)
+                }
+            }
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .accessibilityLabel("/\(command.name)")
+        .accessibilityHint(command.description)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 }
 
@@ -74,8 +89,8 @@ struct ProjectListItem: View {
         Button(action: action) {
             HStack(spacing: AuroraSpacing.space3) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(isSelected ? Color.Aurora.microAccent : Color.Aurora.textSecondary)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -87,12 +102,12 @@ struct ProjectListItem: View {
                         if isCurrent {
                             Text("current")
                                 .font(.Aurora.micro)
-                                .foregroundColor(Color.Aurora.primary)
+                                .foregroundColor(Color.Aurora.microAccent)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(
                                     Capsule()
-                                        .fill(Color.Aurora.primary.opacity(0.15))
+                                        .fill(Color.Aurora.microAccentSoft)
                                 )
                         }
                     }
@@ -109,7 +124,7 @@ struct ProjectListItem: View {
 
                 if isSelected {
                     Image(systemName: "return")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.Aurora.micro.weight(.medium))
                         .foregroundColor(Color.Aurora.textMuted)
                 }
             }
@@ -117,11 +132,18 @@ struct ProjectListItem: View {
             .padding(.vertical, AuroraSpacing.space2)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+                    .fill(
+                        isSelected
+                            ? Color.Aurora.microAccentSoft
+                            : (isHovering ? Color.Aurora.surfaceElevated : Color.clear)
+                    )
             )
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .accessibilityLabel(name)
+        .accessibilityHint(path.isEmpty ? "Select project" : path)
+        .accessibilityValue(isCurrent ? "Current project" : (isSelected ? "Selected" : "Not selected"))
     }
 }
 
@@ -135,12 +157,16 @@ struct ModeListItem: View {
 
     @State private var isHovering = false
 
+    private var currentModeAccent: Color {
+        name.lowercased() == "plan" ? Color.Aurora.planAccent : Color.Aurora.textSecondary
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: AuroraSpacing.space3) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? Color.Aurora.primary : Color.Aurora.textSecondary)
+                    .font(.Aurora.bodySmall.weight(.medium))
+                    .foregroundColor(isSelected ? Color.Aurora.microAccent : Color.Aurora.textSecondary)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -152,12 +178,16 @@ struct ModeListItem: View {
                         if isCurrent {
                             Text("current")
                                 .font(.Aurora.micro)
-                                .foregroundColor(Color.Aurora.primary)
+                                .foregroundColor(currentModeAccent)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(
                                     Capsule()
-                                        .fill(Color.Aurora.primary.opacity(0.15))
+                                        .fill(
+                                            name.lowercased() == "plan"
+                                                ? Color.Aurora.planAccent.opacity(0.16)
+                                                : Color.Aurora.glassOverlay.opacity(0.06)
+                                        )
                                 )
                         }
                     }
@@ -171,7 +201,7 @@ struct ModeListItem: View {
 
                 if isSelected {
                     Image(systemName: "return")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.Aurora.micro.weight(.medium))
                         .foregroundColor(Color.Aurora.textMuted)
                 }
             }
@@ -179,11 +209,18 @@ struct ModeListItem: View {
             .padding(.vertical, AuroraSpacing.space2)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.sm, style: .continuous)
-                    .fill(isSelected ? Color.Aurora.primary.opacity(0.12) : (isHovering ? Color.Aurora.surfaceElevated : Color.clear))
+                    .fill(
+                        isSelected
+                            ? Color.Aurora.microAccentSoft
+                            : (isHovering ? Color.Aurora.surfaceElevated : Color.clear)
+                    )
             )
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .accessibilityLabel(name)
+        .accessibilityHint(description)
+        .accessibilityValue(isCurrent ? "Current mode" : (isSelected ? "Selected" : "Not selected"))
     }
 }
 
@@ -216,7 +253,7 @@ struct AuroraActionPill: View {
                     .foregroundColor(.white)
 
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.Aurora.micro.weight(.bold))
                     .foregroundColor(.white)
             }
             .padding(.horizontal, AuroraSpacing.space4)
@@ -248,12 +285,12 @@ struct AuroraShortcutBadge: View {
                 Group {
                     if key == "↵" {
                         Image(systemName: "return")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.Aurora.micro.weight(.medium))
                             .foregroundColor(Color.Aurora.textSecondary)
                             .frame(width: 16, height: 16)
                     } else {
                         Text(key)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .font(.Aurora.micro.weight(.medium))
                             .foregroundColor(Color.Aurora.textSecondary)
                             .frame(minWidth: 16)
                     }
@@ -271,7 +308,7 @@ struct AuroraShortcutBadge: View {
             }
 
             Text(label)
-                .font(.system(size: 10, weight: .regular))
+                .font(.Aurora.micro.weight(.regular))
                 .foregroundColor(Color.Aurora.textSecondary)
         }
     }
@@ -291,16 +328,16 @@ struct InlineShortcutHint: View {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 if index > 0 {
                     Text("|")
-                        .font(.system(size: 10, weight: .regular))
+                        .font(.Aurora.micro.weight(.regular))
                         .foregroundColor(Color.Aurora.textMuted.opacity(0.5))
                 }
                 HStack(spacing: AuroraSpacing.space1) {
                     Text(item.label)
-                        .font(.system(size: 11, weight: .regular))
+                        .font(.Aurora.micro.weight(.regular))
                         .foregroundColor(Color.Aurora.textMuted)
 
                     Text(item.key)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.Aurora.micro.weight(.medium))
                         .foregroundColor(Color.Aurora.textSecondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)

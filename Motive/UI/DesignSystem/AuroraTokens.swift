@@ -17,6 +17,7 @@ enum AuroraSpacing {
     static let space4: CGFloat = 16 // standard
     static let space5: CGFloat = 20 // comfortable
     static let space6: CGFloat = 24 // sections
+    static let space7: CGFloat = 28 // detail pane horizontal rhythm
     static let space8: CGFloat = 32 // large sections
     static let space10: CGFloat = 40 // page padding
     static let space12: CGFloat = 48 // hero spacing

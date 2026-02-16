@@ -27,7 +27,7 @@ struct DrawerChatInput: View {
             // Project directory + agent mode (compact top meta row)
             HStack(spacing: AuroraSpacing.space2) {
                 Image(systemName: "folder")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.Aurora.micro.weight(.medium))
                     .foregroundColor(Color.Aurora.textMuted)
 
                 Text(configManager.currentProjectShortPath)
@@ -84,7 +84,7 @@ struct DrawerChatInput: View {
                         // Stop button when running
                         Button(action: { appState.interruptSession() }) {
                             Image(systemName: "stop.fill")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.Aurora.micro.weight(.bold))
                                 .foregroundColor(.white)
                                 .frame(width: 28, height: 28)
                                 .background(Color.Aurora.error)
@@ -96,8 +96,8 @@ struct DrawerChatInput: View {
                         // Send button when not running
                         Button(action: onSubmit) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(inputText.isEmpty ? Color.Aurora.textMuted : Color.Aurora.primary)
+                                .font(.Aurora.title1.weight(.medium))
+                                .foregroundColor(inputText.isEmpty ? Color.Aurora.textMuted : Color.Aurora.microAccent)
                         }
                         .buttonStyle(.plain)
                         .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -108,7 +108,11 @@ struct DrawerChatInput: View {
                 .padding(.vertical, AuroraSpacing.space2)
                 .background(
                     RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
-                        .fill(isDark ? Color.Aurora.glassOverlay.opacity(0.06) : Color.white.opacity(0.55))
+                        .fill(
+                            isInputFocused.wrappedValue && !isRunning
+                                ? Color.Aurora.microAccentSoft.opacity(isDark ? 0.35 : 0.22)
+                                : (isDark ? Color.Aurora.glassOverlay.opacity(0.06) : Color.white.opacity(0.55))
+                        )
                 )
                 .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous))
                 .overlay(

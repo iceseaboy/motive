@@ -94,8 +94,9 @@ final class QuickConfirmWindowController {
     }
 
     private func positionPanel(anchorFrame: NSRect?, panelSize: NSSize) {
-        guard let panel,
-              let screen = NSScreen.main else { return }
+        guard let panel else { return }
+        let screen = screenForAnchor(anchorFrame: anchorFrame) ?? panel.screen ?? NSScreen.main
+        guard let screen else { return }
 
         let screenFrame = screen.visibleFrame
         var origin = if let anchor = anchorFrame {
@@ -117,5 +118,13 @@ final class QuickConfirmWindowController {
         origin.y = max(screenFrame.minY + 10, origin.y)
 
         panel.setFrameOrigin(origin)
+    }
+
+    private func screenForAnchor(anchorFrame: NSRect?) -> NSScreen? {
+        guard let anchorFrame else {
+            return KeyablePanel.screenForMouse()
+        }
+        let anchorPoint = NSPoint(x: anchorFrame.midX, y: anchorFrame.midY)
+        return NSScreen.screens.first { $0.frame.contains(anchorPoint) } ?? KeyablePanel.screenForMouse()
     }
 }

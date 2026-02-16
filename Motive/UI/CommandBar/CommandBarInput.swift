@@ -19,12 +19,12 @@ extension CommandBarView {
                     HStack(spacing: 0) {
                         // Invisible spacer for the typed text width
                         Text(inputText)
-                            .font(.system(size: 17, weight: .regular))
+                            .font(.Aurora.headline.weight(.regular))
                             .opacity(0)
 
                         // Gray completion hint
                         Text(completion)
-                            .font(.system(size: 17, weight: .regular))
+                            .font(.Aurora.headline.weight(.regular))
                             .foregroundColor(Color.Aurora.textMuted)
                     }
                 }
@@ -53,16 +53,16 @@ extension CommandBarView {
             if autocompleteCompletion != nil {
                 Text("Tab")
                     .font(.Aurora.micro.weight(.medium))
-                    .foregroundColor(Color.Aurora.textMuted)
+                    .foregroundColor(Color.Aurora.microAccent)
                     .padding(.horizontal, AuroraSpacing.space2)
                     .padding(.vertical, AuroraSpacing.space1)
                     .background(
                         RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                            .fill(Color.Aurora.glassOverlay.opacity(0.08))
+                            .fill(Color.Aurora.microAccentSoft)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                            .strokeBorder(Color.Aurora.glassOverlay.opacity(0.1), lineWidth: 0.5)
+                            .strokeBorder(Color.Aurora.microAccent.opacity(0.35), lineWidth: 0.5)
                     )
             }
 
@@ -96,7 +96,7 @@ extension CommandBarView {
                 SettingsWindowController.shared.show(tab: .model)
             }) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.Aurora.body.weight(.medium))
                     .foregroundColor(Color.Aurora.warning)
             }
             .buttonStyle(.plain)
@@ -105,7 +105,7 @@ extension CommandBarView {
         } else if case .error = mode {
             Button(action: { mode = .idle }) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.Aurora.body.weight(.medium))
                     .foregroundColor(Color.Aurora.error)
             }
             .buttonStyle(.plain)
@@ -117,8 +117,8 @@ extension CommandBarView {
             if canSend, !isCommandInput {
                 Button(action: handleSubmit) {
                     Image(systemName: "return")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.Aurora.primary)
+                        .font(.Aurora.bodySmall.weight(.medium))
+                        .foregroundColor(Color.Aurora.microAccent)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Submit")

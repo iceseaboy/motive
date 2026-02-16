@@ -9,6 +9,13 @@
 import SwiftUI
 
 struct DrawerView: View {
+    private enum Layout {
+        static let width: CGFloat = 400
+        static let height: CGFloat = 600
+        static let fileCompletionWidth: CGFloat = 360
+        static let inputAreaReservedHeight: CGFloat = 84
+    }
+
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var configManager: ConfigManager
     @StateObject private var permissionManager = PermissionManager.shared
@@ -87,7 +94,7 @@ struct DrawerView: View {
                 .transition(.opacity)
             }
         }
-        .frame(width: 400, height: 600)
+        .frame(width: Layout.width, height: Layout.height)
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xl, style: .continuous)
@@ -179,8 +186,8 @@ struct DrawerView: View {
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundColor(Color.Aurora.primary)
+                    .font(.Aurora.display.weight(.light))
+                    .foregroundColor(Color.Aurora.microAccent)
             }
 
             VStack(spacing: AuroraSpacing.space2) {
@@ -211,6 +218,7 @@ struct DrawerView: View {
         ZStack(alignment: .bottom) {
             // Dismiss area
             Color.black.opacity(0.01)
+                .accessibilityHidden(true)
                 .onTapGesture {
                     hideFileCompletion()
                 }
@@ -226,7 +234,7 @@ struct DrawerView: View {
                 )
                 .id("fileCompletion-\(fileCompletion.currentPath)-\(fileCompletion.items.count)")
             }
-            .frame(width: 360)
+            .frame(width: Layout.fileCompletionWidth)
             .background(
                 RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
                     .fill(Color.Aurora.surface)
@@ -236,7 +244,7 @@ struct DrawerView: View {
                 RoundedRectangle(cornerRadius: AuroraRadius.md, style: .continuous)
                     .strokeBorder(Color.Aurora.border.opacity(0.4), lineWidth: 0.5)
             )
-            .padding(.bottom, 80) // Position above input area
+            .padding(.bottom, Layout.inputAreaReservedHeight) // Position above input area
         }
         .transition(.opacity)
     }

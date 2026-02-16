@@ -20,7 +20,7 @@ struct QuickConfirmView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AuroraSpacing.space3 + 2) {
             headerView
             Rectangle()
                 .fill(AuroraPromptStyle.dividerColor)
@@ -31,8 +31,8 @@ struct QuickConfirmView: View {
                 .frame(height: AuroraPromptStyle.subtleBorderWidth)
             actionButtons
         }
-        .padding(20)
-        .frame(width: 360)
+        .padding(AuroraSpacing.space5)
+        .frame(minWidth: 360, idealWidth: 400, maxWidth: 520)
         .background(backgroundView)
         .clipShape(RoundedRectangle(cornerRadius: AuroraRadius.lg, style: .continuous))
         .overlay(
@@ -47,17 +47,17 @@ struct QuickConfirmView: View {
     private var headerView: some View {
         HStack(spacing: 12) {
             Image(systemName: iconName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(request.isPlanExitConfirmation ? Color.Aurora.success : Color.Aurora.primary)
+                .font(.Aurora.body.weight(.semibold))
+                .foregroundColor(request.isPlanExitConfirmation ? Color.Aurora.success : Color.Aurora.microAccent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(headerTitle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.Aurora.bodySmall.weight(.semibold))
                     .foregroundColor(Color.Aurora.textPrimary)
 
                 if let subtitle = headerSubtitle {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.Aurora.caption.weight(.regular))
                         .foregroundColor(Color.Aurora.textSecondary)
                         .lineLimit(1)
                 }
@@ -68,7 +68,7 @@ struct QuickConfirmView: View {
             // Close button
             Button(action: onCancel) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.Aurora.micro.weight(.medium))
                     .foregroundColor(Color.Aurora.textMuted)
                     .frame(width: 22, height: 22)
             }
@@ -94,7 +94,7 @@ struct QuickConfirmView: View {
             // Question text
             if let question = request.question {
                 Text(question)
-                    .font(.system(size: 13))
+                    .font(.Aurora.bodySmall)
                     .foregroundColor(Color.Aurora.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -120,6 +120,7 @@ struct QuickConfirmView: View {
         }
     }
 
+    // swiftlint:disable function_body_length
     private func optionButton(option: PermissionRequest.QuestionOption) -> some View {
         let optionValue = option.effectiveValue
         let isSelected = selectedOptions.contains(optionValue)
@@ -127,7 +128,7 @@ struct QuickConfirmView: View {
 
         // Plan exit: "Execute Plan" gets prominent green styling
         let isPlanExecute = request.isPlanExitConfirmation && option.label == "Execute Plan"
-        let accentColor = isPlanExecute ? Color.Aurora.success : Color.Aurora.primary
+        let accentColor = isPlanExecute ? Color.Aurora.success : Color.Aurora.microAccent
 
         return Button {
             if isMultiSelect {
@@ -143,25 +144,25 @@ struct QuickConfirmView: View {
             HStack(spacing: AuroraSpacing.space3) {
                 if isMultiSelect {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 13))
+                        .font(.Aurora.bodySmall)
                         .foregroundColor(isSelected ? accentColor : Color.Aurora.textSecondary)
                 }
 
                 if isPlanExecute {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.Aurora.micro.weight(.bold))
                         .foregroundColor(Color.Aurora.success)
                 }
 
                 Text(option.label)
-                    .font(.system(size: 13, weight: isPlanExecute || isSelected ? .semibold : .regular))
+                    .font(.Aurora.bodySmall.weight(isPlanExecute || isSelected ? .semibold : .regular))
                     .foregroundColor(isPlanExecute ? Color.Aurora.success : Color.Aurora.textPrimary)
 
                 Spacer()
 
                 if !isMultiSelect {
                     Image(systemName: isPlanExecute ? "arrow.right" : "chevron.right")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.Aurora.micro.weight(.medium))
                         .foregroundColor(isPlanExecute ? Color.Aurora.success : Color.Aurora.textMuted)
                 }
             }
@@ -186,7 +187,11 @@ struct QuickConfirmView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(option.label)
+        .accessibilityHint(isMultiSelect ? "Toggle option selection" : "Select and submit this option")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
+    // swiftlint:enable function_body_length
 
     private var permissionContent: some View {
         VStack(alignment: .leading, spacing: AuroraSpacing.space2) {
@@ -194,7 +199,7 @@ struct QuickConfirmView: View {
             if let permType = request.permissionType {
                 HStack(spacing: AuroraSpacing.space2) {
                     Text(L10n.Permission.permissionLabel)
-                        .font(.system(size: 12))
+                        .font(.Aurora.caption.weight(.regular))
                         .foregroundColor(Color.Aurora.textSecondary)
 
                     Text(permType.capitalized)
@@ -207,7 +212,7 @@ struct QuickConfirmView: View {
             if let patterns = request.patterns, !patterns.isEmpty {
                 HStack(spacing: AuroraSpacing.space2) {
                     Text(patterns.count == 1 ? L10n.Permission.pathLabel : L10n.Permission.pathsLabel)
-                        .font(.system(size: 12))
+                        .font(.Aurora.caption.weight(.regular))
                         .foregroundColor(Color.Aurora.textSecondary)
 
                     Text(patterns.map { shortenPath($0) }.joined(separator: ", "))
@@ -250,9 +255,10 @@ struct QuickConfirmView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.Aurora.primary)
+                    .tint(Color.Aurora.microAccent)
                     .controlSize(.small)
                     .disabled(request.options != nil ? selectedOptions.isEmpty : textInput.isEmpty)
+                    .accessibilityHint("Submit the current answer")
                 }
             }
 
@@ -270,8 +276,9 @@ struct QuickConfirmView: View {
                     onResponse("Allow Once")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.Aurora.primary)
+                .tint(Color.Aurora.microAccent)
                 .controlSize(.small)
+                .accessibilityHint("Allow this action once")
 
                 Button(L10n.alwaysAllow) {
                     onResponse("Always Allow")
@@ -417,7 +424,7 @@ struct DiffView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
-                .fill(isDark ? Color(white: 0.08) : Color(white: 0.97))
+                .fill(Color.Aurora.surfaceElevated.opacity(isDark ? 0.6 : 0.75))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AuroraRadius.xs, style: .continuous)
@@ -435,19 +442,19 @@ struct DiffView: View {
                 Text(line.newLineNumber ?? "")
                     .frame(width: 28, alignment: .trailing)
             }
-            .font(.system(size: 10, design: .monospaced))
+            .font(.Aurora.micro.weight(.regular))
             .foregroundColor(Color.Aurora.textMuted.opacity(0.6))
             .padding(.trailing, 4)
 
             // Prefix character (+, -, space)
             Text(line.prefix)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.Aurora.micro.weight(.medium))
                 .foregroundColor(line.prefixColor(isDark: isDark))
                 .frame(width: 12)
 
             // Content
             Text(line.content)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.Aurora.monoSmall)
                 .foregroundColor(line.textColor(isDark: isDark))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -480,17 +487,23 @@ struct DiffLine: Sendable {
     func backgroundColor(isDark: Bool) -> Color {
         switch type {
         case .addition:
-            isDark
-                ? Color(red: 0.1, green: 0.3, blue: 0.1).opacity(0.5)
-                : Color(red: 0.85, green: 1.0, blue: 0.85)
+            if isDark {
+                Color(red: 0.1, green: 0.3, blue: 0.1).opacity(0.5)
+            } else {
+                Color(red: 0.85, green: 1.0, blue: 0.85)
+            }
         case .deletion:
-            isDark
-                ? Color(red: 0.35, green: 0.1, blue: 0.1).opacity(0.5)
-                : Color(red: 1.0, green: 0.9, blue: 0.9)
+            if isDark {
+                Color(red: 0.35, green: 0.1, blue: 0.1).opacity(0.5)
+            } else {
+                Color(red: 1.0, green: 0.9, blue: 0.9)
+            }
         case .header, .meta:
-            isDark
-                ? Color(red: 0.15, green: 0.2, blue: 0.35).opacity(0.4)
-                : Color(red: 0.92, green: 0.95, blue: 1.0)
+            if isDark {
+                Color(red: 0.15, green: 0.2, blue: 0.35).opacity(0.4)
+            } else {
+                Color(red: 0.92, green: 0.95, blue: 1.0)
+            }
         case .context:
             .clear
         }
@@ -499,22 +512,46 @@ struct DiffLine: Sendable {
     func textColor(isDark: Bool) -> Color {
         switch type {
         case .addition:
-            isDark ? Color(red: 0.5, green: 0.9, blue: 0.5) : Color(red: 0.1, green: 0.5, blue: 0.1)
+            if isDark {
+                Color(red: 0.5, green: 0.9, blue: 0.5)
+            } else {
+                Color(red: 0.1, green: 0.5, blue: 0.1)
+            }
         case .deletion:
-            isDark ? Color(red: 0.95, green: 0.5, blue: 0.5) : Color(red: 0.6, green: 0.1, blue: 0.1)
+            if isDark {
+                Color(red: 0.95, green: 0.5, blue: 0.5)
+            } else {
+                Color(red: 0.6, green: 0.1, blue: 0.1)
+            }
         case .header, .meta:
-            isDark ? Color(red: 0.5, green: 0.7, blue: 1.0) : Color(red: 0.2, green: 0.3, blue: 0.6)
+            if isDark {
+                Color(red: 0.5, green: 0.7, blue: 1.0)
+            } else {
+                Color(red: 0.2, green: 0.3, blue: 0.6)
+            }
         case .context:
-            isDark ? Color(white: 0.7) : Color(white: 0.3)
+            if isDark {
+                Color(white: 0.7)
+            } else {
+                Color(white: 0.3)
+            }
         }
     }
 
     func prefixColor(isDark: Bool) -> Color {
         switch type {
         case .addition:
-            isDark ? Color(red: 0.3, green: 0.9, blue: 0.3) : Color(red: 0.1, green: 0.6, blue: 0.1)
+            if isDark {
+                Color(red: 0.3, green: 0.9, blue: 0.3)
+            } else {
+                Color(red: 0.1, green: 0.6, blue: 0.1)
+            }
         case .deletion:
-            isDark ? Color(red: 0.95, green: 0.35, blue: 0.35) : Color(red: 0.7, green: 0.1, blue: 0.1)
+            if isDark {
+                Color(red: 0.95, green: 0.35, blue: 0.35)
+            } else {
+                Color(red: 0.7, green: 0.1, blue: 0.1)
+            }
         default:
             .clear
         }

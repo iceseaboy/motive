@@ -237,6 +237,8 @@ final class StatusBarController {
 
         button.imagePosition = state.showText ? .imageLeading : .imageOnly
         button.contentTintColor = nil // Let system handle color
+        button.toolTip = state.showText ? "Motive: \(state.text)" : "Motive"
+        button.setAccessibilityLabel(state.showText ? "Motive \(state.text)" : "Motive")
 
         // Configure text (always use variableLength — the system auto-sizes
         // to the image alone when there is no title text).

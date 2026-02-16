@@ -109,8 +109,27 @@ extension Color {
         /// Info
         static let info = Color(nsColor: .systemBlue)
 
-        /// Plan mode accent color
-        static let planAccent = Color(hex: "F5A623")
+        /// Micro accent for focus/highlight (amber)
+        static var microAccent: Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                appearance.isDark ? NSColor(hex: "F5A623") : NSColor(hex: "D28C10")
+            })
+        }
+
+        /// Soft micro accent fill for selected/highlight surfaces
+        static var microAccentSoft: Color {
+            microAccent.opacity(0.16)
+        }
+
+        /// Focus ring accent
+        static var microAccentRing: Color {
+            microAccent.opacity(0.78)
+        }
+
+        /// Plan mode accent color (kept aligned with micro accent)
+        static var planAccent: Color {
+            microAccent
+        }
 
         // MARK: - Text Colors (Adaptive)
 
@@ -168,8 +187,8 @@ extension Color {
         static var borderFocus: Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 appearance.isDark
-                    ? NSColor(hex: "8B8B8B").withAlphaComponent(0.6)
-                    : NSColor(hex: "555555").withAlphaComponent(0.5)
+                    ? NSColor(hex: "F5A623").withAlphaComponent(0.62)
+                    : NSColor(hex: "D28C10").withAlphaComponent(0.5)
             })
         }
 

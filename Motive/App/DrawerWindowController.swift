@@ -12,6 +12,11 @@ import SwiftUI
 
 @MainActor
 final class DrawerWindowController {
+    private enum Layout {
+        static let width: CGFloat = 400
+        static let height: CGFloat = 600
+    }
+
     private let window: KeyablePanel
     private var statusBarButtonFrame: NSRect?
     private var resignKeyObserver: Any?
@@ -29,7 +34,7 @@ final class DrawerWindowController {
         hostingView.layer?.masksToBounds = false
 
         window = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: Layout.width, height: Layout.height),
             styleMask: [.titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -78,7 +83,8 @@ final class DrawerWindowController {
     }
 
     private func positionBelowStatusBar() {
-        guard let screen = NSScreen.main else { return }
+        let screen = screenForAnchor() ?? window.screen ?? NSScreen.main
+        guard let screen else { return }
         let width = window.frame.width
         let height = window.frame.height
 
@@ -97,10 +103,16 @@ final class DrawerWindowController {
         }
 
         // Ensure window stays within screen bounds
-        let screenFrame = screen.frame
-        let clampedX = max(screenFrame.minX + 12, min(x, screenFrame.maxX - width - 12))
-        let clampedY = max(screenFrame.minY + 12, y)
+        let visibleFrame = screen.visibleFrame
+        let clampedX = max(visibleFrame.minX + 12, min(x, visibleFrame.maxX - width - 12))
+        let clampedY = max(visibleFrame.minY + 12, min(y, visibleFrame.maxY - height - 12))
 
         window.setFrameOrigin(NSPoint(x: clampedX, y: clampedY))
+    }
+
+    private func screenForAnchor() -> NSScreen? {
+        guard let buttonFrame = statusBarButtonFrame else { return nil }
+        let anchorPoint = NSPoint(x: buttonFrame.midX, y: buttonFrame.midY)
+        return NSScreen.screens.first { $0.frame.contains(anchorPoint) } ?? KeyablePanel.screenForMouse()
     }
 }
