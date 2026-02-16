@@ -191,6 +191,7 @@ struct QuickConfirmView: View {
         .accessibilityHint(isMultiSelect ? "Toggle option selection" : "Select and submit this option")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
+
     // swiftlint:enable function_body_length
 
     private var permissionContent: some View {
