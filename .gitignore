@@ -87,3 +87,6 @@ dist/
 .cursor/
 .sourcekit-lsp/
 buildServer.json
+Socials/
+Docs/
+.claude/

@@ -61,6 +61,7 @@ extension AppState {
         )
         // Configure settings window controller
         SettingsWindowController.shared.configure(configManager: configManager, appState: self)
+        startScheduledTaskSystemIfNeeded()
         updateStatusBar()
     }
 

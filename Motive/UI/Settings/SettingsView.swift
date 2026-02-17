@@ -56,6 +56,7 @@ struct SettingsView: View {
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general
+    case scheduledTasks
     case persona
     case model
     case usage
@@ -72,6 +73,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: L10n.Settings.general
+        case .scheduledTasks: "Scheduled Tasks"
         case .persona: L10n.Settings.persona
         case .model: L10n.Settings.aiProvider
         case .usage: L10n.Settings.usage
@@ -86,6 +88,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general: L10n.Settings.generalSubtitle
+        case .scheduledTasks: "Configure runtime scheduled prompts"
         case .persona: L10n.Settings.personaSubtitle
         case .model: L10n.Settings.aiProviderSubtitle
         case .usage: L10n.Settings.usageSubtitle
@@ -100,6 +103,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: "gearshape.fill"
+        case .scheduledTasks: "calendar.badge.clock"
         case .persona: "person.fill"
         case .model: "cpu.fill"
         case .usage: "chart.bar.fill"
@@ -121,6 +125,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             GeneralSettingsView()
+        case .scheduledTasks:
+            ScheduledTasksSettingsView()
         case .persona:
             PersonaSettingsView()
         case .model:

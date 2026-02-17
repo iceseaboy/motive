@@ -86,4 +86,33 @@ struct OpenCodeAPIClientTests {
         #expect(info.id == "sess-456")
         #expect(info.title == nil)
     }
+
+    // MARK: - Model Payload Routing
+
+    @Test func openRouterModelWithSlash_keepsWholeModelID() {
+        let payload = OpenCodeAPIClient.makeModelPayload(
+            model: "anthropic/claude-sonnet-4",
+            modelProviderID: "openrouter"
+        )
+        #expect(payload?["providerID"] == "openrouter")
+        #expect(payload?["modelID"] == "anthropic/claude-sonnet-4")
+    }
+
+    @Test func nonOpenRouterModelWithSlash_splitsProviderAndModel() {
+        let payload = OpenCodeAPIClient.makeModelPayload(
+            model: "openai/gpt-4o-mini",
+            modelProviderID: "openai"
+        )
+        #expect(payload?["providerID"] == "openai")
+        #expect(payload?["modelID"] == "gpt-4o-mini")
+    }
+
+    @Test func rawModelWithoutSlash_usesSelectedProvider() {
+        let payload = OpenCodeAPIClient.makeModelPayload(
+            model: "gpt-5",
+            modelProviderID: "openai"
+        )
+        #expect(payload?["providerID"] == "openai")
+        #expect(payload?["modelID"] == "gpt-5")
+    }
 }

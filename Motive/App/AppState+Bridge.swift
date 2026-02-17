@@ -101,6 +101,18 @@ extension AppState {
         // Log every event arrival for diagnostics
         Log.bridge("⬇︎ Event: kind=\(event.kind.rawValue) tool=\(event.toolName ?? "-") session=\(event.sessionId ?? "-") text=«\(event.text.prefix(60))»")
 
+        // --- Explicit bind failure before session ID was created ---
+        if event.rawJson == "__session_bind_failed__" {
+            if !pendingBindSessions.isEmpty {
+                let session = pendingBindSessions.removeFirst()
+                let reason = event.text.isEmpty
+                    ? "Task failed to start before session binding."
+                    : "Task failed to start: \(event.text)"
+                failUnboundSession(session, reason: reason)
+            }
+            return
+        }
+
         // --- Explicit session binding from bridge ---
         if event.rawJson == "__session_bind__", let sid = event.sessionId, !sid.isEmpty {
             let sessionToBind: Session? = if !pendingBindSessions.isEmpty {
@@ -351,6 +363,7 @@ extension AppState {
         case .error:
             messageStore.finalizeRunningMessages(in: &buffer)
             transitionSessionStatus(.failed, for: session)
+            markScheduledRunFailedIfNeeded(for: session.id, reason: event.text)
             // Insert error system message
             messageStore.insertEventIntoBuffer(event, buffer: &buffer)
             // Persist to SwiftData

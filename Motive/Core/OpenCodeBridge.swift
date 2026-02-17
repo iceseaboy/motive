@@ -211,6 +211,13 @@ actor OpenCodeBridge {
             try await submitPrompt(text: text, cwd: cwd, agentOverride: agent)
         } catch {
             Log.error("Failed to submit intent: \(error.localizedDescription)")
+            // Explicit pre-bind failure signal. AppState can fail the queued session immediately
+            // instead of waiting for bind-queue timeout.
+            eventContinuation.yield(OpenCodeEvent(
+                kind: .unknown,
+                rawJson: "__session_bind_failed__",
+                text: error.localizedDescription
+            ))
             eventContinuation.yield(OpenCodeEvent(
                 kind: .error,
                 rawJson: "",

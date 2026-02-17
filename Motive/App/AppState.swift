@@ -107,6 +107,10 @@ final class AppState: ObservableObject {
 
     /// Task for auto-promoting the next running session after the foreground task finishes.
     var autoPromoteTask: Task<Void, Never>?
+    /// Scheduler actor for user-configured scheduled tasks.
+    var taskScheduler: TaskScheduler?
+    /// Executor actor bridging scheduled jobs to AppState session submission.
+    var scheduledTaskExecutor: ScheduledTaskExecutor?
 
     var configManagerRef: ConfigManager {
         configManager
@@ -259,7 +263,10 @@ final class AppState: ObservableObject {
         if pendingBindSessions.count >= Self.maxPendingBindSessions {
             let dropped = pendingBindSessions.removeFirst()
             Log.warning("Bind queue overflow: dropping oldest pending session \(dropped.id)")
-            transitionSessionStatus(.failed, for: dropped)
+            failUnboundSession(
+                dropped,
+                reason: "Session binding queue overflow. Request did not start; please retry."
+            )
         }
         pendingBindSessions.append(session)
         startBindQueueCleanup()
@@ -287,9 +294,51 @@ final class AppState: ObservableObject {
         let stale = pendingBindSessions.filter { $0.createdAt < cutoff }
         for session in stale {
             Log.warning("Bind queue: orphaned session \(session.id) (created \(session.createdAt)), marking failed")
-            transitionSessionStatus(.failed, for: session)
+            failUnboundSession(
+                session,
+                reason: "Task failed to start (no session binding within 30 seconds). Please retry."
+            )
         }
         pendingBindSessions.removeAll { $0.createdAt < cutoff }
+    }
+
+    /// Finalize a session that never received a bind event.
+    func failUnboundSession(_ session: Session, reason: String) {
+        transitionSessionStatus(.failed, for: session)
+
+        var buffer: [ConversationMessage] = if let data = session.messagesData,
+                                               let saved = ConversationMessage.deserializeMessages(data)
+        {
+            saved
+        } else {
+            [ConversationMessage(type: .user, content: session.intent, timestamp: session.createdAt)]
+        }
+        buffer.append(ConversationMessage(type: .system, content: reason))
+        session.messagesData = ConversationMessage.serializeMessages(buffer)
+        markScheduledRunFailedIfNeeded(for: session.id, reason: reason)
+
+        if currentSession?.id == session.id {
+            messages = buffer
+            lastErrorMessage = reason
+            menuBarState = .idle
+            updateStatusBar()
+        }
+        sessionListRefreshTrigger += 1
+        trySaveContext()
+    }
+
+    func markScheduledRunFailedIfNeeded(for sessionID: UUID, reason: String) {
+        guard let modelContext else { return }
+        let sid = sessionID.uuidString
+        let descriptor = FetchDescriptor<ScheduledTaskRun>(
+            predicate: #Predicate { run in
+                run.sessionID == sid && run.status == "submitted"
+            },
+            sortBy: [SortDescriptor(\.triggeredAt, order: .reverse)]
+        )
+        guard let run = try? modelContext.fetch(descriptor).first else { return }
+        run.runStatus = .failed
+        run.errorMessage = reason
     }
 
     // MARK: - Centralized Status Transition

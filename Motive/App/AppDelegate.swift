@@ -92,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        appState?.stopScheduledTaskSystem()
         unregisterHotkey()
         permissionCheckTask?.cancel()
         if let observer = hotkeyObserver {

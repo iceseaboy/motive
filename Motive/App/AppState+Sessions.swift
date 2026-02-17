@@ -12,10 +12,14 @@ import SwiftUI
 
 extension AppState {
     func submitIntent(_ text: String) {
-        submitIntent(text, workingDirectory: nil)
+        submitIntent(text, workingDirectory: nil, agentOverride: nil)
     }
 
     func submitIntent(_ text: String, workingDirectory: String?) {
+        submitIntent(text, workingDirectory: workingDirectory, agentOverride: nil)
+    }
+
+    func submitIntent(_ text: String, workingDirectory: String?, agentOverride: String?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -46,7 +50,7 @@ extension AppState {
 
         // Use provided working directory or configured project directory
         let cwd = workingDirectory ?? configManager.currentProjectURL.path
-        let agent = configManager.currentAgent
+        let agent = agentOverride ?? configManager.currentAgent
         // Enqueue this Session to receive the __session_bind__ from the bridge
         if let session = currentSession {
             enqueuePendingBind(session)
@@ -59,6 +63,42 @@ extension AppState {
         bridgeTask = Task {
             await bridge.submitIntent(text: trimmed, cwd: cwd, agent: agent, forceNewSession: true)
         }
+    }
+
+    /// Submit a prompt from the scheduler and return the created Session if available.
+    @discardableResult
+    func submitScheduledIntent(
+        _ text: String,
+        workingDirectory: String?,
+        agentOverride: String?
+    ) throws -> Session {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw NSError(domain: "ScheduledTask", code: 1, userInfo: [NSLocalizedDescriptionKey: "Prompt cannot be empty."])
+        }
+        if let configError = configManager.providerConfigurationError {
+            throw NSError(domain: "ScheduledTask", code: 2, userInfo: [NSLocalizedDescriptionKey: configError])
+        }
+        guard let modelContext else {
+            throw NSError(domain: "ScheduledTask", code: 3, userInfo: [NSLocalizedDescriptionKey: "Model context is unavailable."])
+        }
+
+        let cwd = workingDirectory ?? configManager.currentProjectURL.path
+        let agent = agentOverride ?? configManager.currentAgent
+        let session = Session(intent: trimmed, projectPath: cwd)
+        transitionSessionStatus(.running, for: session)
+
+        let userMessage = ConversationMessage(type: .user, content: trimmed)
+        session.messagesData = ConversationMessage.serializeMessages([userMessage])
+        modelContext.insert(session)
+        logEvent(OpenCodeEvent(kind: .user, rawJson: "", text: trimmed), session: session)
+        enqueuePendingBind(session)
+        trySaveContext()
+
+        Task {
+            await bridge.submitIntent(text: trimmed, cwd: cwd, agent: agent, forceNewSession: true)
+        }
+        return session
     }
 
     func sendFollowUp(_ text: String) {

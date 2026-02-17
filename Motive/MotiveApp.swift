@@ -21,9 +21,11 @@ struct MotiveApp: App {
         let container: ModelContainer
 
         // Use local-only storage in Application Support/Motive/
-        // Schema Version: 1.0 - Session (id, intent, createdAt, openCodeSessionId, status, projectPath, logs)
+        // Schema Version: 1.1 - Session (id, intent, createdAt, openCodeSessionId, status, projectPath, logs)
         //                     - LogEntry (id, rawJson, kind, createdAt)
-        let schema = Schema([Session.self, LogEntry.self])
+        //                     - ScheduledTask (recurring/background trigger definitions)
+        //                     - ScheduledTaskRun (execution history)
+        let schema = Schema([Session.self, LogEntry.self, ScheduledTask.self, ScheduledTaskRun.self])
         let storeURL = Self.storeURL()
 
         // Ensure the Motive directory exists

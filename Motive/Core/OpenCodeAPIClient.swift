@@ -166,26 +166,9 @@ actor OpenCodeAPIClient {
             body["agent"] = agent
         }
 
-        // Server expects model as { providerID, modelID }.
-        // If user enters raw model name, use selected provider and keep modelID verbatim.
-        if let model {
-            let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedModel.isEmpty {
-                let components = trimmedModel.split(separator: "/", maxSplits: 1)
-                if components.count == 2 {
-                    body["model"] = [
-                        "providerID": String(components[0]),
-                        "modelID": String(components[1]),
-                    ]
-                } else if let providerID = modelProviderID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !providerID.isEmpty
-                {
-                    body["model"] = [
-                        "providerID": providerID,
-                        "modelID": trimmedModel,
-                    ]
-                }
-            }
+        if let modelPayload = Self.makeModelPayload(model: model, modelProviderID: modelProviderID) {
+            body["model"] = modelPayload
+            logger.info("Prompt model payload provider=\(modelPayload["providerID"] ?? "-"), model=\(modelPayload["modelID"] ?? "-")")
         }
 
         _ = try await post(
@@ -194,6 +177,44 @@ actor OpenCodeAPIClient {
             expectedStatus: 204
         )
         logger.info("Sent prompt to session \(sessionID) (agent: \(agent ?? "default"))")
+    }
+
+    /// Build OpenCode model payload while preserving provider-specific semantics.
+    /// For OpenRouter, model strings often include "/" (e.g. "anthropic/claude-sonnet-4"),
+    /// but they must remain the `modelID` under provider `openrouter`.
+    static func makeModelPayload(
+        model: String?,
+        modelProviderID: String?
+    ) -> [String: String]? {
+        guard let model else { return nil }
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty else { return nil }
+
+        let trimmedProviderID = modelProviderID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        // OpenRouter model IDs may contain "/" and must not be split into provider/model.
+        if trimmedProviderID == "openrouter" {
+            return [
+                "providerID": "openrouter",
+                "modelID": trimmedModel
+            ]
+        }
+
+        let components = trimmedModel.split(separator: "/", maxSplits: 1)
+        if components.count == 2 {
+            return [
+                "providerID": String(components[0]),
+                "modelID": String(components[1]),
+            ]
+        }
+
+        guard let trimmedProviderID, !trimmedProviderID.isEmpty else { return nil }
+        return [
+            "providerID": trimmedProviderID,
+            "modelID": trimmedModel,
+        ]
     }
 
     // MARK: - Native Question Reply
