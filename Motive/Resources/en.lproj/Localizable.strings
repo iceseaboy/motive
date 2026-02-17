@@ -307,6 +307,48 @@
 "settings.about.powered_by" = "POWERED BY";
 "settings.about.all_rights_reserved" = "© 2024-2026 Velvet. All rights reserved.";
 "settings.advanced.actions" = "Actions";
+"settings.search.prompt" = "Search settings";
+"settings.a11y.open_settings_hint" = "Open %@ settings";
+
+// Scheduled Tasks
+"settings.tab.scheduled_tasks" = "Scheduled Tasks";
+"settings.tab.scheduled_tasks.subtitle" = "Configure runtime scheduled prompts";
+"settings.scheduled_tasks.runtime_scheduler" = "Runtime Scheduler";
+"settings.scheduled_tasks.scope" = "Scope";
+"settings.scheduled_tasks.scope.desc" = "Scheduled tasks run only while Motive is running.";
+"settings.scheduled_tasks.in_app_only" = "In-app only";
+"settings.scheduled_tasks.section" = "Scheduled Tasks";
+"settings.scheduled_tasks.no_tasks" = "No tasks yet";
+"settings.scheduled_tasks.no_tasks.desc" = "Create your first scheduled task.";
+"settings.scheduled_tasks.new_task" = "New Task";
+"settings.scheduled_tasks.refresh" = "Refresh";
+"settings.scheduled_tasks.run_now" = "Run Now";
+"settings.scheduled_tasks.not_scheduled" = "not scheduled";
+"settings.scheduled_tasks.never_run" = "never run";
+"settings.scheduled_tasks.summary" = "Next: %@ · Last: %@";
+"settings.scheduled_tasks.editor.new" = "New Scheduled Task";
+"settings.scheduled_tasks.editor.edit" = "Edit Scheduled Task";
+"settings.scheduled_tasks.task_name" = "Task name";
+"settings.scheduled_tasks.prompt" = "Prompt";
+"settings.scheduled_tasks.working_directory_optional" = "Working directory (optional)";
+"settings.scheduled_tasks.agent_optional" = "Agent (optional)";
+"settings.scheduled_tasks.schedule_type" = "Schedule type";
+"settings.scheduled_tasks.schedule.once" = "Once";
+"settings.scheduled_tasks.schedule.interval" = "Interval";
+"settings.scheduled_tasks.schedule.daily" = "Daily";
+"settings.scheduled_tasks.schedule.weekly" = "Weekly";
+"settings.scheduled_tasks.schedule.cron" = "Cron";
+"settings.scheduled_tasks.enabled" = "Enabled";
+"settings.scheduled_tasks.run_at" = "Run at";
+"settings.scheduled_tasks.interval_seconds" = "Interval seconds (>=60)";
+"settings.scheduled_tasks.time" = "Time";
+"settings.scheduled_tasks.weekday" = "Weekday";
+"settings.scheduled_tasks.cron_expression" = "Cron (m h dom mon dow)";
+"settings.scheduled_tasks.next_run" = "Next run: %@";
+"settings.scheduled_tasks.next_run_unavailable" = "Next run: not available";
+"settings.scheduled_tasks.error.task_name_required" = "Task name is required.";
+"settings.scheduled_tasks.error.prompt_required" = "Prompt is required.";
+"settings.scheduled_tasks.error.interval_minimum" = "Interval must be at least 60 seconds.";
 
 // MARK: - Drawer
 "drawer.new_session" = "New Session";
