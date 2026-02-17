@@ -61,7 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.onboardingDidComplete()
+            Task { [weak self] in
+                await MainActor.run {
+                    self?.onboardingDidComplete()
+                }
+            }
         }
     }
 
@@ -226,8 +230,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.reregisterHotkey()
+            Task { [weak self] in
+                await MainActor.run {
+                    self?.reregisterHotkey()
+                }
             }
         }
     }
