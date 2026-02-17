@@ -307,6 +307,48 @@
 "settings.about.powered_by" = "技術提供";
 "settings.about.all_rights_reserved" = "© 2024-2026 Velvet. All rights reserved.";
 "settings.advanced.actions" = "アクション";
+"settings.search.prompt" = "設定を検索";
+"settings.a11y.open_settings_hint" = "%@ の設定を開く";
+
+// Scheduled Tasks
+"settings.tab.scheduled_tasks" = "スケジュールタスク";
+"settings.tab.scheduled_tasks.subtitle" = "ランタイムの定期プロンプトを設定";
+"settings.scheduled_tasks.runtime_scheduler" = "ランタイムスケジューラ";
+"settings.scheduled_tasks.scope" = "範囲";
+"settings.scheduled_tasks.scope.desc" = "スケジュールタスクは Motive 実行中のみ動作します。";
+"settings.scheduled_tasks.in_app_only" = "アプリ内のみ";
+"settings.scheduled_tasks.section" = "スケジュールタスク";
+"settings.scheduled_tasks.no_tasks" = "タスクはまだありません";
+"settings.scheduled_tasks.no_tasks.desc" = "最初のスケジュールタスクを作成してください。";
+"settings.scheduled_tasks.new_task" = "新規タスク";
+"settings.scheduled_tasks.refresh" = "更新";
+"settings.scheduled_tasks.run_now" = "今すぐ実行";
+"settings.scheduled_tasks.not_scheduled" = "未スケジュール";
+"settings.scheduled_tasks.never_run" = "未実行";
+"settings.scheduled_tasks.summary" = "次回: %@ ・ 前回: %@";
+"settings.scheduled_tasks.editor.new" = "新しいスケジュールタスク";
+"settings.scheduled_tasks.editor.edit" = "スケジュールタスクを編集";
+"settings.scheduled_tasks.task_name" = "タスク名";
+"settings.scheduled_tasks.prompt" = "プロンプト";
+"settings.scheduled_tasks.working_directory_optional" = "作業ディレクトリ（任意）";
+"settings.scheduled_tasks.agent_optional" = "エージェント（任意）";
+"settings.scheduled_tasks.schedule_type" = "スケジュール種別";
+"settings.scheduled_tasks.schedule.once" = "一回";
+"settings.scheduled_tasks.schedule.interval" = "間隔";
+"settings.scheduled_tasks.schedule.daily" = "毎日";
+"settings.scheduled_tasks.schedule.weekly" = "毎週";
+"settings.scheduled_tasks.schedule.cron" = "Cron";
+"settings.scheduled_tasks.enabled" = "有効";
+"settings.scheduled_tasks.run_at" = "実行日時";
+"settings.scheduled_tasks.interval_seconds" = "間隔秒数（>=60）";
+"settings.scheduled_tasks.time" = "時刻";
+"settings.scheduled_tasks.weekday" = "曜日";
+"settings.scheduled_tasks.cron_expression" = "Cron（分 時 日 月 曜日）";
+"settings.scheduled_tasks.next_run" = "次回実行: %@";
+"settings.scheduled_tasks.next_run_unavailable" = "次回実行: 利用不可";
+"settings.scheduled_tasks.error.task_name_required" = "タスク名は必須です。";
+"settings.scheduled_tasks.error.prompt_required" = "プロンプトは必須です。";
+"settings.scheduled_tasks.error.interval_minimum" = "間隔は60秒以上である必要があります。";
 
 // MARK: - Drawer
 "drawer.new_session" = "新規セッション";

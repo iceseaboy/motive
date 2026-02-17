@@ -38,11 +38,12 @@ struct SettingsView: View {
                     .font(.Aurora.body)
                     .tag(tab)
                     .accessibilityLabel(tab.title)
-                    .accessibilityHint("Open \(tab.title) settings")
+                    .accessibilityHint(L10n.Settings.openSettingsHintFormat.localized(with: tab.title))
             }
+            .tint(SettingsUIStyle.selectionTint)
             .listStyle(.sidebar)
             .frame(minWidth: 220)
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
+            .searchable(text: $searchText, placement: .sidebar, prompt: L10n.Settings.searchPrompt)
         } detail: {
             SettingsDetailView(tab: activeTab)
         }
@@ -73,7 +74,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: L10n.Settings.general
-        case .scheduledTasks: "Scheduled Tasks"
+        case .scheduledTasks: L10n.Settings.scheduledTasks
         case .persona: L10n.Settings.persona
         case .model: L10n.Settings.aiProvider
         case .usage: L10n.Settings.usage
@@ -88,7 +89,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general: L10n.Settings.generalSubtitle
-        case .scheduledTasks: "Configure runtime scheduled prompts"
+        case .scheduledTasks: L10n.Settings.scheduledTasksSubtitle
         case .persona: L10n.Settings.personaSubtitle
         case .model: L10n.Settings.aiProviderSubtitle
         case .usage: L10n.Settings.usageSubtitle
@@ -358,6 +359,8 @@ enum SettingsUIStyle {
     static let borderColor = Color.Aurora.border.opacity(0.45)
     static let dividerColor = Color.Aurora.border.opacity(0.42)
     static let borderWidth: CGFloat = 0.75
+    static let selectionTint = Color.Aurora.primary
+    static let actionTint = Color.Aurora.primary
 }
 
 private struct SettingsInputFieldModifier: ViewModifier {

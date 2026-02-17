@@ -307,6 +307,48 @@
 "settings.about.powered_by" = "技术支持";
 "settings.about.all_rights_reserved" = "© 2024-2026 Velvet. 保留所有权利。";
 "settings.advanced.actions" = "操作";
+"settings.search.prompt" = "搜索设置";
+"settings.a11y.open_settings_hint" = "打开%@设置";
+
+// Scheduled Tasks
+"settings.tab.scheduled_tasks" = "定时任务";
+"settings.tab.scheduled_tasks.subtitle" = "配置运行时定时提示";
+"settings.scheduled_tasks.runtime_scheduler" = "运行时调度器";
+"settings.scheduled_tasks.scope" = "范围";
+"settings.scheduled_tasks.scope.desc" = "定时任务仅在 Motive 运行时执行。";
+"settings.scheduled_tasks.in_app_only" = "仅应用内";
+"settings.scheduled_tasks.section" = "定时任务";
+"settings.scheduled_tasks.no_tasks" = "暂无任务";
+"settings.scheduled_tasks.no_tasks.desc" = "创建你的第一个定时任务。";
+"settings.scheduled_tasks.new_task" = "新建任务";
+"settings.scheduled_tasks.refresh" = "刷新";
+"settings.scheduled_tasks.run_now" = "立即运行";
+"settings.scheduled_tasks.not_scheduled" = "未计划";
+"settings.scheduled_tasks.never_run" = "从未运行";
+"settings.scheduled_tasks.summary" = "下次：%@ · 上次：%@";
+"settings.scheduled_tasks.editor.new" = "新建定时任务";
+"settings.scheduled_tasks.editor.edit" = "编辑定时任务";
+"settings.scheduled_tasks.task_name" = "任务名称";
+"settings.scheduled_tasks.prompt" = "提示词";
+"settings.scheduled_tasks.working_directory_optional" = "工作目录（可选）";
+"settings.scheduled_tasks.agent_optional" = "Agent（可选）";
+"settings.scheduled_tasks.schedule_type" = "调度类型";
+"settings.scheduled_tasks.schedule.once" = "单次";
+"settings.scheduled_tasks.schedule.interval" = "间隔";
+"settings.scheduled_tasks.schedule.daily" = "每天";
+"settings.scheduled_tasks.schedule.weekly" = "每周";
+"settings.scheduled_tasks.schedule.cron" = "Cron";
+"settings.scheduled_tasks.enabled" = "启用";
+"settings.scheduled_tasks.run_at" = "执行时间";
+"settings.scheduled_tasks.interval_seconds" = "间隔秒数（>=60）";
+"settings.scheduled_tasks.time" = "时间";
+"settings.scheduled_tasks.weekday" = "星期";
+"settings.scheduled_tasks.cron_expression" = "Cron（分 时 日 月 周）";
+"settings.scheduled_tasks.next_run" = "下次运行：%@";
+"settings.scheduled_tasks.next_run_unavailable" = "下次运行：不可用";
+"settings.scheduled_tasks.error.task_name_required" = "任务名称不能为空。";
+"settings.scheduled_tasks.error.prompt_required" = "提示词不能为空。";
+"settings.scheduled_tasks.error.interval_minimum" = "间隔至少为 60 秒。";
 
 // MARK: - Drawer
 "drawer.new_session" = "新会话";

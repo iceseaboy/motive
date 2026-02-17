@@ -90,6 +90,8 @@ enum L10n {
         // Tabs
         static let general = "settings.tab.general".localized
         static let generalSubtitle = "settings.tab.general.subtitle".localized
+        static let scheduledTasks = "settings.tab.scheduled_tasks".localized
+        static let scheduledTasksSubtitle = "settings.tab.scheduled_tasks.subtitle".localized
         static let aiProvider = "settings.tab.ai_provider".localized
         static let aiProviderSubtitle = "settings.tab.ai_provider.subtitle".localized
         static let usage = "settings.tab.usage".localized
@@ -321,6 +323,46 @@ enum L10n {
         static let poweredBy = "settings.about.powered_by".localized
         static let allRightsReserved = "settings.about.all_rights_reserved".localized
         static let actions = "settings.advanced.actions".localized
+
+        // Scheduled Tasks
+        static let searchPrompt = "settings.search.prompt".localized
+        static let openSettingsHintFormat = "settings.a11y.open_settings_hint".localized
+        static let schedulerRuntimeSection = "settings.scheduled_tasks.runtime_scheduler".localized
+        static let schedulerScope = "settings.scheduled_tasks.scope".localized
+        static let schedulerScopeDesc = "settings.scheduled_tasks.scope.desc".localized
+        static let schedulerInAppOnly = "settings.scheduled_tasks.in_app_only".localized
+        static let scheduledTasksSection = "settings.scheduled_tasks.section".localized
+        static let noTasksYet = "settings.scheduled_tasks.no_tasks".localized
+        static let noTasksYetDesc = "settings.scheduled_tasks.no_tasks.desc".localized
+        static let newTask = "settings.scheduled_tasks.new_task".localized
+        static let refresh = "settings.scheduled_tasks.refresh".localized
+        static let runNow = "settings.scheduled_tasks.run_now".localized
+        static let notScheduled = "settings.scheduled_tasks.not_scheduled".localized
+        static let neverRun = "settings.scheduled_tasks.never_run".localized
+        static let scheduleSummaryFormat = "settings.scheduled_tasks.summary".localized
+        static let editorNewTitle = "settings.scheduled_tasks.editor.new".localized
+        static let editorEditTitle = "settings.scheduled_tasks.editor.edit".localized
+        static let taskName = "settings.scheduled_tasks.task_name".localized
+        static let prompt = "settings.scheduled_tasks.prompt".localized
+        static let workingDirectoryOptional = "settings.scheduled_tasks.working_directory_optional".localized
+        static let agentOptional = "settings.scheduled_tasks.agent_optional".localized
+        static let scheduleType = "settings.scheduled_tasks.schedule_type".localized
+        static let scheduleOnce = "settings.scheduled_tasks.schedule.once".localized
+        static let scheduleInterval = "settings.scheduled_tasks.schedule.interval".localized
+        static let scheduleDaily = "settings.scheduled_tasks.schedule.daily".localized
+        static let scheduleWeekly = "settings.scheduled_tasks.schedule.weekly".localized
+        static let scheduleCron = "settings.scheduled_tasks.schedule.cron".localized
+        static let enabled = "settings.scheduled_tasks.enabled".localized
+        static let runAt = "settings.scheduled_tasks.run_at".localized
+        static let intervalSeconds = "settings.scheduled_tasks.interval_seconds".localized
+        static let time = "settings.scheduled_tasks.time".localized
+        static let weekday = "settings.scheduled_tasks.weekday".localized
+        static let cronExpression = "settings.scheduled_tasks.cron_expression".localized
+        static let nextRunFormat = "settings.scheduled_tasks.next_run".localized
+        static let nextRunUnavailable = "settings.scheduled_tasks.next_run_unavailable".localized
+        static let taskNameRequired = "settings.scheduled_tasks.error.task_name_required".localized
+        static let promptRequired = "settings.scheduled_tasks.error.prompt_required".localized
+        static let intervalMinimum = "settings.scheduled_tasks.error.interval_minimum".localized
     }
 
     // MARK: - Drawer

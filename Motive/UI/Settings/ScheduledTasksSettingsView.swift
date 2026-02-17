@@ -19,24 +19,24 @@ struct ScheduledTasksSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SettingSection("Runtime Scheduler") {
+            SettingSection(L10n.Settings.schedulerRuntimeSection) {
                 SettingRow(
-                    "Scope",
-                    description: "Scheduled tasks run only while Motive is running.",
+                    L10n.Settings.schedulerScope,
+                    description: L10n.Settings.schedulerScopeDesc,
                     showDivider: false
                 ) {
-                    Text("In-app only")
+                    Text(L10n.Settings.schedulerInAppOnly)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Color.Aurora.textSecondary)
                 }
             }
 
-            SettingSection("Scheduled Tasks") {
+            SettingSection(L10n.Settings.scheduledTasksSection) {
                 ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
                     scheduledTaskRow(task: task, showDivider: index < tasks.count - 1)
                 }
                 if tasks.isEmpty {
-                    SettingRow("No tasks yet", description: "Create your first scheduled task.", showDivider: false) {
+                    SettingRow(L10n.Settings.noTasksYet, description: L10n.Settings.noTasksYetDesc, showDivider: false) {
                         EmptyView()
                     }
                 }
@@ -46,15 +46,16 @@ struct ScheduledTasksSettingsView: View {
                 Button {
                     editorState = .create
                 } label: {
-                    Label("New Task", systemImage: "plus")
+                    Label(L10n.Settings.newTask, systemImage: "plus")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(SettingsUIStyle.actionTint)
 
                 Button {
                     reloadData()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(L10n.Settings.refresh, systemImage: "arrow.clockwise")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.bordered)
@@ -110,9 +111,9 @@ struct ScheduledTasksSettingsView: View {
                 ))
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .tint(Color.Aurora.primary)
+                .tint(SettingsUIStyle.actionTint)
 
-                Button("Run Now") {
+                Button(L10n.Settings.runNow) {
                     runNow(task)
                 }
                 .buttonStyle(.bordered)
@@ -143,14 +144,14 @@ struct ScheduledTasksSettingsView: View {
         let nextText: String = if let nextRunAt = task.nextRunAt {
             formatter.localizedString(for: nextRunAt, relativeTo: Date())
         } else {
-            "not scheduled"
+            L10n.Settings.notScheduled
         }
         let runText: String = if let run = latestRunsByTaskID[task.id] {
             run.status
         } else {
-            "never run"
+            L10n.Settings.neverRun
         }
-        return "Next: \(nextText) · Last: \(runText)"
+        return L10n.Settings.scheduleSummaryFormat.localized(with: nextText, runText)
     }
 
     private func saveDraft(_ draft: ScheduledTaskDraft, editingTask: ScheduledTask?) {
@@ -299,34 +300,34 @@ private struct ScheduledTaskEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(existingTask == nil ? "New Scheduled Task" : "Edit Scheduled Task")
+            Text(existingTask == nil ? L10n.Settings.editorNewTitle : L10n.Settings.editorEditTitle)
                 .font(.system(size: 16, weight: .semibold))
 
-            TextField("Task name", text: $draft.name)
+            TextField(L10n.Settings.taskName, text: $draft.name)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("Prompt", text: $draft.prompt, axis: .vertical)
+            TextField(L10n.Settings.prompt, text: $draft.prompt, axis: .vertical)
                 .lineLimit(3 ... 8)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("Working directory (optional)", text: $draft.projectPath)
+            TextField(L10n.Settings.workingDirectoryOptional, text: $draft.projectPath)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("Agent (optional)", text: $draft.agent)
+            TextField(L10n.Settings.agentOptional, text: $draft.agent)
                 .textFieldStyle(.roundedBorder)
 
-            Picker("Schedule type", selection: $draft.scheduleType) {
-                Text("Once").tag(ScheduledTaskScheduleType.once)
-                Text("Interval").tag(ScheduledTaskScheduleType.interval)
-                Text("Daily").tag(ScheduledTaskScheduleType.daily)
-                Text("Weekly").tag(ScheduledTaskScheduleType.weekly)
-                Text("Cron").tag(ScheduledTaskScheduleType.cron)
+            Picker(L10n.Settings.scheduleType, selection: $draft.scheduleType) {
+                Text(L10n.Settings.scheduleOnce).tag(ScheduledTaskScheduleType.once)
+                Text(L10n.Settings.scheduleInterval).tag(ScheduledTaskScheduleType.interval)
+                Text(L10n.Settings.scheduleDaily).tag(ScheduledTaskScheduleType.daily)
+                Text(L10n.Settings.scheduleWeekly).tag(ScheduledTaskScheduleType.weekly)
+                Text(L10n.Settings.scheduleCron).tag(ScheduledTaskScheduleType.cron)
             }
             .pickerStyle(.segmented)
 
             scheduleEditor
 
-            Toggle("Enabled", isOn: $draft.isEnabled)
+            Toggle(L10n.Settings.enabled, isOn: $draft.isEnabled)
 
             Text(previewText)
                 .font(.system(size: 12))
@@ -340,9 +341,9 @@ private struct ScheduledTaskEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button(L10n.cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") {
+                Button(L10n.save) {
                     save()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -356,24 +357,24 @@ private struct ScheduledTaskEditorSheet: View {
     private var scheduleEditor: some View {
         switch draft.scheduleType {
         case .once:
-            DatePicker("Run at", selection: $draft.onceAt)
+            DatePicker(L10n.Settings.runAt, selection: $draft.onceAt)
         case .interval:
-            TextField("Interval seconds (>=60)", value: $draft.intervalSeconds, format: .number)
+            TextField(L10n.Settings.intervalSeconds, value: $draft.intervalSeconds, format: .number)
                 .textFieldStyle(.roundedBorder)
         case .daily:
-            DatePicker("Time", selection: $draft.dailyTime, displayedComponents: .hourAndMinute)
+            DatePicker(L10n.Settings.time, selection: $draft.dailyTime, displayedComponents: .hourAndMinute)
         case .weekly:
             HStack {
-                Picker("Weekday", selection: $draft.weeklyWeekday) {
+                Picker(L10n.Settings.weekday, selection: $draft.weeklyWeekday) {
                     ForEach(1 ... 7, id: \.self) { day in
                         Text(weekdayName(day)).tag(day)
                     }
                 }
                 .frame(width: 180)
-                DatePicker("Time", selection: $draft.weeklyTime, displayedComponents: .hourAndMinute)
+                DatePicker(L10n.Settings.time, selection: $draft.weeklyTime, displayedComponents: .hourAndMinute)
             }
         case .cron:
-            TextField("Cron (m h dom mon dow)", text: $draft.cronExpression)
+            TextField(L10n.Settings.cronExpression, text: $draft.cronExpression)
                 .textFieldStyle(.roundedBorder)
         }
     }
@@ -395,26 +396,26 @@ private struct ScheduledTaskEditorSheet: View {
                 lastRunAt: draft.lastRunAt
             )
             if let next = try NextRunCalculator.nextRun(for: temporaryTask, from: Date()) {
-                return "Next run: \(next.formatted(date: .abbreviated, time: .shortened))"
+                return L10n.Settings.nextRunFormat.localized(with: next.formatted(date: .abbreviated, time: .shortened))
             }
-            return "Next run: not available"
+            return L10n.Settings.nextRunUnavailable
         } catch {
-            return "Next run: \(error.localizedDescription)"
+            return L10n.Settings.nextRunFormat.localized(with: error.localizedDescription)
         }
     }
 
     private func save() {
         errorMessage = nil
         guard !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "Task name is required."
+            errorMessage = L10n.Settings.taskNameRequired
             return
         }
         guard !draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "Prompt is required."
+            errorMessage = L10n.Settings.promptRequired
             return
         }
         if draft.scheduleType == .interval, draft.intervalSeconds < 60 {
-            errorMessage = "Interval must be at least 60 seconds."
+            errorMessage = L10n.Settings.intervalMinimum
             return
         }
         do {
