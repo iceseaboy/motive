@@ -43,7 +43,7 @@ extension Color {
         }
 
         // MARK: - Accent Colors (Graphite Metallic)
-        
+
         /// Accent start - Lighter Graphite
         static var accentStart: Color {
             Color(nsColor: NSColor(name: nil) { appearance in

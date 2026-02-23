@@ -54,7 +54,7 @@ final class DrawerWindowController {
         ) { [weak self] _ in
             guard let self else { return }
             // Guard: don't auto-hide if we just showed (prevents focus-race glitches)
-            if !self.suppressAutoHide && Date().timeIntervalSince(self.lastShowTime) > 0.3 {
+            if !self.suppressAutoHide, Date().timeIntervalSince(self.lastShowTime) > 0.3 {
                 self.hide()
             }
         }

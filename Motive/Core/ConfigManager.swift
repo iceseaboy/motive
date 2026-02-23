@@ -219,7 +219,9 @@ final class ConfigManager: ObservableObject, SkillConfigProvider {
         case clear
         case tinted
 
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
 
         var displayName: String {
             switch self {
@@ -228,7 +230,6 @@ final class ConfigManager: ObservableObject, SkillConfigProvider {
             }
         }
     }
-
 
     enum CommandBarPosition: String, CaseIterable, Identifiable {
         case center
@@ -239,7 +240,9 @@ final class ConfigManager: ObservableObject, SkillConfigProvider {
         case bottomMiddle
         case bottomTrailing
 
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
 
         var displayName: String {
             switch self {

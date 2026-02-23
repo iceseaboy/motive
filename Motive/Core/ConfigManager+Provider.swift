@@ -43,7 +43,7 @@ extension ConfigManager {
         // list taken from Provider.isOpenAICompatible or similar if it exists
         // Looking at the use cases, if it's an OpenAI/LM Studio provider and it's a custom URL.
         let isOpenAICompatible = provider == .openai || provider == .lmstudio || provider == .deepseek
-        
+
         if isOpenAICompatible {
             // If it ends in a port and has no path, or ends in just the host, append /v1
             if let components = URLComponents(string: raw) {
@@ -55,7 +55,7 @@ extension ConfigManager {
                 }
             }
         }
-        
+
         return raw
     }
 
@@ -89,10 +89,10 @@ extension ConfigManager {
 
     var hasAPIKey: Bool {
         let isCustomURL = !baseURL.isEmpty && !isDefaultBaseURL(for: provider)
-        
+
         // If provider allows optional keys (LM Studio, Ollama), it's only truly optional
         // if we are using the default local/unauthenticated endpoint.
-        if provider.allowsOptionalAPIKey && !isCustomURL {
+        if provider.allowsOptionalAPIKey, !isCustomURL {
             return true
         }
 
@@ -104,7 +104,7 @@ extension ConfigManager {
             }
             return !apiKey.isEmpty
         }
-        
+
         return true
     }
 

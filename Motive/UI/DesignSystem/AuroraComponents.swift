@@ -126,7 +126,7 @@ struct AuroraStatusIndicator: View {
                     .frame(width: 20, height: 20)
                     .scaleEffect(isPulsing ? 1.8 : 1.0)
                     .opacity(isPulsing ? 0 : 0.6)
-                
+
                 // Secondary tighter pulse
                 Circle()
                     .fill(stateColor.opacity(0.25))

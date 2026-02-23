@@ -59,7 +59,6 @@ struct GeneralSettingsView: View {
                     )
                 }
 
-
                 SettingRow(L10n.Settings.language, description: L10n.Settings.languageDesc, showDivider: false) {
                     menuPicker(
                         selection: Binding(

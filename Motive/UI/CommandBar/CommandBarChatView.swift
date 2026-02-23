@@ -26,12 +26,14 @@ struct CommandBarChatView: View {
     @State private var streamingScrollTask: Task<Void, Never>? = nil
     @FocusState private var isInputFocused: Bool
 
-    private var isDark: Bool { colorScheme == .dark }
+    private var isDark: Bool {
+        colorScheme == .dark
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             chatHeader
-            
+
             Rectangle()
                 .fill(Color.Aurora.glassOverlay.opacity(isDark ? 0.06 : 0.12))
                 .frame(height: 0.5)

@@ -7,8 +7,8 @@
 //  Pass `mode` directly to avoid @EnvironmentObject propagation issues.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Core Primitive (direct mode parameter — safe everywhere)
 
@@ -19,7 +19,9 @@ struct LiquidGlassBackground: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isDark: Bool { colorScheme == .dark }
+    private var isDark: Bool {
+        colorScheme == .dark
+    }
 
     var body: some View {
         if #available(macOS 26, *) {

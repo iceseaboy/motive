@@ -134,16 +134,16 @@ final class CommandBarWindowController {
         positionWindow(for: configManager.commandBarPosition)
 
         // 2. Do NOT activate app (nonactivatingPanel style handles focus without flickering others)
-        // NSApp.activate(ignoringOtherApps: true) 
+        // NSApp.activate(ignoringOtherApps: true)
 
         // 3. Show window with scale and fade animation
         window.alphaValue = 0
         applyCenteredScale(0.96)
-        
+
         window.orderFrontRegardless()
         window.makeKey()
         window.invalidateShadow()
-        
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.1
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -209,7 +209,7 @@ final class CommandBarWindowController {
         let heightDelta = newHeight - currentFrame.height
         var newFrame = currentFrame
         newFrame.size.height = newHeight
-        
+
         // If anchored to the bottom, keep BOTTOM edge (origin.y) fixed, expand upward.
         // Otherwise (top/center), keep TOP edge fixed, expand downward.
         if !configManager.commandBarPosition.isBottom {
@@ -234,7 +234,7 @@ final class CommandBarWindowController {
         } else {
             window.setFrame(newFrame, display: true)
         }
-        
+
         updateLayerCenter()
 
         currentHeight = newHeight
@@ -248,10 +248,10 @@ final class CommandBarWindowController {
     private func applyCenteredScale(_ scale: CGFloat) {
         let width = containerView.bounds.width
         let height = containerView.bounds.height
-        
+
         let tx = (width * (1 - scale)) / 2
         let ty = (height * (1 - scale)) / 2
-        
+
         let transform = CATransform3DTranslate(CATransform3DMakeScale(scale, scale, 1.0), tx / scale, ty / scale, 0)
         containerView.layer?.transform = transform
     }
@@ -274,41 +274,41 @@ final class CommandBarWindowController {
     private func positionWindow(for anchor: ConfigManager.CommandBarPosition) {
         guard let screen = screenForMouse() ?? window.screen ?? NSScreen.main else { return }
         let screenFrame = screen.visibleFrame // use visibleFrame to respect dock/menubar
-        
+
         let height = max(96, currentHeight)
         let windowSize = NSSize(width: Self.panelWidth, height: height)
         let padding: CGFloat = 20
-        
+
         var x: CGFloat
         var y: CGFloat
-        
+
         switch anchor {
         case .center:
             x = screenFrame.midX - windowSize.width / 2
             // Position input at ~55% from bottom of screen (Spotlight-like vibe)
             let topEdgeY = screenFrame.minY + screenFrame.height * 0.55 + 100
             y = topEdgeY - height
-            
+
         case .topLeading:
             x = screenFrame.minX + padding
             y = screenFrame.maxY - windowSize.height - padding
-            
+
         case .topMiddle:
             x = screenFrame.midX - windowSize.width / 2
             y = screenFrame.maxY - windowSize.height - padding
-            
+
         case .topTrailing:
             x = screenFrame.maxX - windowSize.width - padding
             y = screenFrame.maxY - windowSize.height - padding
-            
+
         case .bottomLeading:
             x = screenFrame.minX + padding
             y = screenFrame.minY + padding
-            
+
         case .bottomMiddle:
             x = screenFrame.midX - windowSize.width / 2
             y = screenFrame.minY + padding
-            
+
         case .bottomTrailing:
             x = screenFrame.maxX - windowSize.width - padding
             y = screenFrame.minY + padding

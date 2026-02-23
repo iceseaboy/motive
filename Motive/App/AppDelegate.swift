@@ -242,11 +242,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerHotkey() {
         guard let configManager = appState?.configManagerRef else { return }
         let (modifiers, keyCode) = HotkeyParser.parseToKeyCode(configManager.hotkey)
-        
+
         hotkeyManager.onKeyDown = { [weak self] in
             self?.toggleCommandBar()
         }
-        
+
         if hotkeyManager.register(modifiers: modifiers, keyCode: keyCode) {
             Log.debug("Hotkey \(configManager.hotkey) registered successfully via Carbon")
         } else {
