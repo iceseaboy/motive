@@ -16,6 +16,7 @@ struct ScheduledTasksSettingsView: View {
     @State private var latestRunsByTaskID: [UUID: ScheduledTaskRun] = [:]
     @State private var editorState: ScheduledTaskEditorState?
     @State private var inlineError: String?
+    @State private var isLoaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -71,15 +72,13 @@ struct ScheduledTasksSettingsView: View {
 
             Spacer()
         }
-        .onAppear {
-            reloadData()
-        }
         .task {
+            reloadData()
+            isLoaded = true
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
-                await MainActor.run {
-                    reloadData()
-                }
+                guard !Task.isCancelled else { break }
+                reloadData()
             }
         }
         .sheet(item: $editorState) { state in
@@ -138,11 +137,15 @@ struct ScheduledTasksSettingsView: View {
         }
     }
 
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
     private func scheduleDescription(for task: ScheduledTask) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
         let nextText: String = if let nextRunAt = task.nextRunAt {
-            formatter.localizedString(for: nextRunAt, relativeTo: Date())
+            Self.relativeFormatter.localizedString(for: nextRunAt, relativeTo: Date())
         } else {
             L10n.Settings.notScheduled
         }
@@ -242,14 +245,22 @@ struct ScheduledTasksSettingsView: View {
 
     private func reloadData() {
         guard let modelContext = appState.modelContext else { return }
-        let taskDescriptor = FetchDescriptor<ScheduledTask>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        let taskDescriptor = FetchDescriptor<ScheduledTask>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
         tasks = (try? modelContext.fetch(taskDescriptor)) ?? []
 
-        let runDescriptor = FetchDescriptor<ScheduledTaskRun>(sortBy: [SortDescriptor(\.triggeredAt, order: .reverse)])
-        let runs = (try? modelContext.fetch(runDescriptor)) ?? []
         var latest: [UUID: ScheduledTaskRun] = [:]
-        for run in runs where latest[run.taskID] == nil {
-            latest[run.taskID] = run
+        for task in tasks {
+            let taskID = task.id
+            var runDescriptor = FetchDescriptor<ScheduledTaskRun>(
+                predicate: #Predicate { $0.taskID == taskID },
+                sortBy: [SortDescriptor(\.triggeredAt, order: .reverse)]
+            )
+            runDescriptor.fetchLimit = 1
+            if let run = (try? modelContext.fetch(runDescriptor))?.first {
+                latest[taskID] = run
+            }
         }
         latestRunsByTaskID = latest
     }
