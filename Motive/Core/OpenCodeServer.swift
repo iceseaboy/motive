@@ -144,31 +144,38 @@ actor OpenCodeServer {
         stderrDrainTask?.cancel()
         stderrDrainTask = nil
 
-        guard let process else {
-            state = .stopped
+        // Mark stopped IMMEDIATELY — before the graceful-shutdown wait loop.
+        // The wait loop has `await` suspension points where a racing handleCrash()
+        // could re-enter the actor and spawn a new process. Setting .stopped first
+        // ensures handleCrash() sees it and bails out.
+        let processToStop = self.process
+        state = .stopped
+        restartCount = 0
+
+        guard let processToStop else {
+            self.process = nil
+            self.stdoutPipe = nil
             clearPIDFile()
             return
         }
 
-        logger.info("Stopping OpenCode server (PID: \(process.processIdentifier))...")
+        logger.info("Stopping OpenCode server (PID: \(processToStop.processIdentifier))...")
 
-        process.terminate()
+        processToStop.terminate()
 
         let deadline = Date().addingTimeInterval(Self.gracefulShutdownSeconds)
-        while process.isRunning, Date() < deadline {
+        while processToStop.isRunning, Date() < deadline {
             try? await Task.sleep(nanoseconds: UInt64(MotiveConstants.Timeouts.serverStartupPoll * 1_000_000_000))
         }
 
-        if process.isRunning {
+        if processToStop.isRunning {
             logger.warning("Server did not stop gracefully, sending SIGKILL")
-            kill(process.processIdentifier, SIGKILL)
+            kill(processToStop.processIdentifier, SIGKILL)
         }
 
-        self.process = nil
-        self.stdoutPipe = nil
-        state = .stopped
-        restartCount = 0
-        clearPIDFile()
+        // Final cleanup — also catches any process a racing handleCrash()
+        // managed to spawn before seeing .stopped (belt-and-suspenders).
+        cleanupCurrentProcess()
         logger.info("OpenCode server stopped")
     }
 
@@ -376,6 +383,17 @@ actor OpenCodeServer {
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled else { return }
 
+            // Another caller (e.g. startIfNeeded) may have started a new server
+            // while we were sleeping. Bail out to avoid spawning a duplicate process.
+            switch state {
+            case .starting, .running, .stopped:
+                logger.info("Server state changed during backoff (\(String(describing: self.state))), skipping crash restart")
+                return
+            case .crashed:
+                break
+            }
+
+            state = .starting
             let url = try await spawnAndDetectPort(configuration: configuration)
             state = .running(url)
             startMonitor(configuration: configuration)
@@ -384,8 +402,16 @@ actor OpenCodeServer {
             // Notify the bridge so it can reconnect SSE and update API client
             await onRestart?(url)
         } catch {
-            cleanupCurrentProcess()
-            logger.error("Server restart failed: \(error.localizedDescription)")
+            // Only clean up if we own the current process (state is still .starting
+            // from our transition above). If cancelled, another path may have already
+            // taken ownership of self.process — cleaning up would kill their process.
+            if case .starting = state {
+                cleanupCurrentProcess()
+                state = .crashed
+            }
+            if !Task.isCancelled {
+                logger.error("Server restart failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -450,24 +476,56 @@ actor OpenCodeServer {
         try? FileManager.default.removeItem(at: Self.pidFileURL)
     }
 
-    /// Kill any stale server process left over from a previous app run.
+    /// Kill any stale server processes left over from a previous app run.
     ///
-    /// Reads the PID file, verifies the process is alive, sends SIGTERM/SIGKILL,
-    /// and removes the PID file. Call at app launch before starting a new server.
+    /// Two-phase cleanup:
+    /// 1. PID file — kill the tracked process.
+    /// 2. `pgrep` — find and kill any orphaned `opencode serve` processes
+    ///    that leaked due to actor reentrancy races in previous runs.
     static func terminateStaleProcess() {
         let log = Logger(subsystem: "com.velvet.motive", category: "OpenCodeServer")
-        guard let pidString = try? String(contentsOf: pidFileURL, encoding: .utf8),
-              let pid = pid_t(pidString.trimmingCharacters(in: .whitespacesAndNewlines)),
-              pid > 0
-        else { return }
 
-        guard kill(pid, 0) == 0 else {
-            // Process no longer exists — clean up stale PID file
+        // Phase 1: PID file
+        if let pidString = try? String(contentsOf: pidFileURL, encoding: .utf8),
+           let pid = pid_t(pidString.trimmingCharacters(in: .whitespacesAndNewlines)),
+           pid > 0
+        {
+            if kill(pid, 0) == 0 {
+                log.info("Killing stale opencode server from PID file (PID: \(pid))")
+                terminatePID(pid)
+            }
             try? FileManager.default.removeItem(at: pidFileURL)
-            return
         }
 
-        log.info("Killing stale opencode server from previous run (PID: \(pid))")
+        // Phase 2: kill orphaned `opencode serve` processes not tracked by PID file
+        killOrphanedServeProcesses(log: log)
+    }
+
+    /// Find and kill all `opencode serve` processes owned by the current user.
+    private static func killOrphanedServeProcesses(log: Logger) {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", "opencode serve --port"]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        pgrep.standardError = FileHandle.nullDevice
+
+        do { try pgrep.run() } catch { return }
+        pgrep.waitUntilExit()
+
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let pids = output.split(separator: "\n")
+            .compactMap { pid_t($0.trimmingCharacters(in: .whitespaces)) }
+            .filter { $0 > 0 }
+
+        guard !pids.isEmpty else { return }
+        log.info("Killing \(pids.count) orphaned opencode serve process(es): \(pids)")
+        for pid in pids {
+            terminatePID(pid)
+        }
+    }
+
+    private static func terminatePID(_ pid: pid_t) {
         kill(pid, SIGTERM)
         var waitMs = 0
         while waitMs < 1000, kill(pid, 0) == 0 {
@@ -477,7 +535,6 @@ actor OpenCodeServer {
         if kill(pid, 0) == 0 {
             kill(pid, SIGKILL)
         }
-        try? FileManager.default.removeItem(at: pidFileURL)
     }
 }
 

@@ -123,6 +123,8 @@ extension AppState {
         bridgeTask?.cancel()
         bridgeTask = Task { await bridge.interrupt() }
 
+        Task { await BrowserUseBridge.shared.agentCancel() }
+
         resetTransientState()
         transitionSessionStatus(.interrupted, for: currentSession)
         menuBarState = .idle

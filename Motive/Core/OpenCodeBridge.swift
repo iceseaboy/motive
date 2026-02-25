@@ -107,6 +107,20 @@ actor OpenCodeBridge {
             // Don't start SSE here — submitIntent will lazily start global SSE.
 
             Log.bridge("Bridge started with server at \(url.absoluteString)")
+        } catch OpenCodeServer.ServerError.alreadyRunning {
+            // A concurrent start (crash recovery or duplicate call) is in progress.
+            // Poll server.isRunning from the bridge actor — each check is a brief
+            // cross-actor read that won't block detectPort() on the server actor.
+            Log.bridge("Concurrent start detected, waiting for server to become ready...")
+            for _ in 0 ..< 30 {
+                try? await Task.sleep(for: .milliseconds(500))
+                if await server.isRunning { break }
+            }
+            if let url = await server.serverURL {
+                await apiClient.updateBaseURL(url)
+                await apiClient.updateDirectory(currentWorkingDirectory())
+                Log.bridge("Server became ready at \(url.absoluteString)")
+            }
         } catch {
             Log.error("Failed to start server: \(error.localizedDescription)")
             eventContinuation.yield(OpenCodeEvent(

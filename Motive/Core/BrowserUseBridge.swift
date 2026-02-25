@@ -254,6 +254,17 @@ final class BrowserUseBridge: ObservableObject {
         return result
     }
 
+    /// Cancel any running browser agent task without closing the browser.
+    /// Safe to call even when no agent task is running.
+    func agentCancel() async {
+        guard isActive else { return }
+        do {
+            _ = try await execute(["agent_cancel"])
+        } catch {
+            Log.debug("[BrowserUse] agent_cancel failed (may not be running): \(error)")
+        }
+    }
+
     /// List active browser sessions
     func sessions() async throws -> BrowserResult {
         try await execute(["sessions"])

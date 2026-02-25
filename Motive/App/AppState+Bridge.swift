@@ -360,6 +360,7 @@ extension AppState {
             messageStore.finalizeRunningMessages(in: &buffer)
             transitionSessionStatus(.failed, for: session)
             markScheduledRunFailedIfNeeded(for: session.id, reason: event.text)
+            Task { await BrowserUseBridge.shared.agentCancel() }
             // Insert error system message
             messageStore.insertEventIntoBuffer(event, buffer: &buffer)
             // Persist to SwiftData

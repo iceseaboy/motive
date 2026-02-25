@@ -205,6 +205,8 @@ struct OpenCodeConfigGenerator {
             Log.config(" Provider 'ollama' configured with baseURL: \(ollamaURL), model: \(modelID)")
 
         default:
+            let modelIDForProvider = inputs.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+
             if !baseURLValue.isEmpty {
                 // Build options dict with baseURL, and include apiKey if set.
                 // IMPORTANT: For OpenAI-compatible endpoints (e.g. LM Studio via openai provider)
@@ -218,7 +220,6 @@ struct OpenCodeConfigGenerator {
                     Log.config(" Provider '\(providerName)' custom baseURL API key configured in options")
                 }
 
-                let modelIDForProvider = inputs.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !modelIDForProvider.isEmpty {
                     config["provider"] = [
                         providerName: [
@@ -240,6 +241,18 @@ struct OpenCodeConfigGenerator {
                     ]
                     Log.config(" Provider '\(providerName)' configured with baseURL: \(baseURLValue) (no model override)")
                 }
+            } else if !modelIDForProvider.isEmpty {
+                config["provider"] = [
+                    providerName: [
+                        "models": [
+                            modelIDForProvider: [
+                                "name": modelIDForProvider,
+                                "tool_call": true,
+                            ] as [String: Any],
+                        ],
+                    ] as [String: Any],
+                ]
+                Log.config(" Provider '\(providerName)' configured with model override: \(modelIDForProvider)")
             }
         }
 
