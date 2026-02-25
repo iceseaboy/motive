@@ -39,11 +39,12 @@ final class QuickConfirmWindowController {
 
         // Create hosting view
         let hosting = NSHostingView(rootView: AnyView(view))
+        hosting.sizingOptions = .intrinsicContentSize
         hosting.setFrameSize(hosting.fittingSize)
         hostingView = hosting
 
-        // Create panel
-        let panel = NSPanel(
+        // Create panel — use KeyablePanel so text fields can receive input
+        let panel = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -57,6 +58,7 @@ final class QuickConfirmWindowController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = false
         panel.contentView = hosting
 
         self.panel = panel

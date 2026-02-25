@@ -15,6 +15,7 @@ struct QuickConfirmView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedOptions: Set<String> = []
     @State private var textInput: String = ""
+    @State private var showCustomInput: Bool = false
     private var isDark: Bool {
         colorScheme == .dark
     }
@@ -102,8 +103,19 @@ struct QuickConfirmView: View {
             // Options or text input
             if let options = request.options, !options.isEmpty {
                 optionsView(options: options)
+
+                if showCustomInput {
+                    AuroraStyledTextField(
+                        placeholder: L10n.Permission.typeAnswer,
+                        text: $textInput
+                    )
+                    .onSubmit {
+                        let trimmed = textInput.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty { onResponse(trimmed) }
+                    }
+                }
             } else {
-                // Free text input
+                // Free text input (no options at all)
                 AuroraStyledTextField(
                     placeholder: L10n.Permission.typeAnswer,
                     text: $textInput
@@ -131,12 +143,15 @@ struct QuickConfirmView: View {
         let accentColor = isPlanExecute ? Color.Aurora.success : Color.Aurora.microAccent
 
         return Button {
-            if isMultiSelect {
+            if option.label.lowercased() == "other" {
+                showCustomInput.toggle()
+            } else if isMultiSelect {
                 if isSelected {
                     selectedOptions.remove(optionValue)
                 } else {
                     selectedOptions.insert(optionValue)
                 }
+                showCustomInput = false
             } else {
                 onResponse(optionValue)
             }
@@ -238,18 +253,25 @@ struct QuickConfirmView: View {
     private var actionButtons: some View {
         switch request.type {
         case .question:
-            if request.multiSelect == true || request.options == nil {
+            if request.multiSelect == true || request.options == nil || showCustomInput {
                 HStack(spacing: AuroraSpacing.space2) {
                     Spacer()
 
                     Button(L10n.cancel) {
-                        onCancel()
+                        if showCustomInput, request.multiSelect != true {
+                            showCustomInput = false
+                            textInput = ""
+                        } else {
+                            onCancel()
+                        }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
 
                     Button(L10n.submit) {
-                        if request.options != nil {
+                        if showCustomInput, !textInput.trimmingCharacters(in: .whitespaces).isEmpty {
+                            onResponse(textInput.trimmingCharacters(in: .whitespaces))
+                        } else if request.options != nil {
                             onResponse(selectedOptions.joined(separator: ","))
                         } else {
                             onResponse(textInput)
@@ -258,7 +280,7 @@ struct QuickConfirmView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(Color.Aurora.microAccent)
                     .controlSize(.small)
-                    .disabled(request.options != nil ? selectedOptions.isEmpty : textInput.isEmpty)
+                    .disabled(submitDisabled)
                     .accessibilityHint("Submit the current answer")
                 }
             }
@@ -331,6 +353,16 @@ struct QuickConfirmView: View {
             return nil
         case .permission:
             return request.permissionType?.capitalized
+        }
+    }
+
+    private var submitDisabled: Bool {
+        if showCustomInput {
+            textInput.trimmingCharacters(in: .whitespaces).isEmpty
+        } else if request.options != nil {
+            selectedOptions.isEmpty
+        } else {
+            textInput.isEmpty
         }
     }
 

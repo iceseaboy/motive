@@ -151,6 +151,7 @@ final class StatusBarController {
         }, glassMode: glassMode)
 
         let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = .intrinsicContentSize
         hostingView.wantsLayer = true
         hostingView.layerContentsRedrawPolicy = .onSetNeedsDisplay
         let size = hostingView.fittingSize
