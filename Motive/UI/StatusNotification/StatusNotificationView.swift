@@ -90,6 +90,8 @@ struct StatusNotificationView: View {
         .background {
             LiquidGlassBackground(mode: glassMode, cornerRadius: 100, showBorder: true)
         }
+        .frame(minWidth: 180, alignment: .leading)
+        .fixedSize(horizontal: true, vertical: true)
         .shadow(color: Color.black.opacity(isDark ? 0.3 : 0.15), radius: 20, x: 0, y: 10)
         .scaleEffect(showContent ? 1.0 : 0.95)
         .opacity(showContent ? 1.0 : 0)
