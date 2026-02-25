@@ -122,10 +122,8 @@ final class MessageStore: ObservableObject {
     func handleTodoWriteEvent(_ event: OpenCodeEvent, buffer: inout [ConversationMessage]) {
         let todoItems = parseTodoItems(from: event)
         guard !todoItems.isEmpty else {
-            Log.debug("TodoWrite: no items parsed from event")
-            if let message = event.toMessage() {
-                processToolMessage(message, into: &buffer)
-            }
+            Log.debug("TodoWrite: no items parsed from event, skipping")
+            finalizeTodoWriteToolMessages(event: event, buffer: &buffer)
             return
         }
 
@@ -300,14 +298,29 @@ final class MessageStore: ObservableObject {
 
     // MARK: - Tool Lifecycle Helpers
 
-    /// When a step/task finishes, mark any still-running tool messages as completed.
+    /// When a step/task finishes, mark any still-running tool messages as completed
+    /// and finalize todo item statuses.
     func finalizeRunningMessages() {
         finalizeRunningMessages(in: &messages)
     }
 
     func finalizeRunningMessages(in buffer: inout [ConversationMessage]) {
-        for i in buffer.indices where buffer[i].type == .tool && buffer[i].status == .running {
-            buffer[i] = buffer[i].withStatus(.completed)
+        for i in buffer.indices {
+            if buffer[i].type == .tool, buffer[i].status == .running {
+                buffer[i] = buffer[i].withStatus(.completed)
+            } else if buffer[i].type == .todo, let items = buffer[i].todoItems {
+                let finalized = items.map { item -> TodoItem in
+                    switch item.status {
+                    case .inProgress, .pending:
+                        TodoItem(id: item.id, content: item.content, status: .completed)
+                    case .completed, .cancelled:
+                        item
+                    }
+                }
+                if finalized != items {
+                    buffer[i] = buffer[i].withTodos(finalized, summary: todoSummary(finalized))
+                }
+            }
         }
     }
 }
